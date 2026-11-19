@@ -24,7 +24,10 @@ const places = { elements: [
 
 beforeAll(async () => {
   if (!ADMIN) return;
-  srv = createServer((req, res) => { let b = ''; req.on('data', (x) => (b += x)); req.on('end', () => { res.end(JSON.stringify(decodeURIComponent(b).includes('admin_level"="4') ? provinces : places)); }); }).listen(4011);
+  srv = createServer((req, res) => { let b = ''; req.on('data', (x) => (b += x)); req.on('end', () => { const q = decodeURIComponent(b);
+    const m = /rel\((\d+)\);out geom/.exec(q);
+    res.end(JSON.stringify(m ? { elements: provinces.elements.filter((e) => e.id === Number(m[1])) }
+      : q.includes('admin_level"="4') ? { elements: provinces.elements.map((e) => ({ type: e.type, id: e.id, tags: e.tags })) } : places)); }); }).listen(4011);
   process.env.OVERPASS_URL = 'http://localhost:4011/api/interpreter';
   const a = new pg.Client({ connectionString: ADMIN }); await a.connect(); await a.query(`create database ${dbName}`); await a.end();
   const url = ADMIN.replace(/\/[^/]*$/, `/${dbName}`);

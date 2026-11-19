@@ -57,7 +57,7 @@ export async function maybeRunJobs() {
 
 // Importação da base geográfica a partir do servidor (o contentor de desenvolvimento não tem acesso ao Overpass).
 // Protegido por IMPORT_SECRET temporário. ?step=provinces | places
-import { importPlaces, importProvinces } from '../../tools/import-places/core.js';
+import { importPlaces, importProvince, listProvinces } from '../../tools/import-places/core.js';
 route('GET', '/api/admin/import-places', async (req) => {
   const secret = process.env.IMPORT_SECRET;
   if (!secret || secret.length < 24 || !safeEqual(req.query.get('secret') ?? '', secret)) throw new HttpError(404, 'rota_inexistente');
@@ -65,6 +65,10 @@ route('GET', '/api/admin/import-places', async (req) => {
   const mirror = req.query.get('mirror');
   if (mirror != null) process.env.OVERPASS_MIRROR_INDEX = mirror; else delete process.env.OVERPASS_MIRROR_INDEX;
   if (req.query.get('timeout')) process.env.OVERPASS_TIMEOUT_MS = String(Math.min(280_000, Number(req.query.get('timeout'))));
-  try { return ok(await withSystem<unknown>((c) => (step === 'provinces' ? importProvinces(c) : importPlaces(c)))); }
+  try {
+    if (step === 'provinces-list') return ok(await listProvinces());
+    if (step === 'province') return ok(await withSystem<unknown>((c) => importProvince(c, Number(req.query.get('id')))));
+    return ok(await withSystem<unknown>((c) => importPlaces(c)));
+  }
   catch (e) { throw new HttpError(502, (e as Error).message.slice(0, 500)); }
 });

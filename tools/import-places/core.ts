@@ -30,27 +30,39 @@ async function dataset(c: pg.ClientBase, name: string, query: string) {
     [name, OVERPASS, query.slice(0, 500)])).rows[0].id as string;
 }
 
-/** Províncias (admin_level=4): polígonos montados no PostGIS a partir das linhas das relações. */
-export async function importProvinces(c: pg.ClientBase) {
-  const q = `[out:json][timeout:55];${AREA}rel(area.mz)["boundary"="administrative"]["admin_level"="4"];out geom;`;
+/** Lista das províncias (admin_level=4): só ids e etiquetas (consulta leve). */
+export async function listProvinces() {
+  const q = `[out:json][timeout:55];${AREA}rel(area.mz)["boundary"="administrative"]["admin_level"="4"];out tags;`;
   const data = await overpass(q);
-  const ds = await dataset(c, 'OSM — províncias de Moçambique (admin_level=4)', q);
+  return data.elements.filter((e) => e.type === 'relation').map((e) => ({ id: e.id as number, name: (e.tags?.['name:pt'] ?? e.tags?.name) as string }));
+}
+
+/** Uma província: polígono montado no PostGIS a partir das linhas da relação (uma consulta por relação). */
+export async function importProvince(c: pg.ClientBase, relId: number) {
+  const q = `[out:json][timeout:55];rel(${Math.trunc(relId)});out geom;`;
+  const data = await overpass(q);
+  const rel = data.elements.find((e) => e.type === 'relation');
+  if (!rel) return { provinces: 0 };
+  const ds = await dataset(c, `OSM — província (relação ${relId}, admin_level=4)`, q);
+  const lines = (rel.members ?? []).filter((m: any) => m.type === 'way' && m.geometry && (m.role === 'outer' || m.role === ''))
+    .map((m: any) => ({ type: 'LineString', coordinates: m.geometry.map((p: any) => [p.lon, p.lat]) }));
+  if (!lines.length) return { provinces: 0 };
+  const name = rel.tags?.['name:pt'] ?? rel.tags?.name;
+  const code = rel.tags?.['ISO3166-2'] ?? `osm-r${rel.id}`;
+  const r = await c.query(`insert into admin_areas (level, name, code, geom, dataset_id)
+    select 1, $1, $2, ST_Multi(ST_CollectionExtract(ST_BuildArea(ST_Collect(ST_GeomFromGeoJSON(g::text))), 3))::geography, $4
+    from jsonb_array_elements($3::jsonb) g
+    having not ST_IsEmpty(ST_BuildArea(ST_Collect(ST_GeomFromGeoJSON(g::text))))
+    on conflict (level, code) do update set name = excluded.name, geom = excluded.geom, dataset_id = excluded.dataset_id, updated_at = now()`,
+    [name, code, JSON.stringify(lines), ds]);
+  await c.query(`update places p set province_id = a.id from admin_areas a where a.level = 1 and a.code = $1 and ST_Covers(a.geom, p.geom) and p.province_id is distinct from a.id`, [code]);
+  return { provinces: r.rowCount ?? 0, name };
+}
+
+/** Todas as províncias (CLI): lista + uma consulta por província. */
+export async function importProvinces(c: pg.ClientBase) {
   let n = 0;
-  for (const rel of data.elements.filter((e) => e.type === 'relation')) {
-    const lines = (rel.members ?? []).filter((m: any) => m.type === 'way' && m.geometry && (m.role === 'outer' || m.role === ''))
-      .map((m: any) => ({ type: 'LineString', coordinates: m.geometry.map((p: any) => [p.lon, p.lat]) }));
-    if (!lines.length) continue;
-    const name = rel.tags?.['name:pt'] ?? rel.tags?.name;
-    const code = rel.tags?.['ISO3166-2'] ?? `osm-r${rel.id}`;
-    const r = await c.query(`insert into admin_areas (level, name, code, geom, dataset_id)
-      select 1, $1, $2, ST_Multi(ST_CollectionExtract(ST_BuildArea(ST_Collect(ST_GeomFromGeoJSON(g::text))), 3))::geography, $4
-      from jsonb_array_elements($3::jsonb) g
-      having not ST_IsEmpty(ST_BuildArea(ST_Collect(ST_GeomFromGeoJSON(g::text))))
-      on conflict (level, code) do update set name = excluded.name, geom = excluded.geom, dataset_id = excluded.dataset_id, updated_at = now()`,
-      [name, code, JSON.stringify(lines), ds]);
-    n += r.rowCount ?? 0;
-  }
-  await c.query(`update places p set province_id = a.id from admin_areas a where a.level = 1 and ST_Covers(a.geom, p.geom) and p.province_id is distinct from a.id`);
+  for (const p of await listProvinces()) n += (await importProvince(c, p.id)).provinces;
   return { provinces: n };
 }
 
