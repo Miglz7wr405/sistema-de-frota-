@@ -20,7 +20,8 @@
     "db:test": "tsx db/run-tests.ts",
     "sim": "tsx tools/gps-simulator/index.ts",
     "import:places": "tsx tools/import-places/index.ts",
-    "build:vercel": "node scripts/build-vercel.mjs"
+    "build:vercel": "node scripts/gen-migrations.mjs && node scripts/build-vercel.mjs",
+    "gen:migrations": "node scripts/gen-migrations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

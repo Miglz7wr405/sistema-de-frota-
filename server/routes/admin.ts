@@ -4,25 +4,8 @@
 import { route, ok, HttpError } from '../http.js';
 import { safeEqual } from '../crypto.js';
 import pg from 'pg';
-import m0001 from '../../db/migrations/0001_base.sql';
-import m0002 from '../../db/migrations/0002_frota.sql';
-import m0003 from '../../db/migrations/0003_viagens.sql';
-import m0004 from '../../db/migrations/0004_percurso.sql';
-import m0005 from '../../db/migrations/0005_telemetria.sql';
-import m0006 from '../../db/migrations/0006_partilha.sql';
-import m0007 from '../../db/migrations/0007_alertas.sql';
-import m0008 from '../../db/migrations/0008_custos.sql';
-import m0009 from '../../db/migrations/0009_rls.sql';
-import m0010 from '../../db/migrations/0010_plataforma.sql';
-import m0011 from '../../db/migrations/0011_rota_base.sql';
-import m0012 from '../../db/migrations/0012_utilizacao_e_eta.sql';
-import m0013 from '../../db/migrations/0013_transicao_offline.sql';
-
-export const MIGRATIONS: [string, string][] = [
-  ['0001_base.sql', m0001], ['0002_frota.sql', m0002], ['0003_viagens.sql', m0003], ['0004_percurso.sql', m0004], ['0005_telemetria.sql', m0005],
-  ['0006_partilha.sql', m0006], ['0007_alertas.sql', m0007], ['0008_custos.sql', m0008], ['0009_rls.sql', m0009], ['0010_plataforma.sql', m0010],
-  ['0011_rota_base.sql', m0011], ['0012_utilizacao_e_eta.sql', m0012], ['0013_transicao_offline.sql', m0013],
-];
+import { MIGRATIONS } from '../generated/migrations.js';
+export { MIGRATIONS };
 
 route('GET', '/api/admin/migrate', async (req) => {
   const secret = process.env.MIGRATE_SECRET;
