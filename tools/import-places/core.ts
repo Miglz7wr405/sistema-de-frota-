@@ -5,8 +5,8 @@ import type pg from 'pg';
 
 // Servidores Overpass públicos (o primeiro que responder). ⚠️ DEPENDÊNCIA EXTERNA: serviços gratuitos, sem SLA.
 const MIRRORS = process.env.OVERPASS_URL ? [process.env.OVERPASS_URL] : [
-  'https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+  'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter', 'https://overpass-api.de/api/interpreter'];
 let OVERPASS = MIRRORS[0]!;
 const AREA = 'area["ISO3166-1"="MZ"][admin_level=2]->.mz;';
 
@@ -15,7 +15,7 @@ async function overpass(query: string): Promise<{ elements: any[] }> {
   for (const url of MIRRORS) {
     try {
       const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'insightFrota/0.1 (importacao de localidades)' },
-        body: 'data=' + encodeURIComponent(query), signal: AbortSignal.timeout(Number(process.env.OVERPASS_TIMEOUT_MS ?? 45_000)) });
+        body: 'data=' + encodeURIComponent(query), signal: AbortSignal.timeout(Number(process.env.OVERPASS_TIMEOUT_MS ?? 60_000)) });
       if (!r.ok) { errors.push(`${url}:${r.status}`); continue; }
       OVERPASS = url;
       return (await r.json()) as { elements: any[] };
@@ -31,7 +31,7 @@ async function dataset(c: pg.ClientBase, name: string, query: string) {
 
 /** Províncias (admin_level=4): polígonos montados no PostGIS a partir das linhas das relações. */
 export async function importProvinces(c: pg.ClientBase) {
-  const q = `[out:json][timeout:50];${AREA}rel(area.mz)["boundary"="administrative"]["admin_level"="4"];out geom;`;
+  const q = `[out:json][timeout:55];${AREA}rel(area.mz)["boundary"="administrative"]["admin_level"="4"];out geom;`;
   const data = await overpass(q);
   const ds = await dataset(c, 'OSM — províncias de Moçambique (admin_level=4)', q);
   let n = 0;
@@ -57,7 +57,7 @@ const KIND: Record<string, string> = { city: 'city', town: 'town', village: 'vil
 
 /** Localidades + pontos de referência (portagens, fronteiras, postos de controlo, balanças). */
 export async function importPlaces(c: pg.ClientBase) {
-  const q = `[out:json][timeout:50];${AREA}(node(area.mz)["place"~"^(city|town|village)$"]["name"];node(area.mz)["barrier"~"^(toll_booth|border_control)$"];` +
+  const q = `[out:json][timeout:55];${AREA}(node(area.mz)["place"~"^(city|town|village)$"]["name"];node(area.mz)["barrier"~"^(toll_booth|border_control)$"];` +
     `node(area.mz)["highway"="checkpoint"];node(area.mz)["amenity"="weighbridge"];);out body;`;
   const data = await overpass(q);
   const ds = await dataset(c, 'OSM — localidades e pontos de referência de Moçambique', q);
