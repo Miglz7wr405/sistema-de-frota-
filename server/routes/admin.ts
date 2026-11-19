@@ -62,6 +62,9 @@ route('GET', '/api/admin/import-places', async (req) => {
   const secret = process.env.IMPORT_SECRET;
   if (!secret || secret.length < 24 || !safeEqual(req.query.get('secret') ?? '', secret)) throw new HttpError(404, 'rota_inexistente');
   const step = req.query.get('step');
+  const mirror = req.query.get('mirror');
+  if (mirror != null) process.env.OVERPASS_MIRROR_INDEX = mirror; else delete process.env.OVERPASS_MIRROR_INDEX;
+  if (req.query.get('timeout')) process.env.OVERPASS_TIMEOUT_MS = String(Math.min(280_000, Number(req.query.get('timeout'))));
   try { return ok(await withSystem<unknown>((c) => (step === 'provinces' ? importProvinces(c) : importPlaces(c)))); }
   catch (e) { throw new HttpError(502, (e as Error).message.slice(0, 500)); }
 });

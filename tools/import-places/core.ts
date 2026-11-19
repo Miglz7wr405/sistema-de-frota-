@@ -12,14 +12,15 @@ const AREA = 'area["ISO3166-1"="MZ"][admin_level=2]->.mz;';
 
 async function overpass(query: string): Promise<{ elements: any[] }> {
   const errors: string[] = [];
-  for (const url of MIRRORS) {
+  const only = process.env.OVERPASS_MIRROR_INDEX;
+  for (const url of only != null ? [MIRRORS[Number(only)] ?? MIRRORS[0]!] : MIRRORS) {
     try {
       const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'insightFrota/0.1 (importacao de localidades)' },
         body: 'data=' + encodeURIComponent(query), signal: AbortSignal.timeout(Number(process.env.OVERPASS_TIMEOUT_MS ?? 60_000)) });
-      if (!r.ok) { errors.push(`${url}:${r.status}`); continue; }
+      if (!r.ok) { errors.push(`${url}:${r.status}`); console.warn('[overpass]', url, r.status); continue; }
       OVERPASS = url;
       return (await r.json()) as { elements: any[] };
-    } catch (e) { errors.push(`${url}:${(e as Error).message}`); }
+    } catch (e) { errors.push(`${url}:${(e as Error).message}`); console.warn('[overpass]', url, (e as Error).message); }
   }
   throw new Error(`overpass_indisponivel ${errors.join(' | ')}`);
 }
