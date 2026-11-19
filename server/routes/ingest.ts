@@ -68,3 +68,16 @@ route('POST', '/api/ingest/traccar', async (req) => {
   };
   return ok(await ingest(src, [parse(PointSchema, pt)], null));
 });
+
+// Para o simulador GPS: rota atual da viagem ativa de um camião (só com chave de simulador da mesma organização).
+route('GET', '/api/ingest/route', async (req) => {
+  const k = await keySource(req);
+  if (!k || k.scope !== 'simulator') throw new HttpError(401, 'chave_invalida');
+  const vehicleId = req.query.get('vehicle_id') ?? '';
+  if (!/^[0-9a-f-]{36}$/i.test(vehicleId)) throw new HttpError(400, 'vehicle_id_obrigatorio');
+  const r = await withSystem((c) => one<{ trip_id: string; code: string; g: string; length_m: number }>(c, `select t.id trip_id, t.code, ST_AsGeoJSON(r.geom::geometry, 6) g, r.length_m
+    from trips t join trip_routes r on r.trip_id = t.id and r.is_current
+    where t.vehicle_id = $1 and t.organization_id = $2 and t.status in ('em_viagem','pausada') and t.deleted_at is null limit 1`, [vehicleId, k.organization_id]));
+  if (!r) throw new HttpError(404, 'sem_viagem_ativa_com_rota');
+  return ok({ tripId: r.trip_id, code: r.code, lengthM: r.length_m, coordinates: JSON.parse(r.g).coordinates });
+});

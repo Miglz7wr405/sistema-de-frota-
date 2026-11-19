@@ -71,3 +71,13 @@ route('POST', '/api/jobs/run', async (req) => {
 export async function maybeRunJobs() {
   try { if (await hit('jobs:periodic', 300, 1)) await runJobs('periodic'); } catch (e) { console.warn('[jobs]', (e as Error).message); }
 }
+
+// Importação da base geográfica a partir do servidor (o contentor de desenvolvimento não tem acesso ao Overpass).
+// Protegido por IMPORT_SECRET temporário. ?step=provinces | places
+import { importPlaces, importProvinces } from '../../tools/import-places/core.js';
+route('GET', '/api/admin/import-places', async (req) => {
+  const secret = process.env.IMPORT_SECRET;
+  if (!secret || secret.length < 24 || !safeEqual(req.query.get('secret') ?? '', secret)) throw new HttpError(404, 'rota_inexistente');
+  const step = req.query.get('step');
+  return ok(await withSystem<unknown>((c) => (step === 'provinces' ? importProvinces(c) : importPlaces(c))));
+});
