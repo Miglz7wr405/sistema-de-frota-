@@ -158,3 +158,41 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 
 ## ADR-013 — Biblioteca de geometria partilhada entre servidor e telemóvel
 **Estado:** Proposta. `src/lib/geo/` em TypeScript puro (sem DOM, sem Node APIs), importada pela SPA (Vite) e pelas Edge Functions (Deno). Testada com Vitest; um teste de equivalência compara os resultados TS com os do PostGIS para a rota de referência.
+
+---
+
+# Decisões da implementação (Fases 1–11, custo zero)
+
+> Estas decisões substituem as indicadas, por imposição de "não pagar nada" e por o Supabase gratuito estar esgotado
+> (a conta já tinha os 2 projetos gratuitos ativos e o proprietário não quis pausar nenhum).
+
+## ADR-014 — Backend: Neon (Postgres) + API em Vercel Functions, sem Supabase
+**Estado:** Aceite. Substitui o uso do Supabase em ADR-006/007/008/010/011.
+- BD **Neon Free**, projeto `insightfrota`, região `aws-eu-central-1` (Frankfurt). PostGIS, pg_trgm, btree_gist, pgcrypto, citext.
+- A SPA (Vite puro) fala só com `/api/*` (mesma origem). A API é **uma única Vercel Function** (Node 20, `fra1`) empacotada com esbuild via Build Output API (`scripts/build-vercel.mjs`). Uma só função porque o plano Hobby limita o n.º de funções.
+- **Isolamento:** cada pedido corre numa transação com `set_config('app.user_id'|'app.org_id'|'app.driver_id')` usando o papel `app_api` **sem BYPASSRLS e sem ser dono das tabelas** — as políticas RLS aplicam-se sempre. Funções `SECURITY DEFINER` controladas para autenticação, partilha pública e ingestão.
+- Ligação de **sistema** (`SYSTEM_DATABASE_URL`, papel dono, equivalente ao `service_role`) usada só no servidor para a ingestão GPS, jobs e migrações.
+- **Consequências:** −Vercel Hobby é para uso não comercial ⚠️ (vender exige Pro, pago). −Neon Free: 1 GB por projeto, 5 GB de tráfego/mês, compute escala a zero (1.º pedido após inatividade mais lento).
+
+## ADR-015 — Autenticação própria (sessões em BD)
+**Estado:** Aceite. Em vez de Neon Auth/Supabase Auth: sessões com token aleatório de 256 bits em cookie `HttpOnly; Secure; SameSite=Lax`, guardado na BD só em hash (sha256), palavra-passe com bcrypt, limitação de tentativas, verificação de origem nos pedidos que alteram dados. Motivo: testável localmente de ponta a ponta, sem SDK externo, mesma base para membros e motoristas. Recuperação de palavra-passe por e-mail só com `RESEND_API_KEY` (⚠️ DEPENDÊNCIA EXTERNA, plano gratuito da Resend); sem ela, a UI diz que não está disponível. Convites geram um link para enviar manualmente (WhatsApp/e-mail).
+
+## ADR-016 — "Tempo real" por polling
+**Estado:** Aceite. A área privada atualiza por polling (10–20 s) e a página pública a cada 20 s (60 s em segundo plano). O Neon Realtime obrigaria a ativar replicação lógica (irreversível) — fica como melhoria opcional.
+
+## ADR-017 — Ficheiros na BD (bytea, ≤ 2 MB)
+**Estado:** Aceite para o MVP. Fotografias, recibos, assinaturas e documentos guardados na tabela `files` (RLS), comprimidos no navegador (JPEG, máx. 1600 px). Servidos só a quem tem acesso, nunca por URL pública. Migrar para o Neon Object Storage (5 GB grátis) quando o volume crescer.
+
+## ADR-018 — Jobs por Neon Function + trigger de agenda
+**Estado:** Aceite. `pg_cron` não serve (o compute escala a zero). Uma Neon Function mínima (`neon/functions/jobs`) chamada por trigger cron invoca `POST /api/jobs/run` (cabeçalho secreto). Reserva: a própria utilização do painel corre os jobs no máximo de 5 em 5 minutos.
+
+## ADR-019 — Mapa e rotas gratuitos
+**Estado:** Aceite. Substitui ADR-001/002 enquanto não houver orçamento.
+- Mapa: MapLibre GL + **OpenFreeMap** (tiles vetoriais OSM, sem chave, sem SLA), atrás de `src/lib/map/MapProvider`.
+- Rotas: **Valhalla público da FOSSGIS** (`costing: truck`) chamado só pelo servidor, com `route_cache` (30 dias); **OpenRouteService `driving-hgv`** primeiro se `ORS_API_KEY` existir. Sem resposta → "Rota indisponível" e nenhuma distância (nunca linha reta). Todas as rotas mostram "Rota sugerida, não validada para veículos pesados".
+
+## ADR-020 — Motor de percurso único em TypeScript
+**Estado:** Aceite (refina ADR-004/013). A projeção na rota, km, localidades, ETA, desvio, paragens e avisos por voz estão em `src/lib/geo/` (puro, sem DOM). O servidor usa-o na ingestão e o telemóvel usa-o offline. Após desvio confirmado, a rota é recalculada a partir da posição atual (`trip_routes.base_km` guarda os km já feitos). A província atual vem das localidades da rota (funciona sem polígonos no telemóvel).
+
+## ADR-021 — Código da partilha
+**Estado:** Aceite (refina ADR-009). A primeira partilha usa o próprio código da viagem (`FT-XXXX-XXXX`, 30 símbolos × 8 ≈ 39 bits); ao regenerar, código novo. O link usa token de 128 bits (só hash na BD); depois de criado só se mostra o link por código (`/track?code=`), com limitação de tentativas.

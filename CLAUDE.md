@@ -14,10 +14,10 @@ Plataforma SaaS de gestão e rastreamento de frotas para Moçambique, em que o d
 
 - **Frontend: Vite puro (SPA estática), sem Next.js, sem SSR, sem servidor Node em produção** (ver ADR-000). Node.js só como ferramenta de desenvolvimento/build.
 - **Bibliotecas do frontend:** Vite + React + TypeScript (strict) + Tailwind CSS + shadcn/ui + Lucide + React Router + TanStack Query + React Hook Form + Zod
-- **Backend:** Supabase (Postgres + PostGIS, Auth, Realtime, Storage, Edge Functions em Deno, pg_cron)
+- **Backend:** Neon Postgres (PostGIS) + API em Vercel Functions (`server/`, uma função) — ver ADR-014 a ADR-021. (O Supabase foi substituído.)
 - **Mapas:** acesso apenas através da camada `src/lib/map/` (interface `MapProvider`). Nenhum componente importa o SDK do mapa diretamente.
-- **GPS físico:** Traccar Server (servidor próprio) → Edge Function `ingest-position` → Postgres
-- **Testes:** Vitest (unidade), Playwright (E2E), testes SQL para RLS (pgTAP ou scripts com utilizadores reais de teste)
+- **GPS físico:** Traccar Server (servidor próprio) → `POST /api/ingest/traccar` → Postgres (porta única de ingestão: `server/ingest.ts`)
+- **Testes:** Vitest (unidade + integração com Postgres/PostGIS real em `tests/api.test.ts`), Playwright (E2E)
 - **Motorista:** PWA instalável (manifest + service worker), com fila offline em IndexedDB
 
 ## Regras de trabalho (obrigatórias)
@@ -32,16 +32,16 @@ Plataforma SaaS de gestão e rastreamento de frotas para Moçambique, em que o d
 4b. **Distâncias são sempre rodoviárias**, calculadas pelo motor de rotas sobre a estrada, e o progresso é medido ao longo da rota planeada. Nunca linha reta, nunca km fixos no código. Localidades e províncias vêm da base `places`/`admin_areas` importada de fontes documentadas.
 5. **Nunca inventes compatibilidade** com equipamentos GPS, APIs ou serviços. Se não foi testado, escreve que não foi testado.
 6. **Dependências externas** (chaves de API, contas, hardware, custos) são assinaladas com `⚠️ DEPENDÊNCIA EXTERNA:` no código (comentário) e no relatório.
-7. **Migrações SQL** sempre em `supabase/migrations/`, nunca alterações manuais ao schema. Cada migração é reversível ou explica porque não é.
+7. **Migrações SQL** sempre em `db/migrations/`, nunca alterações manuais ao schema. Cada migração é reversível ou explica porque não é.
 8. Commits pequenos e descritivos, em português, por funcionalidade.
 
 ## Segurança (não negociável)
 
 - RLS ativo em **todas** as tabelas do schema `public`. Tabela nova sem política RLS = tarefa não concluída.
 - Isolamento por **organização** (`organization_id`), não por utilizador. Cada consulta privada é filtrada pela organização do membro autenticado.
-- `service_role`, credenciais do Traccar, chaves de ingestão e segredos **nunca** no frontend nem no repositório. Usa `.env.local` (ignorado) e os segredos das Edge Functions.
-- Visitantes anónimos **nunca** leem tabelas diretamente. A página pública só fala com a Edge Function `public-tracking`, que devolve um DTO com lista branca de campos.
-- Documentos e fotografias em buckets **privados**, servidos por URLs assinadas de curta duração.
+- `service_role`, credenciais do Traccar, chaves de ingestão e segredos **nunca** no frontend nem no repositório. Usa `.env.local` (ignorado) e as variáveis de ambiente da Vercel.
+- Visitantes anónimos **nunca** leem tabelas diretamente. A página pública só fala com `GET /api/track`, que devolve o DTO de lista branca (`public_trip_dto`).
+- Documentos e fotografias **privados** (tabela `files` com RLS, ADR-017), servidos só a quem tem acesso, nunca por URL pública.
 - Ações sensíveis (criar/revogar partilha, alterar permissões, apagar registos) ficam em `audit_logs`.
 - Existe sempre um teste automático que prova que a organização A não lê, não altera e não apaga dados da organização B.
 
@@ -80,13 +80,13 @@ src/
   app/            # rotas e layouts (public, app, driver, platform)
   features/       # vehicles, drivers, trips, tracking, devices, alerts, costs, assistant
   components/ui/  # shadcn/ui e componentes base
-  lib/            # supabase client, map/, geo/, format/, i18n
+  lib/            # api/, map/, geo/, format/, offline/
   i18n/
-supabase/
-  migrations/
-  functions/      # ingest-position, public-tracking, driver-session, ...
-  seed.sql
-  tests/          # testes RLS
+server/           # API (Vercel Function): rotas, auth, ingestão, rotas rodoviárias
+db/
+  migrations/     # SQL numeradas (aplicadas por npm run db:migrate ou /api/admin/migrate)
+neon/functions/   # Neon Function de agendamento (jobs)
+tests/            # integração (BD real, RLS A↔B)
 tools/
   gps-simulator/  # simulador de posições (reproduz rotas reais)
 docs/
@@ -109,5 +109,13 @@ docs/
 
 ## Comandos
 
-> Preencher na Fase 1 (dev, build, test, e2e, supabase start, db reset, gen types, simulador).
-> Previsto: `npm run dev` (vite), `npm run build` (vite build), `npm run preview`, `npm test` (vitest), `npm run e2e` (playwright), `supabase start`, `supabase db reset`, `supabase gen types typescript --local`, `npm run sim`.
+```
+npm run dev            # API local (porta 3001) + Vite (porta 5173)
+npm run build          # typecheck + vite build
+npm run build:vercel   # build completo para a Vercel (.vercel/output)
+npm test               # vitest (unidade); com TEST_DATABASE_ADMIN_URL também integração/RLS
+npm run db:migrate     # DATABASE_URL=... aplica db/migrations
+npm run sim -- --help  # simulador GPS
+npm run import:places  # importa localidades OSM + limites HDX (precisa de internet)
+```
+Testes de integração: `TEST_DATABASE_ADMIN_URL=postgres://postgres:postgres@localhost/postgres npm test` (Postgres 16 + PostGIS).
