@@ -12,3 +12,4 @@ import './routes/ops.js';
 import './routes/costs.js';
 import './routes/platform.js';
 export { dispatch } from './http.js';
+import './routes/admin.js';

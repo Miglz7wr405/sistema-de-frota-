@@ -14,20 +14,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: false, // registado manualmente só em driver.html
       scope: '/driver/',
-      manifest: {
-        name: 'insightFrota Motorista',
-        short_name: 'Motorista',
-        start_url: '/driver/',
-        scope: '/driver/',
-        display: 'standalone',
-        background_color: '#F5F7FA',
-        theme_color: '#10243D',
-        lang: 'pt-MZ',
-        icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-        ],
-      },
+      manifest: false, // manifest próprio em public/manifest.webmanifest, ligado só em driver.html
       workbox: {
         navigateFallback: '/driver.html',
         navigateFallbackAllowlist: [/^\/driver/],

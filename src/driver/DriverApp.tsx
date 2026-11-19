@@ -1,0 +1,270 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Mic, Navigation, Pause, Play, Volume2, VolumeX, Receipt, MapPin } from 'lucide-react';
+import { t } from '@/i18n/pt-MZ';
+import { formatAgo, formatKm, formatTime } from '@/lib/format';
+import { fileToUpload } from '@/lib/api/client';
+import { answer } from '@/lib/geo/assistant';
+import { Button, Field, Input, Modal, Select, Textarea } from '@/components/ui';
+import { TOKEN_KEY, driverApi, getToken, useDriverRuntime, type Me } from './useDriverRuntime';
+
+export function DriverApp() {
+  const [token, setToken] = useState(getToken());
+  const [me, setMe] = useState<Me | null>(() => { try { return JSON.parse(localStorage.getItem('if_driver_me') ?? 'null'); } catch { return null; } });
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      const m = await driverApi<Me>('/api/driver/me');
+      setMe(m); setLoadErr(null);
+      localStorage.setItem('if_driver_me', JSON.stringify(m)); // cópia local: rota e localidades disponíveis sem rede
+    } catch (e) {
+      const s = (e as { status?: number }).status;
+      if (s === 401) { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('if_driver_me'); setToken(null); setMe(null); }
+      else setLoadErr(t.errors.network);
+    }
+  }, []);
+  useEffect(() => { if (token) { load(); const h = setInterval(load, 60_000); return () => clearInterval(h); } }, [token, load]);
+
+  if (!token) return <Login onToken={(tk) => { localStorage.setItem(TOKEN_KEY, tk); setToken(tk); }} />;
+  if (!me) return <Centered>{loadErr ?? t.common.loading}</Centered>;
+  if (me.consentRequired) return <Consent onAccept={async () => { await driverApi('/api/driver/consent', 'POST', {}); load(); }} />;
+  return <TripScreen me={me} setMe={setMe} reload={load} />;
+}
+
+const Centered = ({ children }: { children: React.ReactNode }) => <div className="flex min-h-screen items-center justify-center p-6 text-center text-muted">{children}</div>;
+
+function Login({ onToken }: { onToken: (t: string) => void }) {
+  const linkToken = location.hash.slice(1);
+  const [pin, setPin] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(linkToken)) return <Centered>{t.driverApp.invalidLink}</Centered>;
+  const submit = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch('/api/driver/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: linkToken, pin }) });
+      if (r.ok) { const j = await r.json(); history.replaceState(null, '', '/driver/'); onToken(j.token); return; }
+      setErr(r.status === 429 ? t.driverApp.locked : r.status === 401 ? ((await r.json()).error === 'pin_incorreto' ? t.driverApp.wrongPin : t.driverApp.invalidLink) : t.errors.generic);
+    } catch { setErr(t.errors.network); } finally { setBusy(false); }
+  };
+  return (
+    <div className="min-h-screen bg-navy p-6 text-white">
+      <p className="mt-10 text-2xl font-bold">insight<span className="text-[#6EA8FF]">Frota</span></p>
+      <div className="mt-10 rounded-2xl bg-white p-6 text-navy">
+        <label className="label" htmlFor="pin">{t.driverApp.enterPin}</label>
+        <input id="pin" className="input text-center text-3xl tracking-[0.5em]" inputMode="numeric" maxLength={6} autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
+        {err && <p className="mt-2 text-sm text-danger" role="alert">{err}</p>}
+        <Button size="lg" className="mt-4 w-full" disabled={pin.length < 4} loading={busy} onClick={submit}>{t.driverApp.enter}</Button>
+      </div>
+    </div>
+  );
+}
+
+function Consent({ onAccept }: { onAccept: () => void }) {
+  return (
+    <div className="min-h-screen bg-background p-6">
+      <div className="card mt-10 p-6"><h1 className="text-xl font-bold">{t.driverApp.consentTitle}</h1><p className="mt-3 text-muted">{t.driverApp.consentText}</p>
+        <p className="mt-3 text-sm text-warning">{t.driverApp.honesty}</p>
+        <Button size="lg" className="mt-6 w-full" onClick={onAccept}>{t.driverApp.consentAccept}</Button></div>
+    </div>
+  );
+}
+
+function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; reload: () => void }) {
+  const [muted, setMuted] = useState(localStorage.getItem('if_driver_muted') === '1');
+  const rt = useDriverRuntime(me, muted);
+  const [modal, setModal] = useState<'incident' | 'delivery' | 'expense' | 'voice' | null>(null);
+  const [listening, setListening] = useState(false);
+  const trip = me.trip;
+  const status = trip?.status;
+  const moving = (rt.speed ?? 0) > 10; // em movimento: interface reduzida (segurança rodoviária)
+  const scale = rt.route && me.route ? rt.route.lengthM / me.route.lengthM : 1;
+  const kmLeft = rt.snap?.kmLeft != null ? rt.snap.kmLeft / scale : null;
+  const next = rt.snap?.places.find((p) => p.state === 'proxima' && p.importance >= 3) ?? null;
+  const etaOk = rt.snap?.etaDestination && rt.snap.etaConfidence !== 'indisponivel';
+
+  const transition = async (to: 'em_viagem' | 'pausada' | 'concluida') => {
+    if (!trip) return;
+    await rt.action('POST', `/api/driver/trips/${trip.id}/transition`, { to, at: new Date().toISOString() });
+    setMe({ ...me, trip: { ...trip, status: to } }); // otimista: funciona sem rede
+    if (to === 'em_viagem' && status !== 'pausada') rt.speak(t.voice.tripStarted);
+    setTimeout(reload, 3000);
+  };
+
+  const talk = () => {
+    const SR = (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition
+      ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
+    if (!SR) { rt.speak(t.assistant.unsupported); return; }
+    const r = new SR();
+    r.lang = 'pt-PT'; r.interimResults = false; r.maxAlternatives = 1;
+    r.onresult = (e) => {
+      const q = e.results[0]?.[0]?.transcript ?? '';
+      rt.speak(answer(q, rt.snap, rt.route ? { ...rt.route, places: rt.route.places.map((p) => ({ ...p, kmFromOrigin: p.kmFromOrigin })) } : null, {
+        noInfo: t.voice.noInfo, notUnderstood: t.assistant.notUnderstood, whereAmI: t.assistant.whereAmI, remaining: (km) => t.assistant.remaining(Math.round(km / scale)),
+        nextCity: (n, km) => t.assistant.nextCity(n, Math.round(km / scale)), toPlace: (n, km) => t.assistant.toPlace(n, Math.round(km / scale)), arrival: t.assistant.arrival, province: t.assistant.province,
+      }, (ms) => formatTime(ms), (s) => t.label(s.label)));
+    };
+    r.onerror = () => rt.speak(t.assistant.unsupported);
+    r.onend = () => setListening(false);
+    setListening(true);
+    r.start();
+  };
+
+  const gpsLine = !navigator.onLine || !rt.online ? t.driverApp.offline(rt.queued)
+    : rt.gps.status === 'denied' ? t.driverApp.gpsDenied : rt.gps.status === 'ok' && rt.gps.lastFixAt ? t.driverApp.gpsSending(formatAgo(rt.gps.lastFixAt)) : t.driverApp.gpsNoFix;
+  const gpsOk = rt.gps.status === 'ok' && rt.online;
+
+  return (
+    <div className="flex min-h-[100dvh] flex-col bg-background">
+      <header className="bg-navy px-5 pb-4 pt-5 text-white">
+        <p className="text-sm text-slate-300">{t.driverApp.hello(me.driver.fullName)}</p>
+        <div className="flex items-center justify-between gap-2"><h1 className="text-2xl font-bold text-white">{trip ? `${trip.origin} → ${trip.destination}` : '—'}</h1>
+          {trip && <span className="rounded-full bg-success-soft px-3 py-1 text-sm font-semibold text-success-text">{t.trip.statuses[trip.status]}</span>}</div>
+        {(status === 'em_viagem' || status === 'pausada') && <div className="mt-3 flex items-center justify-between rounded-xl bg-white/10 px-3 py-2 text-sm">
+          <span className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${gpsOk ? 'bg-success' : rt.gps.status === 'denied' ? 'bg-danger' : 'bg-warning'}`} />{gpsLine}</span><span className="text-slate-300">{t.driverApp.queue(rt.queued)}</span></div>}
+      </header>
+
+      {!trip ? <Centered>{t.driverApp.noTrip}</Centered> : (
+        <main className="flex flex-1 flex-col gap-3 p-4">
+          {status === 'em_viagem' || status === 'pausada' ? <>
+            {!moving && <div className="card flex items-center gap-4 p-4"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Navigation className="h-6 w-6" /></span>
+              <div><p className="text-sm text-muted">{t.driverApp.nextPoint}</p><p className="text-xl font-bold">{next ? `${next.name} · ${formatKm((next.kmFromOrigin - (rt.snap?.kmDone ?? 0)) / scale)}` : rt.snap ? t.label(rt.snap.label) : t.common.noData}</p></div></div>}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="card p-4"><p className="text-sm text-muted">{t.driverApp.toDestination}</p><p className="text-3xl font-bold">{kmLeft != null ? formatKm(kmLeft) : '—'}</p></div>
+              <div className="card p-4"><p className="text-sm text-muted">{t.driverApp.eta}</p><p className="text-3xl font-bold">{etaOk ? formatTime(rt.snap!.etaDestination!) : '—'}</p>
+                {!etaOk && <p className="text-xs text-muted">{t.trip.etaUnavailable}</p>}</div>
+            </div>
+            {rt.lastSpoken && <div className="rounded-2xl bg-primary-soft p-4"><p className="flex items-center gap-2 text-sm font-semibold text-primary"><Volume2 className="h-4 w-4" />{t.driverApp.assistant}</p><p className="mt-1 text-lg">"{rt.lastSpoken}"</p></div>}
+            <Button size="lg" className="h-16 w-full text-lg" onClick={talk} loading={listening}><Mic className="h-6 w-6" />{listening ? t.assistant.listening : t.driverApp.talk}</Button>
+            {moving ? <p className="text-center text-sm text-muted">{t.driverApp.moving}</p> : <>
+              <div className="grid grid-cols-2 gap-3">
+                {status === 'em_viagem' ? <Button variant="secondary" size="lg" className="h-16" onClick={() => transition('pausada')}><Pause className="h-5 w-5" />{t.driverApp.pause}</Button>
+                  : <Button variant="secondary" size="lg" className="h-16" onClick={() => transition('em_viagem')}><Play className="h-5 w-5" />{t.driverApp.resume}</Button>}
+                <Button size="lg" className="h-16 border border-warning/40 bg-warning-soft text-warning hover:bg-warning-soft" onClick={() => setModal('incident')}><AlertTriangle className="h-5 w-5" />{t.driverApp.incident}</Button>
+                <Button variant="secondary" size="lg" className="h-14" onClick={() => setModal('expense')}><Receipt className="h-5 w-5" />{t.driverApp.expense}</Button>
+                <Button variant="secondary" size="lg" className="h-14" onClick={() => { const nv = !muted; setMuted(nv); localStorage.setItem('if_driver_muted', nv ? '1' : '0'); }}>
+                  {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}{muted ? t.driverApp.unmute : t.driverApp.mute}</Button>
+              </div>
+              {me.stops.filter((s) => !s.arrived_at).slice(0, 1).map((s) => (
+                <Button key={s.id} variant="secondary" size="lg" onClick={() => rt.action('POST', `/api/driver/trips/${trip.id}/stops/${s.id}/arrive`, {}).then(reload)}><MapPin className="h-5 w-5" />{t.driverApp.arriveStop}: {s.place_name}</Button>))}
+              <div className="mt-auto space-y-2 pt-4">
+                <Button variant="success" size="lg" className="h-16 w-full text-lg" onClick={() => setModal('delivery')}><CheckCircle2 className="h-6 w-6" />{t.driverApp.deliver}</Button>
+                <button className="w-full py-2 text-sm text-muted" onClick={() => setModal('voice')}>{t.driverApp.voiceTest}</button>
+              </div>
+            </>}
+            <p className="text-center text-xs text-muted">{t.driverApp.keepOpen}</p>
+          </> : (
+            <div className="flex flex-1 flex-col gap-3">
+              <div className="card p-5"><p className="text-sm text-muted">{trip.code}{trip.plate ? ` · ${trip.plate}` : ''}</p><p className="mt-1 text-lg font-semibold">{trip.cargo_description ?? ''}</p>
+                {me.route ? <p className="mt-2 text-muted">{t.trip.distance}: {formatKm(me.route.lengthM / 1000)}</p> : <p className="mt-2 text-warning">{t.trip.routeNone}</p>}</div>
+              <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning">{t.driverApp.honesty}</p>
+              <Button size="lg" className="mt-auto h-16 text-lg" onClick={() => transition('em_viagem')}><Play className="h-6 w-6" />{t.driverApp.start}</Button>
+              <button className="py-2 text-sm text-muted" onClick={() => setModal('voice')}>{t.driverApp.voiceTest}</button>
+            </div>
+          )}
+        </main>
+      )}
+      {trip && <>
+        <IncidentModal open={modal === 'incident'} onClose={() => setModal(null)} onSubmit={async (b) => { await rt.action('POST', `/api/driver/trips/${trip.id}/incidents`, b); setModal(null); }} />
+        <ExpenseModal open={modal === 'expense'} onClose={() => setModal(null)} onSubmit={async (b) => { await rt.action('POST', `/api/driver/trips/${trip.id}/expenses`, b); setModal(null); }} />
+        <DeliveryModal open={modal === 'delivery'} onClose={() => setModal(null)} onSubmit={async (b) => {
+          await rt.action('POST', `/api/driver/trips/${trip.id}/delivery`, b);
+          await transition('concluida');
+          setModal(null);
+        }} />
+      </>}
+      <VoiceTest open={modal === 'voice'} onClose={() => setModal(null)} speak={rt.speak} />
+    </div>
+  );
+}
+
+type SpeechRecognitionLike = { lang: string; interimResults: boolean; maxAlternatives: number; start(): void;
+  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onerror: (() => void) | null; onend: (() => void) | null };
+
+async function uploadFile(file: Blob, kind: string): Promise<string | null> {
+  // Ficheiros precisam de rede (não ficam na fila para poupar espaço do telemóvel).
+  try { return (await driverApi<{ id: string }>('/api/driver/files', 'POST', { kind, ...(await fileToUpload(file, 1280)) })).id; } catch { return null; }
+}
+
+function IncidentModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (b: unknown) => Promise<void> }) {
+  const [kind, setKind] = useState('avaria');
+  const [note, setNote] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal open={open} onClose={onClose} title={t.driverApp.incident}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">{Object.entries(t.driverApp.incidentKinds).map(([k, v]) => (
+          <button key={k} onClick={() => setKind(k)} className={`rounded-xl border p-3 text-left font-medium ${kind === k ? 'border-primary bg-primary-soft' : 'border-border'}`}>{v}</button>))}</div>
+        <Textarea placeholder={t.common.notes} value={note} onChange={(e) => setNote(e.target.value)} />
+        <Field label={`${t.driverApp.photo} (${t.common.optional})`}><Input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} /></Field>
+        <Button size="lg" className="w-full" loading={busy} onClick={async () => { setBusy(true); const photo_file_id = photo ? await uploadFile(photo, 'incident_photo') : null;
+          await onSubmit({ kind, note: note || null, photo_file_id, occurred_at: new Date().toISOString() }); setBusy(false); setNote(''); setPhoto(null); }}>{t.driverApp.send}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function ExpenseModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (b: unknown) => Promise<void> }) {
+  const [category, setCategory] = useState('portagem');
+  const [amount, setAmount] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal open={open} onClose={onClose} title={t.driverApp.expense}>
+      <div className="space-y-3">
+        <Field label={t.costs.category}><Select value={category} onChange={(e) => setCategory(e.target.value)}>{Object.entries(t.costs.categories).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
+        <Field label={`${t.costs.amount} (MZN)`}><Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+        <Field label={`${t.costs.receipt} (${t.common.optional})`}><Input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} /></Field>
+        <Button size="lg" className="w-full" disabled={!amount} loading={busy} onClick={async () => { setBusy(true); const receipt_file_id = photo ? await uploadFile(photo, 'receipt') : null;
+          await onSubmit({ category, amount: Number(amount.replace(',', '.')), receipt_file_id, spent_at: new Date().toISOString() }); setBusy(false); setAmount(''); }}>{t.driverApp.send}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function DeliveryModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (b: unknown) => Promise<void> }) {
+  const [name, setName] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const [signed, setSigned] = useState(false);
+  const pos = (e: React.PointerEvent) => { const r = canvas.current!.getBoundingClientRect(); return [(e.clientX - r.left) * (canvas.current!.width / r.width), (e.clientY - r.top) * (canvas.current!.height / r.height)] as const; };
+  return (
+    <Modal open={open} onClose={onClose} title={t.driverApp.deliver}>
+      <div className="space-y-3">
+        <Field label={t.driverApp.receivedBy}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <div><span className="label">{t.driverApp.signature}</span>
+          <canvas ref={canvas} width={600} height={220} className="h-40 w-full touch-none rounded-xl border border-border bg-white"
+            onPointerDown={(e) => { drawing.current = true; const c = canvas.current!.getContext('2d')!; c.lineWidth = 3; c.lineCap = 'round'; c.strokeStyle = '#10243D'; c.beginPath(); c.moveTo(...pos(e)); }}
+            onPointerMove={(e) => { if (!drawing.current) return; const c = canvas.current!.getContext('2d')!; c.lineTo(...pos(e)); c.stroke(); setSigned(true); }}
+            onPointerUp={() => { drawing.current = false; }} />
+          <button className="mt-1 text-sm text-primary" onClick={() => { canvas.current!.getContext('2d')!.clearRect(0, 0, 600, 220); setSigned(false); }}>{t.driverApp.clear}</button></div>
+        <Field label={`${t.driverApp.photo} (${t.common.optional})`}><Input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} /></Field>
+        <Button variant="success" size="lg" className="w-full" disabled={name.trim().length < 2} loading={busy} onClick={async () => {
+          setBusy(true);
+          const sig = signed ? await new Promise<Blob | null>((r) => canvas.current!.toBlob(r, 'image/png')) : null;
+          const signature_file_id = sig ? await uploadFile(sig, 'signature') : null;
+          const photo_file_id = photo ? await uploadFile(photo, 'delivery_photo') : null;
+          await onSubmit({ received_by_name: name.trim(), signature_file_id, photo_file_id, delivered_at: new Date().toISOString() });
+          setBusy(false);
+        }}>{t.driverApp.finish}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function VoiceTest({ open, onClose, speak }: { open: boolean; onClose: () => void; speak: (s: string) => boolean }) {
+  const [res, setRes] = useState<string | null>(null);
+  const test = () => {
+    if (!('speechSynthesis' in window)) { setRes(t.driverApp.voiceNone); return; }
+    const check = () => {
+      const voices = speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('pt'));
+      const local = voices.filter((v) => v.localService);
+      setRes(local.length ? `${t.driverApp.voiceOk} (${local.map((v) => v.lang).join(', ')})` : t.driverApp.voiceNone);
+      if (voices.length) speak(t.voice.tripStarted);
+    };
+    if (speechSynthesis.getVoices().length) check(); else speechSynthesis.onvoiceschanged = check;
+  };
+  return <Modal open={open} onClose={onClose} title={t.driverApp.voiceTest}><Button className="w-full" onClick={test}>{t.driverApp.voiceTest}</Button>{res && <p className="mt-3 text-sm">{res}</p>}</Modal>;
+}

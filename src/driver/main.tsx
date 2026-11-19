@@ -1,0 +1,8 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { registerSW } from 'virtual:pwa-register';
+import '@/styles.css';
+import { DriverApp } from './DriverApp';
+
+registerSW({ immediate: true }); // service worker: app funciona sem rede depois da 1.ª abertura
+createRoot(document.getElementById('root')!).render(<StrictMode><DriverApp /></StrictMode>);
