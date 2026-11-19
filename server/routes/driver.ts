@@ -63,9 +63,9 @@ route('POST', '/api/driver/consent', async (req) => {
 
 route('POST', '/api/driver/trips/:id/transition', async (req, p) => {
   const d = await requireDriver(req);
-  const b = parse(z.object({ to: z.enum(['em_viagem', 'pausada', 'concluida']) }), req.body);
+  const b = parse(z.object({ to: z.enum(['em_viagem', 'pausada', 'concluida']), at: z.string().datetime({ offset: true }).optional() }), req.body);
   const id = assertUuid(p.id);
-  const t = await asDriver(d, (c) => one(c, 'select id, status from trip_transition($1, $2, null)', [id, b.to]));
+  const t = await asDriver(d, (c) => one(c, 'select id, status from trip_transition($1, $2, null, $3)', [id, b.to, b.at ?? null]));
   if (b.to === 'concluida') await afterTripClosed(id);
   return ok(t);
 });

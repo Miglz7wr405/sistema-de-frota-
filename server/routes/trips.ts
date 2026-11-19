@@ -87,7 +87,7 @@ route('GET', '/api/trips/:id', async (req, p) => {
     const events = await many(c, `select e.id, e.kind, e.occurred_at, e.actor_type, e.payload, coalesce(u.full_name, d.full_name) actor_name
       from trip_events e left join app_users u on u.id = e.actor_id left join drivers d on d.id = e.actor_id
       where e.trip_id = $1 order by e.occurred_at desc limit 300`, [id]);
-    const route_ = await one(c, `select id, version, provider, length_m, duration_s, roads, validated_for_truck, created_at,
+    const route_ = await one(c, `select id, version, provider, length_m, duration_s, roads, validated_for_truck, created_at, base_km,
         ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom::geometry, 0.0002), 5)::json geometry from trip_routes where trip_id = $1 and is_current`, [id]);
     const places = route_ ? await many(c, `select rp.place_id, p.name, p.kind, p.importance, rp.km_from_origin, rp.state, rp.eta, rp.eta_confidence, rp.passed_at
       from trip_route_places rp join places p on p.id = rp.place_id where rp.trip_route_id = $1 order by rp.seq`, [route_.id]) : [];
