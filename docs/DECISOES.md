@@ -1,0 +1,160 @@
+# Registo de decisões (ADR)
+
+> Formato curto: **Contexto → Decisão → Alternativas → Consequências**.
+> Estado: `Proposta` (aguarda aprovação na Fase 0) · `Aceite` · `Substituída por ADR-N`.
+> Valores marcados com ⚠️ **não foram confirmados** e têm de ser verificados antes de compromissos comerciais.
+
+---
+
+## ADR-000 — Frontend em Vite puro (SPA estática), sem Next.js
+**Estado:** Aceite (pedido explícito do proprietário do produto).
+
+**Contexto.** É preciso escolher como servir a aplicação web. Next.js/Remix trazem SSR e um servidor Node em produção; isto aumenta custo, complexidade de alojamento e superfície de ataque, e o backend já é o Supabase.
+
+**Decisão.** A aplicação é uma **SPA construída com Vite** (React + TypeScript strict), servida como **ficheiros estáticos**. Node.js é usado **apenas** como ferramenta de desenvolvimento e build (`vite`, `vitest`, scripts em `tools/`). Em produção não há servidor Node nosso: estáticos num CDN + Supabase. Concretamente:
+- **Multi-page build do Vite** com várias entradas HTML: `index.html` (landing + `/app` + `/login`…), `track.html` (`/track/*`), `driver.html` (`/driver/*`, PWA). Cada entrada tem o seu grafo de módulos: o código de `/app` nunca é descarregado por quem abre `/track`.
+- Router: React Router em cada entrada. Regras de rewrite do alojamento: `/track/*` → `track.html`, `/driver/*` → `driver.html`, resto → `index.html`.
+- PWA do motorista com `vite-plugin-pwa` (Workbox), âmbito limitado a `/driver/`.
+- Lógica que precisa de servidor (validação, segredos, OG) vive em **Supabase Edge Functions** (Deno — imposição do Supabase, não uma escolha nossa de Node).
+
+**Alternativas.** Next.js (rejeitado pelo proprietário; SSR desnecessário), Astro (multi-page bom, mas é outro framework), Vite com SSR próprio (reintroduz servidor Node).
+
+**Consequências.** + Alojamento estático barato (Cloudflare Pages / Netlify / Vercel estático), simples e rápido em 3G. + Separação forte de bundles. − Metatags dinâmicas (Open Graph) impossíveis só com a SPA → ADR-011. − SEO só para páginas estáticas (landing), o que basta.
+
+---
+
+## ADR-001 — Fornecedor de mapas: MapLibre GL + tiles vetoriais OSM (PMTiles próprio)
+**Estado:** Proposta.
+
+**Contexto.** Mapas aparecem no dashboard, mapa ao vivo, detalhe de viagem, PWA e página pública. A página pública pode ser aberta muitas vezes por viagem; um fornecedor cobrado por carregamento de mapa torna o custo proporcional ao sucesso.
+
+**Decisão.** **MapLibre GL JS** com **tiles vetoriais OpenStreetMap num único ficheiro PMTiles** (extrato de Moçambique + corredores vizinhos), gerado com Planetiler/Protomaps e alojado em armazenamento de objetos com pedidos *range* (Cloudflare R2 ou Supabase Storage atrás de CDN). Estilo próprio com as cores da marca. Acesso só via `src/lib/map/` (interface `MapProvider`).
+
+**Estimativa de custo** (pressupostos: 1 viagem = ~10 aberturas de mapa entre dono, despachante e cliente; ~1,5 MB de tiles por abertura com cache do navegador; 30 dias):
+
+| Viagens/dia | Aberturas/mês | Google Maps JS (Dynamic Maps) ⚠️ | MapLibre + PMTiles em R2 ⚠️ |
+|---|---|---|---|
+| 10 | ~3 000 | 0 USD (dentro da quota gratuita mensal) | ~0 USD (armazenamento < 1 USD) |
+| 100 | ~30 000 | ~140 USD/mês (≈ 7 USD por 1000 acima da quota) | ~1–5 USD/mês |
+| 1000 | ~300 000 | ~1 500–2 000 USD/mês | ~5–20 USD/mês (R2 não cobra saída; operações de leitura cobradas por milhão) |
+
+⚠️ Os preços do Google Maps Platform mudaram em 2025 (quotas gratuitas por SKU); os números acima são aproximações a confirmar na página oficial de preços. Os custos do R2 também têm de ser confirmados.
+
+**Alternativas.** Google Maps (melhor geocodificação e imagens, custo cresce com a página pública, termos restringem misturar com outros dados), MapTiler/Stadia geridos (bom plano B, cobram por pedidos de tiles), tiles raster OSM públicos (proibido usar `tile.openstreetmap.org` em produção comercial).
+
+**Consequências.** + Custo quase fixo. + Funciona offline para o corredor (podemos guardar tiles em cache na PWA). − Somos responsáveis por gerar e atualizar o PMTiles (script em `tools/build-tiles`, mensal). − Qualidade do mapa depende do OSM em Moçambique (ver riscos). ⚠️ DEPENDÊNCIA EXTERNA: conta de armazenamento de objetos.
+
+---
+
+## ADR-002 — Motor de rotas para camiões: Valhalla (perfil `truck`) alojado por nós
+**Estado:** Proposta.
+
+**Contexto.** Distâncias têm de ser rodoviárias e adequadas a pesados. Google Directions não oferece perfil de camião fiável para Moçambique.
+
+**Decisão.** **Valhalla** em Docker, com extrato OSM de Moçambique (+ Malawi, Zimbabué, África do Sul para L5 mais tarde), perfil `truck` com altura, largura, peso, eixos do camião. Chamado **só** pela Edge Function `route-plan` (a SPA nunca fala com o Valhalla). Resultados em `route_cache` (chave: origem/destino arredondados a ~100 m + perfil do camião + versão dos dados). Se o troço não tiver etiquetas de restrição (`maxweight`, `maxheight`, …), a viagem fica com `validated_for_truck = false` e a UI mostra **"Rota sugerida, não validada para veículos pesados"**. Para ser honesto: em Moçambique quase nenhuma estrada tem essas etiquetas, por isso o aviso será a regra no início.
+
+**Alternativas.** OSRM (rápido, mas sem perfil de camião com restrições em tempo de pedido), GraphHopper (perfil truck só na versão comercial/API paga ⚠️ a confirmar), Google Routes (sem truck), fornecedores geridos de Valhalla (Stadia ⚠️ preços a confirmar).
+
+**Consequências.** + Custo fixo baixo (VPS pequeno ⚠️ ~10–25 USD/mês para o extrato de Moçambique, a confirmar com teste de memória). + Controlo total. − Mais um serviço a operar (pode partilhar a máquina com o Traccar). ⚠️ DEPENDÊNCIA EXTERNA: VPS.
+
+---
+
+## ADR-003 — Fonte das localidades e províncias
+**Estado:** Proposta.
+
+**Decisão.**
+- **Limites administrativos** (províncias e distritos): conjunto *Mozambique – Subnational Administrative Boundaries* (COD-AB) no **HDX/OCHA**. ⚠️ Licença e data exatas a confirmar na página do conjunto antes da importação; registadas em `admin_areas.source`.
+- **Localidades e pontos de referência**: **OpenStreetMap** (extrato Geofabrik de Moçambique, licença ODbL): `place=city|town|village|hamlet`, `barrier=toll_booth`, `amenity=fuel`, `bridge=yes` com nome em estradas `trunk|primary`, `barrier=border_control`, `highway=checkpoint` quando existir.
+- **Importância** (1–5) calculada: capital provincial 5, cidade 4, vila 3, aldeia sobre estrada nacional 2, outros 1; ajustável manualmente com registo.
+- Script reprodutível `tools/import-places` (Node + `osmium`/`ogr2ogr` → SQL), que grava fonte, licença, data e versão em `geo_datasets`. Atribuição "© OpenStreetMap contributors" visível no mapa e na página pública.
+
+**Alternativas.** GeoNames (útil para variantes de grafia; pode complementar), lista manual (proibida pelas regras do projeto).
+
+**Consequências.** − Cobertura de aldeias e pontos de referência no OSM é desigual; o dono pode acrescentar locais privados. ODbL exige atribuição e partilha de melhorias à base de dados derivada se a distribuirmos.
+
+---
+
+## ADR-004 — Projeção na rota e cálculo do ETA
+**Estado:** Proposta.
+
+**Decisão — projeção.**
+1. Rota planeada guardada como `geography(LineString)` e também com **medidas acumuladas em metros** por vértice (array `cum_m`).
+2. Cada posição com precisão ≤ 100 m é projetada no segmento mais próximo **dentro de uma janela** à volta da última projeção (−2 km/+30 km), para não saltar para um troço paralelo nem para o regresso numa estrada de ida e volta. Em SQL equivale a `ST_LineLocatePoint` sobre a sub-linha; a mesma lógica existe em TypeScript puro (`src/lib/geo/progress.ts`) para o telemóvel offline.
+3. **Monotonia:** `km_percorridos = max(anterior, nova)`; um recuo > 500 m sustentado por 3 posições só é aceite como "voltou para trás" (evento). Distância perpendicular > 500 m por N posições → candidato a desvio (regras da secção 6.12 do SPEC) → recálculo de rota a partir da posição atual (nova versão em `trip_routes`).
+4. Localidades: cada `trip_route_places` tem `km_from_origin`; estado atual = `passada` se `km_percorridos ≥ km + raio`, `atual` se dentro do raio (raio por tipo: cidade 3 km, vila 1,5 km, ponto 300 m), senão `proxima`.
+
+**Decisão — ETA.**
+`ETA_localidade = agora + Σ troços restantes (km_troço / v_estimada)` com
+`v_estimada = α·v_recente + (1−α)·v_típica_troço`, onde `v_recente` é a média móvel exponencial da velocidade **ao longo da rota** (Δkm projetado / Δt) nos últimos 20 min, excluindo paragens > 5 min; `v_típica_troço` vem de viagens anteriores (`segment_speed_stats`, por troços de 10 km) ou, sem histórico, da duração do Valhalla com fator de pesados (0,8 ⚠️ a calibrar). α começa em 0,3 e sobe para 0,6 quando há ≥ 20 min de dados.
+**Confiança:** `alta` (posição Atual + ≥ 20 min de dados + histórico do troço), `media`, `baixa` ("Previsão aproximada"), `indisponivel` (sem posição Atual ou sem rota → "Previsão indisponível"). Nunca se mostra hora com confiança `indisponivel`.
+
+**Alternativas.** Pedir ETA ao Valhalla a cada posição (caro, ignora o comportamento real do camião); linha reta (proibido).
+
+**Consequências.** Testável de forma determinística com o simulador (Fase 4). A tabela `segment_speed_stats` só fica útil com algumas dezenas de viagens por corredor.
+
+---
+
+## ADR-005 — Voz sem rede
+**Estado:** Proposta, com verificação obrigatória na Fase 4.
+
+**Contexto.** `speechSynthesis` usa vozes do sistema. Em Android, o Chrome usa o motor TTS instalado (normalmente Google TTS); a voz pt-PT/pt-BR **pode** funcionar offline se o pacote de voz estiver descarregado, mas isso depende do aparelho. **Não tenho a certeza** do comportamento nos Android de gama baixa comuns em Moçambique; não existe voz "pt-MZ".
+
+**Decisão.**
+1. Na Fase 4, testar em 2–3 Android reais (gama baixa) em modo avião: `speechSynthesis.getVoices()` com `lang` `pt-PT`/`pt-BR` e `localService === true`.
+2. Se houver voz local: usar `speechSynthesis` (preferir `pt-PT`, mais próxima da pronúncia moçambicana).
+3. Se não houver: **plano B** — ao iniciar a viagem (com rede), a Edge Function `voice-pack` gera os áudios dos avisos previsíveis da rota (nomes das localidades × modelos de frase, ~30–80 clipes curtos) com um serviço TTS e a PWA guarda-os em Cache Storage; avisos com números (km/minutos) usam frases fixas por escalão ("Faltam 50 quilómetros…").
+4. Ecrã de diagnóstico na PWA: "Testar voz sem rede".
+
+**Consequências.** ⚠️ DEPENDÊNCIA EXTERNA (plano B): serviço TTS pago, custo por caractere a confirmar.
+
+---
+
+## ADR-006 — Realtime na área privada
+**Estado:** Proposta.
+Realtime (Postgres Changes) **apenas** sobre `vehicle_latest_positions`, `trip_progress`, `trips` e `alerts`, filtrado por `organization_id` e protegido por RLS. Histórico de posições nunca é transmitido; é consultado sob pedido (replay). Se o número de ligações crescer, migrar para canais Broadcast por organização emitidos pela própria `ingest-position`.
+
+## ADR-007 — Página pública: *polling* à Edge Function (não Realtime)
+**Estado:** Proposta.
+
+**Decisão.** `GET public-tracking?token=…` a cada **20 s** enquanto a viagem está ativa e o separador visível (`visibilitychange`), 60 s quando escondido, parar quando `concluida`/`cancelada`. Resposta com `Cache-Control: public, max-age=10` e ETag, e cache em memória por token na função (10 s) para absorver vários clientes.
+
+**Alternativas.** Canal Broadcast identificado pelo token (mais "ao vivo", mas mantém WebSockets abertos em telemóveis com rede fraca, consome ligações Realtime do plano e complica a limitação de taxa e a revogação).
+
+**Consequências.** + Simples, barato, funciona em 3G intermitente, revogação imediata. − Latência até ~20 s; a animação suave interpola entre posições, o que basta para um camião.
+
+## ADR-008 — Acesso do motorista: link + PIN no MVP, OTP por SMS depois
+**Estado:** Proposta. **Confirmo a preferência (A no MVP, B mais tarde).**
+
+**Decisão.** O dono gera um link pessoal (`/driver/entrar#<token 128 bits>`; o token vai no fragmento para não aparecer em logs de servidor) e define um PIN de 4–6 dígitos. A Edge Function `driver-session` verifica `hash(token)` + PIN (hash com Argon2id/bcrypt), limita tentativas (5 falhas → bloqueio de 15 min, alerta ao dono) e emite um **JWT de curta duração** (12 h, renovável) com claims `role=driver`, `driver_id`, `organization_id`, assinado com o segredo JWT do projeto, que as políticas RLS reconhecem. Revogável a qualquer momento (lista de revogação verificada na renovação e na ingestão).
+
+**Porquê não B já:** custo e fornecedor de SMS em Moçambique por confirmar ⚠️; motoristas trocam de SIM; A funciona sem nenhuma dependência externa. B fica preparado (telefone E.164 já guardado).
+
+**Riscos.** Partilha do link + PIN entre motoristas → mitigado por associação ao aparelho (identificador gerado na primeira entrada; novo aparelho exige confirmação do dono).
+
+## ADR-009 — Formato do código de rastreamento
+**Estado:** Proposta.
+- **Código curto**: `FT-` + 8 caracteres do alfabeto Crockford Base32 **sem** `0 O 1 I L` (fica com 31 símbolos, ≈ 39,6 bits), apresentado `FT-7K3M-9QXP`. Entrada tolerante (minúsculas, sem hífenes, `o→0` não se aplica porque não existem). Único globalmente. Gerado com `crypto.getRandomValues`.
+- **Token do link**: 128 bits aleatórios em base64url (22 caracteres). Guardado **só** `sha256(token)`; o código curto é guardado em claro (é para ditar) mas a consulta por código tem limitação de taxa mais apertada (ver SPEC 6.9).
+- Regenerar = novo código + novo token; o anterior fica revogado.
+
+## ADR-010 — Particionamento e retenção das posições
+**Estado:** Proposta.
+
+**Volume estimado:** 1 camião × 1 posição/15 s × 10 h/dia = **2 400 posições/dia**, **72 000/mês**. Com ~200 B por linha + índices (~350 B no total) ≈ **25 MB/camião/mês**. 20 camiões ≈ 0,5 GB/mês; 1 000 camiões ≈ 25 GB/mês.
+
+**Decisão.** `vehicle_positions` com **particionamento declarativo nativo por mês** (`PARTITION BY RANGE (device_time)`), partições criadas antecipadamente por uma função agendada com **pg_cron** (sem depender de `pg_partman`, cuja disponibilidade no Supabase ⚠️ deve ser confirmada). Índices por partição: (`vehicle_id`, `device_time desc`), (`trip_id`, `device_time`) parcial onde `trip_id is not null`, BRIN em `device_time`. Retenção por plano: um job diário faz `DETACH`/`DROP` das partições fora da retenção do plano mais longo e apaga linhas das organizações com retenção menor. Ao concluir uma viagem, grava-se o percurso simplificado (`ST_SimplifyPreserveTopology`, ~10 m) em `trip_tracks` para replay permanente e barato.
+
+## ADR-011 — Pré-visualização no WhatsApp (Open Graph) sem SSR
+**Estado:** Proposta. Consequência direta do ADR-000.
+
+**Decisão.** O link partilhado é `https://<domínio>/t/<token>`. O alojamento estático reescreve (proxy, não redirecionamento) `/t/*` para a Edge Function `track-preview`, que:
+1. valida o token com as mesmas regras de `public-tracking` (taxa, validade, revogação);
+2. devolve HTML de ~2 KB com `og:title` ("Viagem FT-7K3M-9QXP · Em viagem"), `og:description` ("Quelimane → Beira · 62 % concluído", só campos públicos), `og:image` estática da marca (imagem dinâmica fica para depois), `<meta name="robots" content="noindex">`;
+3. redireciona o navegador para `/track/<token>` (meta refresh + `location.replace`).
+Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se um subdomínio (`t.<domínio>`) apontado para a função. ⚠️ Comportamento do *crawler* do WhatsApp com redirecionamentos e cache a validar com telemóvel real.
+
+## ADR-012 — Alojamento do frontend
+**Estado:** Proposta. **Cloudflare Pages** (estático, CDN com presença em Joanesburgo ⚠️ a confirmar a latência a partir de Maputo/Beira, regras `_redirects` com proxy para `/t/*`, plano gratuito generoso, e o mesmo fornecedor do R2 do ADR-001). Alternativas: Netlify, Vercel em modo estático. Nada depende do fornecedor além do ficheiro de rewrites.
+
+## ADR-013 — Biblioteca de geometria partilhada entre servidor e telemóvel
+**Estado:** Proposta. `src/lib/geo/` em TypeScript puro (sem DOM, sem Node APIs), importada pela SPA (Vite) e pelas Edge Functions (Deno). Testada com Vitest; um teste de equivalência compara os resultados TS com os do PostGIS para a rota de referência.
