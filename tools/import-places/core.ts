@@ -3,14 +3,25 @@
 // ⚠️ DEPENDÊNCIA EXTERNA: overpass-api.de (gratuito, uso justo). Dados © OpenStreetMap contributors, ODbL 1.0.
 import type pg from 'pg';
 
-const OVERPASS = process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter';
+// Servidores Overpass públicos (o primeiro que responder). ⚠️ DEPENDÊNCIA EXTERNA: serviços gratuitos, sem SLA.
+const MIRRORS = process.env.OVERPASS_URL ? [process.env.OVERPASS_URL] : [
+  'https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+let OVERPASS = MIRRORS[0]!;
 const AREA = 'area["ISO3166-1"="MZ"][admin_level=2]->.mz;';
 
 async function overpass(query: string): Promise<{ elements: any[] }> {
-  const r = await fetch(OVERPASS, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'insightFrota/0.1 (importacao de localidades)' },
-    body: 'data=' + encodeURIComponent(query), signal: AbortSignal.timeout(55_000) });
-  if (!r.ok) throw new Error(`overpass_${r.status}`);
-  return r.json() as Promise<{ elements: any[] }>;
+  const errors: string[] = [];
+  for (const url of MIRRORS) {
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'insightFrota/0.1 (importacao de localidades)' },
+        body: 'data=' + encodeURIComponent(query), signal: AbortSignal.timeout(Number(process.env.OVERPASS_TIMEOUT_MS ?? 45_000)) });
+      if (!r.ok) { errors.push(`${url}:${r.status}`); continue; }
+      OVERPASS = url;
+      return (await r.json()) as { elements: any[] };
+    } catch (e) { errors.push(`${url}:${(e as Error).message}`); }
+  }
+  throw new Error(`overpass_indisponivel ${errors.join(' | ')}`);
 }
 
 async function dataset(c: pg.ClientBase, name: string, query: string) {

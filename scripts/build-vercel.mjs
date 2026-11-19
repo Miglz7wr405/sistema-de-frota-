@@ -19,7 +19,7 @@ await build({
   outfile: `${fn}/index.mjs`, loader: { '.sql': 'text' }, tsconfig: 'tsconfig.json', sourcemap: false, minify: false,
   banner: { js: "import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);" },
 });
-writeFileSync(`${fn}/.vc-config.json`, JSON.stringify({ runtime: 'nodejs22.x', handler: 'index.mjs', launcherType: 'Nodejs', shouldAddHelpers: false, maxDuration: 60, regions: ['fra1'] }, null, 2));
+writeFileSync(`${fn}/.vc-config.json`, JSON.stringify({ runtime: 'nodejs22.x', handler: 'index.mjs', launcherType: 'Nodejs', shouldAddHelpers: false, maxDuration: 60, regions: ['fra1'], functionFailoverRegions: [] }, null, 2));
 writeFileSync(`${fn}/package.json`, JSON.stringify({ type: 'module' }));
 
 const sec = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'X-Frame-Options': 'DENY',
