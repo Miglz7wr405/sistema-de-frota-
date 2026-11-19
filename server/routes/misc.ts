@@ -4,6 +4,7 @@ import { many, one } from '../db.js';
 import { requireMember, asMember, WRITE } from '../auth.js';
 import { planRoute, RouteUnavailable } from '../routing.js';
 import { placeById } from '../trip-route.js';
+import { maybeRunJobs } from './admin.js';
 
 route('GET', '/api/health', async () => ok({ ok: true, time: new Date().toISOString() }));
 
@@ -88,6 +89,7 @@ route('GET', '/api/fleet/live', async (req) => {
 
 route('GET', '/api/dashboard', async (req) => {
   const m = await requireMember(req);
+  await maybeRunJobs();
   return ok(await asMember(m, async (c) => {
     const counts = await one(c, `select count(*)::int total,
         count(*) filter (where main_status = 'em_viagem')::int em_viagem, count(*) filter (where main_status = 'disponivel')::int disponiveis,

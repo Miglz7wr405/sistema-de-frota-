@@ -44,3 +44,30 @@ route('GET', '/api/admin/migrate', async (req) => {
   } finally { await c.end(); }
   return ok({ applied });
 });
+
+// Jobs periódicos (alertas "sem sinal", documentos, manutenção, dispositivos, partições; diário: retenção).
+// Chamado pela Neon Function "jobs" (trigger de agenda) com o cabeçalho x-jobs-secret.
+import { withSystem } from '../db.js';
+import { hit } from '../auth.js';
+import { sendPushForAlerts } from '../push.js';
+
+export async function runJobs(kind: 'periodic' | 'daily') {
+  return withSystem(async (c) => {
+    const since = new Date();
+    const r = (await c.query(kind === 'daily' ? 'select run_daily_jobs() j' : 'select run_periodic_jobs() j')).rows[0].j;
+    const ids = (await c.query('select id from alerts where opened_at >= $1', [since])).rows.map((x) => x.id);
+    await sendPushForAlerts(c, ids).catch(() => {});
+    return r;
+  });
+}
+
+route('POST', '/api/jobs/run', async (req) => {
+  const secret = process.env.JOBS_SECRET;
+  if (!secret || !safeEqual(req.headers['x-jobs-secret'] ?? '', secret)) throw new HttpError(404, 'rota_inexistente');
+  return ok(await runJobs(req.query.get('kind') === 'daily' ? 'daily' : 'periodic'));
+});
+
+/** Reserva: se ninguém agendou, a utilização da app também corre os jobs (no máximo 1 vez a cada 5 min). */
+export async function maybeRunJobs() {
+  try { if (await hit('jobs:periodic', 300, 1)) await runJobs('periodic'); } catch (e) { console.warn('[jobs]', (e as Error).message); }
+}
