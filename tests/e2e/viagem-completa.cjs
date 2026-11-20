@@ -208,6 +208,8 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
   // ── 4. Quelimane → Nampula (2.ª rota real), o essencial ─────────────────────────────────────────────────────
   let trip2 = null;
   await step('11-quelimane-nampula', pb, async () => {
+    // o camião volta a Quelimane para a viagem seguinte (o telemóvel está lá)
+    const q = NAMPULA.coords[0]; await phoneB.setGeolocation({ latitude: q[1], longitude: q[0], accuracy: 8 });
     await pb.goto(B + '/app/trips/new');
     const pick = async (idx, txt, opt) => { const i = pb.getByPlaceholder('Escreva o nome da localidade').nth(idx); await i.fill(txt); await pb.getByRole('button', { name: new RegExp('^' + opt) }).first().click(); };
     await pick(0, 'Quel', 'Quelimane'); await pick(1, 'Namp', 'Nampula');
@@ -232,7 +234,10 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     const s = (await db.query('select status from trips where id = $1', [trip2])).rows[0].status;
     const passed = (await db.query(`select p.name from trip_route_places rp join places p on p.id = rp.place_id join trip_routes r on r.id = rp.trip_route_id and r.is_current
       where r.trip_id = $1 and rp.passed_at is not null order by rp.passed_at`, [trip2])).rows.map((r) => r.name);
-    for (const n of ['Mocuba', 'Alto Molócue', 'Murrupula']) if (!passed.includes(n)) throw new Error('não passou por ' + n);
+    const all = (await db.query(`select p.name, rp.passed_at is not null passed from trip_route_places rp join places p on p.id = rp.place_id
+      join trip_routes r on r.id = rp.trip_route_id and r.is_current where r.trip_id = $1 order by rp.seq`, [trip2])).rows;
+    const prov = (await db.query(`select provider, round(length_m/1000) km, version from trip_routes where trip_id = $1 order by version`, [trip2])).rows;
+    for (const n of ['Mocuba', 'Alto Molócue', 'Murrupula']) if (!passed.includes(n)) throw new Error(`não passou por ${n}; rotas ${JSON.stringify(prov)}; localidades ${all.map((x) => x.name + (x.passed ? '✓' : '')).join(', ')}`);
     if (s !== 'concluida') throw new Error('não concluiu sozinha: ' + s);
     return `${(NAMPULA.L / 1000).toFixed(1)} km; passou por ${passed.filter((n) => ['Namacurra', 'Mocuba', 'Alto Molócue', 'Murrupula'].includes(n)).join(' → ')}; concluída sozinha`;
   });
