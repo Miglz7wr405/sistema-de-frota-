@@ -11,7 +11,7 @@ export const TOKEN_KEY = 'if_driver_token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 
 export type Me = {
-  testMode?: boolean;
+  testMode?: boolean; ownDriver?: boolean;
   driver: { id: string; fullName: string }; org: { name: string; settings: Record<string, number> }; consentRequired: boolean;
   trip: { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; cargo_description: string | null; recipient_name?: string | null; recipient_phone?: string | null; planned_arrival: string | null } | null;
   route: { routeId: string; version: number; baseKm: number; coords: LngLat[]; lengthM: number; plannedDurationS: number; places: RouteModel['places'] } | null;
@@ -54,6 +54,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
   const [pos, setPos] = useState<Pos | null>(null);
   const prevFix = useRef<{ t: number; lng: number; lat: number; acc: number } | null>(null);
   const testMode = !!me?.testMode;
+  const fast = testMode || !!me?.ownDriver; // o próprio utilizador: envio a cada 5 s
   const engine = useRef<{ model: RouteModel; state: EngineState; voice: VoiceState; key: string } | null>(null);
   const buffer = useRef<unknown[]>([]);
   const lastRecorded = useRef<{ t: number; moving: boolean } | null>(null);
@@ -140,7 +141,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     setGps((g) => ({ ...g, status: 'ok', lastFixAt: now, accuracyM: pos.coords.accuracy }));
     const st = me?.org.settings ?? {};
     const moving = kmh == null || kmh > 3;
-    const interval = testMode ? (moving ? 5 : 30) * 1000 : (moving ? st.gps_interval_moving_s ?? 15 : st.gps_interval_stopped_s ?? 120) * 1000;
+    const interval = fast ? (moving ? 5 : 30) * 1000 : (moving ? st.gps_interval_moving_s ?? 15 : st.gps_interval_stopped_s ?? 120) * 1000;
     const last = lastRecorded.current;
     if (!last || now - last.t >= interval || last.moving !== moving) {
       lastRecorded.current = { t: now, moving };
@@ -161,7 +162,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
       }
       try { localStorage.setItem(e.key, JSON.stringify({ state: e.state, voice: e.voice })); } catch { /* armazenamento cheio */ }
     }
-  }, [me, speak, testMode]);
+  }, [me, speak, fast]);
 
   const batteryPct = useRef<number | null>(null);
   useEffect(() => {
@@ -205,13 +206,13 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
 
   // Envio periódico + quando a rede volta.
   useEffect(() => {
-    const h = setInterval(sync, testMode ? 5_000 : 10_000);
+    const h = setInterval(sync, fast ? 5_000 : 10_000);
     const on = () => { setOnline(true); sync(); };
     const off = () => setOnline(false);
     window.addEventListener('online', on); window.addEventListener('offline', off);
     sync();
     return () => { clearInterval(h); window.removeEventListener('online', on); window.removeEventListener('offline', off); };
-  }, [sync, testMode]);
+  }, [sync, fast]);
 
   // Aviso "A localização deixou de ser atualizada" (uma vez por episódio).
   const lostAnnounced = useRef(false);
@@ -232,5 +233,5 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     await sync();
   }, [sync]);
 
-  return { gps, queued, online, snap, speed, speedHist, road, pos, testMode, reconnect, voiceReady, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
+  return { gps, queued, online, snap, speed, speedHist, road, pos, testMode, ownDriver: !!me?.ownDriver, reconnect, voiceReady, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
 }

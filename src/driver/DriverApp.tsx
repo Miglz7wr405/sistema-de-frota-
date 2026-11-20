@@ -105,7 +105,7 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
     <div className="flex min-h-[100dvh] flex-col bg-background">
       <header className="bg-navy px-5 pb-4 pt-5 text-white">
         {/* o dono (teste com o telemóvel) volta ao painel; motoristas reais só têm esta app */}
-        {rt.testMode && <a href="/app/dashboard" className="mb-2 inline-block text-sm font-semibold text-[#6EA8FF]">← {t.driverApp.backToPanel}</a>}
+        {rt.ownDriver && <a href="/app/dashboard" className="mb-2 inline-block text-sm font-semibold text-[#6EA8FF]">← {t.driverApp.backToPanel}</a>}
         <p className="text-sm text-slate-300">{t.driverApp.hello(me.driver.fullName)}</p>
         <div className="flex items-center justify-between gap-2"><h1 className="text-2xl font-bold text-white">{trip ? `${trip.origin} → ${trip.destination}` : '—'}</h1>
           {trip && <span className="rounded-full bg-success-soft px-3 py-1 text-sm font-semibold text-success-text">{t.trip.statuses[trip.status]}</span>}</div>
@@ -116,11 +116,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
       {!trip ? <Centered>{t.driverApp.noTrip}</Centered> : (
         <main className="flex flex-1 flex-col gap-3 p-4">
           {status === 'em_viagem' || status === 'pausada' ? <>
-            {(rt.gps.status !== 'ok' || !rt.gps.lastFixAt || Date.now() - rt.gps.lastFixAt > 30_000) && rt.gps.status !== 'waiting' && (
-              <div className="rounded-2xl border border-danger/30 bg-danger-soft p-4">
-                <p className="text-sm text-danger">{rt.gps.status === 'denied' ? t.driverApp.gpsDeniedHelp : t.driverApp.reconnectHint}</p>
-                <Button size="lg" className="mt-3 h-14 w-full text-lg" onClick={rt.reconnect}><Navigation className="h-5 w-5" />{t.driverApp.reconnect}</Button>
-              </div>)}
+            {/* sem botão: o GPS religa-se sozinho; só se o telemóvel bloquear a localização é preciso agir */}
+            {rt.gps.status === 'denied' && <p className="rounded-2xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger" role="alert">{t.driverApp.gpsDeniedHelp}</p>}
             <SpeedCard rt={rt} kmLeft={kmLeft} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} />
             {(trip.cargo_description || trip.recipient_name) && <div className="card p-4 text-sm">
               {trip.cargo_description && <p><span className="text-muted">{t.trip.cargoLoad}:</span> <b>{trip.cargo_description}</b></p>}
@@ -158,7 +155,6 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
               <Button variant="secondary" onClick={() => { location.href = '/app/self-test?escolher=1'; }}>{t.selftest.changeDestination}</Button>
               <Button variant="danger" onClick={async () => { await transition('concluida'); location.href = '/app/dashboard'; }}>{t.selftest.endTest}</Button>
             </div>}
-            {rt.gps.status === 'denied' && <p className="rounded-lg bg-danger-soft p-3 text-sm text-danger" role="alert">{t.driverApp.gpsDeniedHelp}</p>}
             {!window.isSecureContext && <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning">{t.driverApp.gpsNeedsHttps}</p>}
             <p className="text-center text-xs text-muted">{t.driverApp.keepOpen}</p>
           </> : (

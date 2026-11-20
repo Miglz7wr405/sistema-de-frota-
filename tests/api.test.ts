@@ -564,3 +564,29 @@ d('usar o GPS deste telemóvel (motorista = o próprio utilizador)', () => {
   });
 });
 
+d('chegada ao destino', () => {
+  it('ao chegar ao destino (GPS real ao longo da rota) a viagem conclui-se sozinha', async () => {
+    const veh = await call('POST', '/api/vehicles', A, { plate: 'ADM 400 P' });
+    const drv = await call('POST', '/api/drivers', A, { full_name: 'Carlos Chegada', phone: '+258841114444' });
+    const trip = await call('POST', '/api/trips', A, { origin_place_id: ids.origin, destination_place_id: ids.dest, vehicle_id: veh.json.id, driver_id: drv.json.id });
+    const acc = await call('POST', `/api/drivers/${drv.json.id}/access`, A, { pin: '2468' });
+    const tok = (await call('POST', '/api/driver/session', {}, { token: acc.json.link.split('#')[1], pin: '2468' })).json.token;
+    await call('POST', '/api/driver/consent', { bearer: tok }, {});
+    expect((await call('POST', `/api/driver/trips/${trip.json.id}/transition`, { bearer: tok }, { to: 'em_viagem' })).status).toBe(200);
+    const coords = JSON.parse((await sys.query(`select ST_AsGeoJSON(geom::geometry) g from trip_routes where trip_id = $1 and is_current`, [trip.json.id])).rows[0].g).coordinates as LngLat[];
+    const L = cumulative(coords).at(-1)! / 1000;
+    const start = Date.now() - 6 * 3600e3;
+    await sys.query(`update trips set actual_departure = $2 where id = $1`, [trip.json.id, new Date(start - 60_000)]);
+    const fixes = simulate(coords, [{ type: 'drive', untilKm: L, speedKmh: 70 }, { type: 'stop', minutes: 5 }], { intervalS: 60, noiseM: 5, seed: 9, startT: start });
+    for (let i = 0; i < fixes.length; i += 40) {
+      const r = await call('POST', '/api/ingest', { bearer: tok }, { sent_at: new Date().toISOString(), positions: fixes.slice(i, i + 40).map((f) => ({ lat: f.lat, lng: f.lng, device_time: new Date(f.t).toISOString(), speed_kmh: f.speedKmh, accuracy_m: f.accuracyM })) });
+      expect(r.status).toBe(200);
+    }
+    const t = (await sys.query('select status, actual_arrival from trips where id = $1', [trip.json.id])).rows[0];
+    expect(t.status).toBe('concluida');
+    expect(t.actual_arrival).not.toBeNull();
+    const ev = (await sys.query(`select actor_type, payload from trip_events where trip_id = $1 and kind = 'chegada'`, [trip.json.id])).rows;
+    expect(ev).toEqual([{ actor_type: 'system', payload: { automatica: true } }]);
+  }, 30_000);
+});
+

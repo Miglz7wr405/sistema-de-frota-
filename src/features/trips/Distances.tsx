@@ -26,7 +26,7 @@ export default function Distances() {
         {m.isError && <p className="mt-3 text-sm text-danger">{errorMessage(m.error)}</p>}
       </Card>
       {m.data && (
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="space-y-3">
             <Stat label={t.trip.distance} value={formatKm(m.data.lengthKm)} sub={m.data.roads.length ? `${t.distances.viaRoads}: ${m.data.roads.join(', ')}` : undefined} />
             <Stat label={t.trip.duration} value={formatDuration(m.data.durationS)} />

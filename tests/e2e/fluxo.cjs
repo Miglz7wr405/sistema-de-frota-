@@ -215,6 +215,18 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.waitForURL(/\/driver\/?$/, { timeout: 25000 });
     await tp.getByText(/Quelimane → Beira/).first().waitFor({ timeout: 15000 });
     await tp.getByText(/GPS a enviar/).first().waitFor({ timeout: 15000 });
+    // viagem real: "Voltar ao painel" sim; botões de teste não
+    await tp.getByText('Voltar ao painel').waitFor();
+    if (await tp.getByRole('button', { name: 'Terminar teste' }).count()) throw new Error('"Terminar teste" numa viagem real');
+  });
+  await tstep('13d-telemovel-sem-scroll-lateral', async () => {
+    // detalhe de uma viagem (motorista João) no telemóvel: nada pode alargar a página
+    await tp.goto(tripUrl);
+    await tp.getByText(/Rastreamento do cliente/).first().waitFor({ timeout: 15000 });
+    // nenhum cartão pode passar da margem direita do ecrã (nem escondido)
+    const over = await tp.evaluate(() => [...document.querySelectorAll('.card, main > div > div')].map((e) => e.getBoundingClientRect().right).filter((r) => r > window.innerWidth + 1).length);
+    const w = await tp.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    if (over || w[0] > w[1] + 1) throw new Error('conteúdo mais largo que o ecrã: ' + JSON.stringify({ over, w }));
   });
   await step('14-camiao-na-coordenada-certa', async () => {
     await page.goto(B + '/app/live-map');

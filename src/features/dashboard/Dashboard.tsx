@@ -79,7 +79,7 @@ export default function Dashboard() {
                 action={v.speed_kmh != null && freshnessOf(v.last_position_at, now) === 'atual' ? <Badge tone="success">{Math.round(v.speed_kmh)} km/h</Badge> : undefined}>
                 <RouteStrip {...st!} showEta={false} /></Card>))}</div>;
           })()}
-          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2" title={t.dashboard.fleetLocation} action={<Link className="text-sm font-medium text-primary" to="/app/live-map">{t.dashboard.openLiveMap} →</Link>}>
               <MapView className="h-[340px] rounded-xl" fitKey={String(located.length)} fitTo={located.map((v) => [v.lng!, v.lat!] as LngLat)}
                 state={{ vehicles: located.map((v) => {

@@ -73,7 +73,7 @@ export function AppLayout({ platform }: { platform?: boolean }) {
         <span className="font-bold">insight<span className="text-primary">Frota</span></span>
         <NavLink to="/app/alerts" aria-label={t.nav.alerts} className="relative"><Bell className="h-6 w-6" />{(notif.data?.unread ?? 0) > 0 && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-danger" />}</NavLink>
       </header>
-      <main className="mx-auto max-w-7xl px-4 pb-24 pt-5 sm:px-6 lg:pb-10 lg:pt-8"><Suspense fallback={<Spinner />}><Outlet /></Suspense></main>
+      <main className="mx-auto min-w-0 max-w-7xl overflow-x-clip px-4 pb-24 pt-5 sm:px-6 lg:pb-10 lg:pt-8"><Suspense fallback={<Spinner />}><Outlet /></Suspense></main>
       <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-white lg:hidden" aria-label="Navegação inferior">
         {NAV.filter((n) => MOBILE.includes(n.to)).map((n) => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => cn('flex flex-col items-center gap-0.5 py-2 text-[11px] text-muted', isActive && 'text-primary')}><n.icon className="h-5 w-5" />{n.label}</NavLink>

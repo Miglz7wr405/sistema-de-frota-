@@ -194,3 +194,15 @@ aproximada) às 14:24 e depois nada, porque o proprietário ficou no detalhe da 
 2. Antes da 1.ª posição precisa: "Distância restante" mostra a distância da rota (rodoviária) com "rota completa — a aguardar GPS
    preciso"; posições imprecisas aparecem como "±200 m — a aguardar GPS preciso". Nada inventado.
 **TESTADO** (56 testes; E2E 19/19, incl. viagem real com o motorista = utilizador a abrir o ecrã do motorista com GPS).
+
+## Chegada automática, GPS automático, página do cliente organizada (20/11, 11.ª ronda)
+1. **Conclusão automática**: quando o GPS real mostra o camião a ≤300 m do fim da rota, a viagem conclui-se sozinha (evento "chegada"
+   do sistema, auditado). **TESTADO** (integração: percurso completo simulado → `concluida`).
+2. **GPS automático**: motorista = o próprio utilizador → ao iniciar, e sempre que abre a viagem com a posição não atual, o ecrã do
+   motorista abre sozinho e o GPS liga-se (sem botões "ligar/reconectar"; religa-se sozinho ao voltar à app). Botões de teste só em
+   viagens de teste.
+3. **Página do cliente no telemóvel**: cabeçalho, mapa fixo (não se arrasta) com a rota inteira, e por baixo "🚚 Agora: Em …",
+   restantes, chegada e o esquema do percurso com o camião.
+4. **Detalhe da viagem no telemóvel**: corrigido o conteúdo mais largo que o ecrã (link comprido e grelhas sem `minmax(0,1fr)`);
+   retirada a lista repetida de localidades (o esquema do percurso já as mostra). **TESTADO** (E2E mede que nada passa da margem).
+- Testes: 57 + E2E 20/20.

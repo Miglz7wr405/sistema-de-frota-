@@ -28,7 +28,7 @@ export default function VehicleDetail() {
           <PageHeader back={<Link to="/app/vehicles" className="text-sm text-primary">← {t.vehicle.title}</Link>} title={<span className="flex items-center gap-3">{v.plate_normalized}<Badge tone={v.main_status === 'em_viagem' ? 'success' : v.main_status === 'em_manutencao' ? 'warning' : 'primary'}>{t.vehicle.mainStatus[v.main_status]}</Badge></span>}
             subtitle={[v.make, v.model, v.year].filter(Boolean).join(' · ')}
             actions={<>{canWrite && <Button variant="secondary" onClick={() => setEdit(true)}><Edit3 className="h-4 w-4" />{t.common.edit}</Button>}{canAdmin && <Button variant="danger" onClick={del}><Trash2 className="h-4 w-4" />{t.common.delete}</Button>}</>} />
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="space-y-4 lg:col-span-2">
               <Card title={t.vehicle.lastPosition} action={<FreshnessLine at={v.last_position_at} source={v.last_source} />}>
                 {v.lng != null ? <MapView className="h-72 rounded-xl" fitKey={id} fitTo={[[v.lng, v.lat]]} state={{ vehicles: [{ id: v.id, lng: v.lng, lat: v.lat, tone: 'primary', label: v.plate_normalized }] }} />

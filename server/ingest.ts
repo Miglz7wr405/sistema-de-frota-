@@ -67,8 +67,12 @@ export function cleanBatch(points: InPoint[], sentAt: string | null, now: number
   return { accepted, rejected };
 }
 
+// viagens concluídas automaticamente nesta ingestão (pós-processamento fora da transação)
+const autoClosed = new Set<string>();
+
 export async function ingest(src: Source, points: InPoint[], sentAt: string | null) {
   const res = await ingestTx(src, points, sentAt);
+  for (const id of [...autoClosed]) { autoClosed.delete(id); const { afterTripClosed } = await import('./routes/trips.js'); await afterTripClosed(id); }
   // Ajuste à estrada com as posições REAIS mais recentes (fora da transação: é um pedido de rede).
   let road: Awaited<ReturnType<typeof updateRoadMatch>> = null;
   if (res.accepted > 0 && src.source !== 'simulator' && (await hit(`match:${src.vehicleId}`, 4, 1))) road = await updateRoadMatch(src.vehicleId);
@@ -194,6 +198,15 @@ export async function processTrip(c: Tx, tripId: string, pts: Pt[]): Promise<str
         await event(c, trip.organization_id, tripId, 'chegou_destino', {}, at, e.t);
         const a = await openAlert(c, trip.organization_id, 'chegada', `chegada:${tripId}`, `${trip.plate} chegou ao destino`, null, trip.vehicle_id, tripId);
         if (a) alerts.push(a);
+        // Chegou ao destino (a ≤300 m do fim da rota, medido pelo GPS real): a viagem conclui-se sozinha, sem tocar em "Concluir".
+        const done = await c.query(`update trips set status = 'concluida', actual_arrival = $2 where id = $1 and status in ('em_viagem','pausada')`, [tripId, new Date(e.t)]);
+        if (done.rowCount) {
+          await c.query(`insert into trip_events (organization_id, trip_id, kind, actor_type, actor_id, payload, occurred_at)
+            values ($1, $2, 'chegada', 'system', null, '{"automatica": true}', $3)`, [trip.organization_id, tripId, new Date(e.t)]);
+          await c.query(`insert into audit_logs (organization_id, actor_type, actor_id, action, entity, entity_id, after)
+            values ($1, 'system', null, 'viagem.estado', 'trips', $2, '{"status":"concluida","automatica":true}')`, [trip.organization_id, tripId]);
+          autoClosed.add(tripId);
+        }
         break;
       }
       case 'voltou_para_tras': await event(c, trip.organization_id, tripId, 'voltou_para_tras', {}, at, e.t); break;

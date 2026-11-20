@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Edit3, Play, RefreshCw, Truck } from 'lucide-react';
@@ -108,6 +108,13 @@ function AssignCard({ tripId, vehicleId, driverId, onDone }: { tripId: string; v
   );
 }
 
+// Abre sozinho o ecrã do motorista (que envia o GPS) — sem botão. Só para a viagem em que o motorista é o próprio utilizador.
+function AutoOwnGps({ tripId }: { tripId: string }) {
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { openOwnDriverApp(tripId).catch((e) => setErr(errorMessage(e))); }, [tripId]);
+  return <p className="rounded-2xl bg-primary-soft p-4 text-sm text-navy">{err ?? t.ownGps.opening}</p>;
+}
+
 const NEXT: Record<string, string[]> = {
   planeada: ['aguardando_partida', 'em_viagem', 'cancelada'], aguardando_partida: ['em_viagem', 'cancelada'],
   em_viagem: ['pausada', 'concluida', 'cancelada'], pausada: ['em_viagem', 'concluida', 'cancelada'],
@@ -187,7 +194,7 @@ export default function TripDetail() {
           </div>
           {replaceFlow.dialog}
           {err && <p role="alert" className="mb-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>}
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="space-y-4 lg:col-span-2">
               {canWrite && ['planeada', 'aguardando_partida'].includes(tr.status) && (!tr.vehicle_id || !tr.driver_id) &&
                 <AssignCard tripId={id!} vehicleId={tr.vehicle_id} driverId={tr.driver_id} onDone={() => { qc.invalidateQueries({ queryKey: ['trip', id] }); qc.invalidateQueries({ queryKey: ['trips'] }); }} />}
@@ -206,13 +213,8 @@ export default function TripDetail() {
                   {d.position ? <>{fresh === 'atual' ? '🟢' : fresh === 'desatualizada' ? '🟠' : '🔴'} {fresh === 'atual' ? t.freshness.atual : fresh === 'desatualizada' ? t.freshness.desatualizada : t.freshness.sem_sinal} · {formatAgo(d.position.device_time, now)}</> : t.trip.noPosition}</span>}
               </div>
               {/* GPS parou e o motorista é o próprio utilizador (teste com o telemóvel): religar aqui mesmo */}
-              {/* o motorista é o próprio utilizador e a posição não está atual: usar o GPS deste telemóvel */}
-              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && (
-                <div className="rounded-2xl border border-primary/30 bg-primary-soft p-4">
-                  <p className="text-sm text-navy">{t.ownGps.hint}</p>
-                  <Button size="lg" className="mt-3 h-14 w-full text-lg" onClick={() => openOwnDriverApp(id!).catch((e) => setErr(errorMessage(e)))}><Play className="h-5 w-5" />{t.ownGps.button}</Button>
-                  <p className="mt-2 text-xs text-muted">{t.ownGps.consent}</p>
-                </div>)}
+              {/* o motorista é o próprio utilizador e a posição não está atual: o GPS deste telemóvel liga-se sozinho */}
+              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && <AutoOwnGps tripId={id!} />}
               {/* motorista real noutro telemóvel e a posição não está atual */}
               {active && fresh !== 'atual' && (!tr.driver_user_id || tr.driver_user_id !== me.data?.user?.id) && tr.driver_id && (
                 <div className="rounded-2xl border border-warning/40 bg-warning-soft p-4 text-sm text-navy">
@@ -232,17 +234,6 @@ export default function TripDetail() {
                   subTone={late ? 'warning' : 'success'} />
                 <Stat label={t.trip.speed} value={active && !noSig && d.position?.speed_kmh != null ? `${Math.round(d.position.speed_kmh)} km/h` : '—'} sub={d.position ? t.vehicle.sources[d.position.source] : undefined} />
               </div>
-              {d.route && (
-                <Card title={t.trip.places} action={<span className="text-xs text-muted">{formatKm(d.route.length_m / 1000)} · {formatDuration(d.route.duration_s)}{d.route.roads.length ? ` · ${d.route.roads.join(', ')}` : ''}</span>}>
-                  <ol className="space-y-2">{d.places.filter((p) => p.importance >= 2 || p.km_from_origin === 0).map((p) => (
-                    <li key={p.place_id} className="flex items-center gap-3 text-sm">
-                      <span className={`h-3 w-3 shrink-0 rounded-full border-2 ${p.state === 'passada' ? 'border-success bg-success' : p.state === 'atual' ? 'border-primary bg-primary' : 'border-primary bg-white'}`} />
-                      <span className="w-16 shrink-0 tabular-nums text-muted">km {Math.round(p.km_from_origin)}</span>
-                      <span className={`flex-1 ${p.importance >= 4 ? 'font-semibold' : ''}`}>{p.name}</span>
-                      <span className="tabular-nums text-muted">{p.passed_at ? `✓ ${formatTime(p.passed_at)}` : p.eta && p.eta_confidence !== 'indisponivel' && active && !noSig ? `~${formatTime(p.eta)}` : ''}</span>
-                    </li>))}</ol>
-                </Card>
-              )}
               {(d.incidents.length > 0 || d.proofs.length > 0 || (canSeeCosts && d.expenses.length > 0)) && (
                 <Card title={`${t.trip.events.ocorrencia} · ${t.trip.events.entrega}`}>
                   <ul className="space-y-2 text-sm">

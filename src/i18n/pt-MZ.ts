@@ -183,7 +183,7 @@ export const t = {
   },
   ownGps: {
     hint: 'O motorista desta viagem é o senhor. O GPS só é enviado pelo ecrã do motorista: abra-o neste telemóvel.',
-    button: 'Usar o GPS deste telemóvel',
+    button: 'Usar o GPS deste telemóvel', opening: 'A ligar o GPS deste telemóvel…',
     consent: 'Ao tocar, aceita que a localização deste telemóvel seja enviada durante esta viagem.',
     otherPhone: 'A localização não está atual: o telemóvel do motorista não está a enviar. Peça-lhe para abrir a app do motorista.',
     sendLink: 'Enviar o link ao motorista',
@@ -213,6 +213,7 @@ export const t = {
     changeDestination: 'Mudar destino', endTest: 'Terminar teste',
   },
   track: {
+    nowAt: (label: string) => `Agora: ${label}`,
     title: 'Acompanhe a sua viagem', enterCode: 'Introduza o código da viagem', codePh: 'FT-XXXX-XXXX', go: 'Acompanhar',
     invalidCode: 'Código inválido. Verifique e tente de novo.',
     unavailable: 'Este link já não está disponível. Contacte a transportadora.', trip: 'Viagem',

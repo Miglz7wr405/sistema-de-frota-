@@ -35,7 +35,7 @@ export default function LiveMap() {
         <button key={f} onClick={() => setFilter(f)} className={cn('rounded-full border px-4 py-1.5 text-sm', filter === f ? 'border-navy bg-navy text-white' : 'border-border bg-white')}>
           {f === 'todos' ? t.liveMap.filterAll : f === 'sem_sinal' ? t.freshness.sem_sinal : t.vehicle.mainStatus[f]}</button>))}</div>
       <QueryState q={q}>{() => (
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <MapView className="h-[60vh] rounded-2xl border border-border lg:col-span-2" fitKey={filter + located.length} fitTo={located.map((v) => [v.lng!, v.lat!] as LngLat)}
             onVehicleClick={setSel}
             state={{ vehicles: located.map((v) => { const f = freshnessOf(v.last_position_at, now); return { id: v.id, lng: v.lng!, lat: v.lat!, heading: v.heading, tone: vehicleTone(v.main_status, f), label: v.plate,

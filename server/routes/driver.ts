@@ -50,8 +50,10 @@ route('GET', '/api/driver/me', async (req) => {
       stops = await many(c, `select s.id, s.seq, s.kind, s.arrived_at, p.name place_name, s.recipient_name from trip_stops s join places p on p.id = s.place_id where s.trip_id = $1 order by s.seq`, [trip.id]);
       progress = await one(c, 'select km_done, km_left, pct, current_label, eta_destination, eta_confidence, engine_state from trip_progress where trip_id = $1', [trip.id]);
     }
-    const testMode = !!(await one(c, 'select 1 from drivers where id = $1 and user_id is not null', [d.driverId]));
-    return { testMode, driver: { id: d.driverId, fullName: d.fullName }, org: { name: org?.name, settings: org?.settings }, consentRequired: !consent,
+    // ownDriver: o motorista é o próprio utilizador (envio a cada 5 s, "Voltar ao painel"); testMode: viagem de teste do telemóvel
+    const ownDriver = !!(await one(c, 'select 1 from drivers where id = $1 and user_id is not null', [d.driverId]));
+    const testMode = !!trip && !!(await one(c, 'select 1 from trips t join vehicles v on v.id = t.vehicle_id where t.id = $1 and v.is_test', [(trip as { id: string }).id]));
+    return { testMode, ownDriver, driver: { id: d.driverId, fullName: d.fullName }, org: { name: org?.name, settings: org?.settings }, consentRequired: !consent,
       consentVersion: CONSENT_VERSION, trip, route: route_, stops, progress, serverTime: new Date().toISOString() };
   }));
 });

@@ -101,15 +101,18 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
     : dto.status === 'pausada' ? ['bg-warning text-white', t.track.paused] : dto.status === 'em_viagem' ? ['bg-success text-white', t.trip.statuses.em_viagem] : ['bg-slate-200 text-navy', t.trip.statuses[dto.status]];
   const totalKm = p ? p.km_done + p.km_left : Math.max(0, ...dto.places.map((x) => x.km));
   return (
-    <div className="relative h-[100dvh] overflow-hidden bg-slate-100">
-      <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center text-sm text-muted">{t.map.loading}</div>}><TrackMap dto={dto} stale={fresh === 'sem_sinal'} /></Suspense>
-      <div className="pointer-events-none absolute inset-x-0 top-0"><Header company={dto.company} logo={logo} /></div>
-      <section className="absolute inset-x-0 bottom-0 max-h-[62dvh] overflow-y-auto rounded-t-3xl bg-white px-5 pb-6 pt-3 shadow-[0_-8px_30px_rgba(16,36,61,0.12)] sm:left-auto sm:right-4 sm:top-24 sm:bottom-4 sm:w-[380px] sm:rounded-3xl">
-        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" />
+    // Telemóvel: cabeçalho, mapa FIXO (rota inteira enquadrada, não se arrasta) e por baixo a informação. Sem sobreposições.
+    <div className="min-h-[100dvh] overflow-x-hidden bg-background">
+      <Header company={dto.company} logo={logo} />
+      <div className="relative mx-auto h-[42dvh] max-w-3xl overflow-hidden sm:rounded-3xl">
+        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center text-sm text-muted">{t.map.loading}</div>}><TrackMap dto={dto} stale={fresh === 'sem_sinal'} /></Suspense>
+      </div>
+      <section className="mx-auto -mt-4 max-w-3xl rounded-t-3xl bg-white px-5 pb-6 pt-5 shadow-[0_-8px_30px_rgba(16,36,61,0.08)] relative">
         <div className="flex items-start justify-between gap-2">
           <div><p className="text-sm text-muted">{t.track.trip}</p><p className="font-mono text-2xl font-bold tracking-wide">{dto.code}</p></div>
           <span className={`rounded-full px-3 py-1.5 text-sm font-semibold ${badge[0]}`}>{badge[1]}</span>
         </div>
+        {active && p?.current_label && fresh !== 'sem_sinal' && <p className="mt-3 rounded-2xl bg-primary-soft px-4 py-3 text-lg font-semibold text-navy">🚚 {t.track.nowAt(p.current_label)}</p>}
         {dto.status === 'concluida' && dto.delivered_at && <p className="mt-3 text-lg font-semibold text-success-text">{t.track.delivered(formatTime(dto.delivered_at))}</p>}
         {(dto.status === 'planeada' || dto.status === 'aguardando_partida') && <p className="mt-3 text-muted">{t.track.notStarted}</p>}
         <div className="mt-3 flex items-center justify-between text-sm"><span className="font-semibold">{active && p ? t.track.pctDone(p.pct) : ''}</span><span className="text-muted">{dto.origin} → {dto.destination}</span></div>

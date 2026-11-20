@@ -32,7 +32,7 @@ export default function DriverDetail() {
       <div>
         <PageHeader back={<Link to="/app/drivers" className="text-sm text-primary">← {t.driver.title}</Link>} title={d.driver.full_name} subtitle={d.driver.phone}
           actions={<>{canWrite && <Button variant="secondary" onClick={() => setEdit(true)}><Edit3 className="h-4 w-4" />{t.common.edit}</Button>}{canAdmin && <Button variant="danger" onClick={del}><Trash2 className="h-4 w-4" /></Button>}</>} />
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">
             <Card title={t.trip.title}>{d.trips.length === 0 ? <p className="text-sm text-muted">{t.trip.noTrips}</p> : <ul className="divide-y divide-border">{d.trips.map((tr: any) => (
               <li key={tr.id} className="flex items-center justify-between py-2 text-sm"><span><Link className="font-medium text-primary" to={`/app/trips/${tr.id}`}>{tr.code}</Link> · {tr.origin} → {tr.destination} · {tr.plate ?? '—'}<br /><span className="text-muted">{formatDateTime(tr.actual_departure)}</span></span><TripStatus status={tr.status} /></li>))}</ul>}</Card>

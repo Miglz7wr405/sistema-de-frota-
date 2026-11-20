@@ -7,7 +7,7 @@ export default function TrackMap({ dto, stale }: { dto: Dto; stale: boolean }) {
   const left = dto.route_left?.coordinates ?? null;
   const fit: LngLat[] = [dto.origin_point, dto.destination_point, ...(dto.position ? [[dto.position.lng, dto.position.lat] as LngLat] : [])];
   return (
-    <MapView className="absolute inset-0" controls={false} fitKey={dto.code} fitTo={fit}
+    <MapView className="absolute inset-0" controls={false} interactive={false} fitKey={dto.code} fitTo={fit}
       state={{
         routeDone: done, routeLeft: left,
         vehicles: dto.position ? [{ id: 'truck', lng: dto.position.lng, lat: dto.position.lat, heading: dto.position.heading, tone: stale ? 'muted' : 'primary',

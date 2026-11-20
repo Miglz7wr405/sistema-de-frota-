@@ -35,7 +35,7 @@ export function ShareCard({ tripId, shares, origin, destination, company, canWri
       {active ? (
         <div className="space-y-3">
           <div className="rounded-xl bg-background p-4 text-center"><p className="text-xs text-muted">{t.share.code}</p><p className="font-mono text-2xl font-bold tracking-wider">{active.short_code}</p></div>
-          <div className="flex items-center gap-2 rounded-xl border border-border p-2"><span className="flex-1 truncate px-1 text-sm">{link}</span>
+          <div className="flex items-center gap-2 rounded-xl border border-border p-2"><span className="min-w-0 flex-1 truncate px-1 text-sm">{link}</span>
             <Button variant="secondary" size="sm" onClick={copy} aria-label={t.common.copy}><Copy className="h-4 w-4" />{copied ? t.common.copied : ''}</Button></div>
           {fresh?.id === active.id && <p className="text-xs text-warning">{t.share.tokenOnce}</p>}
           <div className="grid grid-cols-2 gap-2">
