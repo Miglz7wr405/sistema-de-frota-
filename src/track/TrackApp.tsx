@@ -116,7 +116,7 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
         {active && p && <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-success" style={{ width: `${p.pct}%` }} /></div>}
         {active && (
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="flex items-center gap-3 rounded-2xl bg-background p-3"><MapPin className="h-5 w-5 text-primary" /><div><p className="text-lg font-bold">{p ? formatKm(p.km_left) : '—'}</p><p className="text-xs text-muted">{t.track.remaining}</p></div></div>
+            <div className="flex items-center gap-3 rounded-2xl bg-background p-3"><MapPin className="h-5 w-5 text-primary" /><div><p className="text-lg font-bold">{p ? formatKm(p.km_left) : totalKm > 0 ? formatKm(totalKm) : '—'}</p><p className="text-xs text-muted">{p || !(totalKm > 0) ? t.track.remaining : t.ownGps.fullRoute}</p></div></div>
             <div className="flex items-center gap-3 rounded-2xl bg-background p-3"><Clock className="h-5 w-5 text-primary" /><div>
               <p className="text-lg font-bold">{etaOk ? formatTime(p!.eta!) : '—'}</p>
               <p className="text-xs text-muted">{etaOk ? `${t.track.eta}${p!.eta_confidence === 'baixa' ? ` (${t.track.etaApprox})` : ''}` : t.track.etaUnavailable}</p></div></div>

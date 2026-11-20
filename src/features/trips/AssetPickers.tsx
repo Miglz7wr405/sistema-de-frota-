@@ -8,7 +8,7 @@ import { VehicleForm } from '../vehicles/VehicleForm';
 import { DriverForm } from '../drivers/DriverForm';
 
 type Veh = { id: string; plate: string; main_status: string; is_test?: boolean };
-type Drv = { id: string; full_name: string; status: string };
+type Drv = { id: string; full_name: string; status: string; user_id?: string | null };
 
 export const useAssets = () => ({
   vehicles: useQuery({ queryKey: ['vehicles'], queryFn: () => api<Veh[]>('/api/vehicles') }),

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { route, ok, parse, HttpError, assertUuid } from '../http.js';
-import { many, one, type Tx } from '../db.js';
+import { many, one, withSystem, type Tx } from '../db.js';
+import { createOwnDriverSession } from '../own-driver.js';
 import { requireMember, asMember, WRITE, ADMIN, audit } from '../auth.js';
 import { planAndStoreTripRoute } from '../trip-route.js';
 import { randomToken, sha256 } from '../crypto.js';
@@ -208,6 +209,18 @@ route('POST', '/api/trips/:id/transition', async (req, p) => {
   for (const x of closed) await afterTripClosed(x);
   if (b.to === 'concluida') await afterTripClosed(id);
   return ok(t);
+});
+
+// "Usar o GPS deste telemóvel": só quando o motorista da viagem é o próprio utilizador (motorista ligado à conta).
+route('POST', '/api/trips/:id/my-driver-session', async (req, p) => {
+  const m = await requireMember(req, WRITE);
+  const id = assertUuid(p.id);
+  const t = await asMember(m, (c) => one<{ driver_id: string; status: string }>(c,
+    `select t.driver_id, t.status from trips t join drivers d on d.id = t.driver_id where t.id = $1 and t.deleted_at is null and d.user_id = $2`, [id, m.userId]));
+  if (!t) throw new HttpError(403, 'sem_permissao');
+  const token = await withSystem((c) => createOwnDriverSession(c, m.orgId!, t.driver_id, m.userId, 'GPS deste telemóvel (consentimento no botão)'));
+  await asMember(m, (c) => audit(c, m, 'motorista.sessao_propria', 'trips', id));
+  return ok({ driverToken: token }, 201);
 });
 
 route('POST', '/api/trips/:id/notes', async (req, p) => {

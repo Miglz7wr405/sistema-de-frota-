@@ -184,3 +184,13 @@ iniciar". **TESTADO** (integração com isolamento A↔B; E2E 18/18; 51 testes).
 "Nova viagem" passa a ter, opcionais: **Carga**, **Responsável da carga** e **Telefone do responsável** (campos já existentes na BD:
 `cargo_description`, `recipient_name`, `recipient_phone`; sem migração). Aparecem no detalhe da viagem (telefone com toque para ligar),
 na app do motorista e na lista de viagens. Não aparecem na página pública do cliente (lista branca do DTO). **TESTADO** (55 testes, E2E 18/18).
+
+## "Localização não aparece" — causa e correção (20/11, 10.ª ronda)
+Dados reais (Neon): na viagem FT-ZC3Y-B442 (ADM 219 P, motorista = o proprietário) chegou só 1 posição (±200 m, localização
+aproximada) às 14:24 e depois nada, porque o proprietário ficou no detalhe da viagem (painel), que não envia GPS; só a app do motorista envia.
+1. Motorista = o próprio utilizador: "Iniciar viagem agora" abre logo o ecrã do motorista neste telemóvel com o GPS a enviar; no detalhe,
+   com a posição não atual, botão "Usar o GPS deste telemóvel" (`POST /api/trips/:id/my-driver-session`, só para o próprio motorista,
+   auditado). Motorista noutro telemóvel: aviso "o telemóvel do motorista não está a enviar" com atalho para lhe enviar o link.
+2. Antes da 1.ª posição precisa: "Distância restante" mostra a distância da rota (rodoviária) com "rota completa — a aguardar GPS
+   preciso"; posições imprecisas aparecem como "±200 m — a aguardar GPS preciso". Nada inventado.
+**TESTADO** (56 testes; E2E 19/19, incl. viagem real com o motorista = utilizador a abrir o ecrã do motorista com GPS).

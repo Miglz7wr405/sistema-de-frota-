@@ -5,8 +5,7 @@ import { route, ok, parse, HttpError } from '../http.js';
 import { many, one, withSystem } from '../db.js';
 import { requireMember, asMember, WRITE, audit } from '../auth.js';
 import { planAndStoreTripRoute } from '../trip-route.js';
-import { randomToken, sha256 } from '../crypto.js';
-import { CONSENT_VERSION } from './driver.js';
+import { createOwnDriverSession } from '../own-driver.js';
 
 const TEST_PLATE = 'TESTE TELEMOVEL';
 
@@ -29,7 +28,6 @@ route('POST', '/api/selftest/start', async (req) => {
     destinationPlaceId: z.string().uuid().optional(), phone: z.string().regex(/^\+[1-9]\d{7,14}$/).optional(),
   }), req.body);
   if (b.accuracy > 500) throw new HttpError(422, 'precisao_insuficiente');
-  const token = randomToken(32);
   const r = await withSystem(async (c) => {
     // camião e motorista de teste (reutilizados); o motorista é o próprio utilizador
     let v = await one<{ id: string }>(c, `select id from vehicles where organization_id = $1 and is_test and deleted_at is null limit 1`, [m.orgId]);
@@ -70,21 +68,14 @@ route('POST', '/api/selftest/start', async (req) => {
       destName = cand.name;
       if (route_) break;
     }
-    // ao tocar em "Testar" o próprio utilizador aceitou usar o GPS deste telemóvel durante o teste (texto no botão)
-    await c.query(`insert into driver_consents (organization_id, driver_id, consent_version, user_agent) values ($1, $2, $3, $4) on conflict do nothing`,
-      [m.orgId, d!.id, CONSENT_VERSION, 'teste com o telemóvel (consentimento no botão)']);
-    // sessão de motorista para o próprio telemóvel do dono (sem link/PIN: já está autenticado como membro)
-    await c.query(`update driver_access set revoked_at = now() where driver_id = $1 and revoked_at is null`, [d!.id]);
-    const acc = await one<{ id: string }>(c, `insert into driver_access (organization_id, driver_id, token_hash, pin_hash, created_by)
-      values ($1, $2, $3, '!sem-pin', $4) returning id`, [m.orgId, d!.id, sha256(randomToken(32)), m.userId]);
-    await c.query(`insert into driver_sessions (organization_id, driver_id, access_id, token_hash, expires_at) values ($1, $2, $3, $4, now() + interval '12 hours')`,
-      [m.orgId, d!.id, acc!.id, sha256(token)]);
-    return { tripId: t!.id, code: t!.code, destination: destName, routeKm: route_ ? route_.lengthM / 1000 : null };
+    const token = await createOwnDriverSession(c, m.orgId!, d!.id, m.userId, 'teste com o telemóvel (consentimento no botão)');
+    return { tripId: t!.id, code: t!.code, destination: destName, routeKm: route_ ? route_.lengthM / 1000 : null, token };
   });
   // a viagem começa já (sem "Iniciar viagem"): mesma máquina de estados de sempre, como membro
   await asMember(m, async (c) => {
     await c.query(`select 1 from trip_transition($1, 'em_viagem')`, [r.tripId]);
     await audit(c, m, 'teste_telemovel.iniciar', 'trips', r.tripId);
   });
-  return ok({ ...r, driverToken: token }, 201);
+  const { token, ...rest } = r;
+  return ok({ ...rest, driverToken: token }, 201);
 });

@@ -103,7 +103,7 @@ const DCOLS = ['full_name', 'phone', 'license_number', 'license_category', 'phot
 route('GET', '/api/drivers', async (req) => {
   const m = await requireMember(req);
   return ok(await asMember(m, (c) => many(c, `
-    select d.id, d.full_name, d.phone, d.license_number, d.license_category, d.status, d.photo_file_id,
+    select d.id, d.full_name, d.phone, d.license_number, d.license_category, d.status, d.photo_file_id, d.user_id,
       (select min(expires_on) from documents doc where doc.driver_id = d.id and doc.doc_type = 'carta_conducao') as license_expires,
       (select t.code from trips t where t.driver_id = d.id and t.status in ('em_viagem','pausada') limit 1) as active_trip_code,
       (select a.last_used_at from driver_access a where a.driver_id = d.id and a.revoked_at is null) as access_last_used,

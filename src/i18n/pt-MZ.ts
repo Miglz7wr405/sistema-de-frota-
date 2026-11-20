@@ -181,6 +181,14 @@ export const t = {
     question: 'Pretende cancelar essa viagem para iniciar esta?',
     cancelAndStart: 'Cancelar essa viagem e iniciar esta', finishAndStart: 'Essa viagem já chegou — concluir e iniciar esta',
   },
+  ownGps: {
+    hint: 'O motorista desta viagem é o senhor. O GPS só é enviado pelo ecrã do motorista: abra-o neste telemóvel.',
+    button: 'Usar o GPS deste telemóvel',
+    consent: 'Ao tocar, aceita que a localização deste telemóvel seja enviada durante esta viagem.',
+    otherPhone: 'A localização não está atual: o telemóvel do motorista não está a enviar. Peça-lhe para abrir a app do motorista.',
+    sendLink: 'Enviar o link ao motorista',
+    awaitingFix: (m: number) => `±${m} m — a aguardar GPS preciso`, fullRoute: 'rota completa — a aguardar GPS preciso',
+  },
   reconnect: { button: 'Reconectar o GPS deste telemóvel', hint: 'Abre a app do motorista e volta a ligar o GPS.' },
   assign: { title: 'Para iniciar, escolha o camião e o motorista', saveStart: 'Guardar e iniciar viagem', save: 'Guardar' },
   strip: {

@@ -14,6 +14,7 @@ import { ShareCard, type Share } from './ShareCard';
 import { RouteStrip, speedTrend } from '../tracking/RouteStrip';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
 import { useStartWithReplace } from './BusyTripDialog';
+import { openOwnDriverApp } from './ownDriver';
 
 type Detail = {
   trip: Record<string, any>; stops: any[]; events: { id: string; kind: string; occurred_at: string; payload: Record<string, any>; actor_name: string | null }[];
@@ -60,8 +61,10 @@ function LivePanel({ d, noSig }: { d: Detail; noSig: boolean }) {
         </div>
         <div>
           <p className="text-xs text-muted">{t.trip.remaining}</p>
-          <p className="text-xl font-bold">{d.progress?.km_left != null ? formatKm(d.progress.km_left) : '—'}</p>
-          <p className="text-sm text-muted">{d.progress?.km_done != null ? t.trip.done(formatKm(d.progress.km_done)) : ''}{p?.accuracy_m != null ? ` · ${t.strip.accuracy(Math.round(p.accuracy_m))}` : ''}</p>
+          {/* antes da 1.ª posição precisa: a distância da rota (rodoviária), dita como tal — nada inventado */}
+          <p className="text-xl font-bold">{d.progress?.km_left != null ? formatKm(d.progress.km_left) : d.route ? formatKm((d.route.base_km ?? 0) + d.route.length_m / 1000) : '—'}</p>
+          <p className="text-sm text-muted">{d.progress?.km_done != null ? t.trip.done(formatKm(d.progress.km_done)) : d.route ? t.ownGps.fullRoute : ''}
+            {p?.accuracy_m != null ? ` · ${p.accuracy_m > 100 ? t.ownGps.awaitingFix(Math.round(p.accuracy_m)) : t.strip.accuracy(Math.round(p.accuracy_m))}` : ''}</p>
         </div>
       </div>
     </Card>
@@ -71,6 +74,7 @@ function LivePanel({ d, noSig }: { d: Detail; noSig: boolean }) {
 // Viagem sem camião/motorista: escolher (ou criar) aqui mesmo e iniciar, sem ir a outro ecrã.
 function AssignCard({ tripId, vehicleId, driverId, onDone }: { tripId: string; vehicleId: string | null; driverId: string | null; onDone: () => void }) {
   const { vehicles, drivers } = useAssets();
+  const meQ = useMe();
   const [v, setV] = useState(vehicleId ?? '');
   const [d, setD] = useState(driverId ?? '');
   const [err, setErr] = useState<string | null>(null);
@@ -80,7 +84,11 @@ function AssignCard({ tripId, vehicleId, driverId, onDone }: { tripId: string; v
     setBusy(true); setErr(null);
     try {
       await api(`/api/trips/${tripId}`, { method: 'PATCH', body: { vehicle_id: v || null, driver_id: d || null } });
-      if (start) await replaceFlow.run(async (replace) => { await api(`/api/trips/${tripId}/transition`, { body: { to: 'em_viagem', replace } }); onDone(); });
+      if (start) await replaceFlow.run(async (replace) => {
+        await api(`/api/trips/${tripId}/transition`, { body: { to: 'em_viagem', replace } }); onDone();
+        const mine = drivers.data?.find((x) => x.id === d)?.user_id;
+        if (mine && mine === meQ.data?.user?.id) await openOwnDriverApp(tripId);
+      });
       else onDone();
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   };
@@ -120,7 +128,11 @@ export default function TripDetail() {
   const transition = useMutation({
     // iniciar: se o camião/motorista já está noutra viagem, aparece o aviso (cancelar/concluir essa e iniciar esta)
     mutationFn: async (b: { to: string; reason?: string }) => b.to === 'em_viagem'
-      ? replaceFlow.run(async (replace) => { await api(`/api/trips/${id}/transition`, { body: { ...b, replace } }); refresh(); })
+      ? replaceFlow.run(async (replace) => {
+          await api(`/api/trips/${id}/transition`, { body: { ...b, replace } }); refresh();
+          const tr = q.data?.trip;
+          if (tr?.driver_user_id && tr.driver_user_id === me.data?.user?.id) await openOwnDriverApp(id!);
+        })
       : api(`/api/trips/${id}/transition`, { body: b }),
     onSuccess: () => { setErr(null); setCancelOpen(false); qc.invalidateQueries({ queryKey: ['trip', id] }); qc.invalidateQueries({ queryKey: ['trips'] }); },
     onError: (e) => setErr(errorMessage(e)),
@@ -194,10 +206,17 @@ export default function TripDetail() {
                   {d.position ? <>{fresh === 'atual' ? '🟢' : fresh === 'desatualizada' ? '🟠' : '🔴'} {fresh === 'atual' ? t.freshness.atual : fresh === 'desatualizada' ? t.freshness.desatualizada : t.freshness.sem_sinal} · {formatAgo(d.position.device_time, now)}</> : t.trip.noPosition}</span>}
               </div>
               {/* GPS parou e o motorista é o próprio utilizador (teste com o telemóvel): religar aqui mesmo */}
-              {active && noSig && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && (
-                <div className="rounded-2xl border border-danger/30 bg-danger-soft p-4">
-                  <p className="text-sm text-danger">{t.reconnect.hint}</p>
-                  <a href="/driver/" className="mt-3 block"><Button size="lg" className="h-14 w-full text-lg"><Play className="h-5 w-5" />{t.reconnect.button}</Button></a>
+              {/* o motorista é o próprio utilizador e a posição não está atual: usar o GPS deste telemóvel */}
+              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && (
+                <div className="rounded-2xl border border-primary/30 bg-primary-soft p-4">
+                  <p className="text-sm text-navy">{t.ownGps.hint}</p>
+                  <Button size="lg" className="mt-3 h-14 w-full text-lg" onClick={() => openOwnDriverApp(id!).catch((e) => setErr(errorMessage(e)))}><Play className="h-5 w-5" />{t.ownGps.button}</Button>
+                  <p className="mt-2 text-xs text-muted">{t.ownGps.consent}</p>
+                </div>)}
+              {/* motorista real noutro telemóvel e a posição não está atual */}
+              {active && fresh !== 'atual' && (!tr.driver_user_id || tr.driver_user_id !== me.data?.user?.id) && tr.driver_id && (
+                <div className="rounded-2xl border border-warning/40 bg-warning-soft p-4 text-sm text-navy">
+                  {t.ownGps.otherPhone}{' '}<Link className="font-semibold text-primary" to={`/app/drivers/${tr.driver_id}`}>{t.ownGps.sendLink}</Link>
                 </div>)}
               {active && d.position && <LivePanel d={d} noSig={noSig} />}
               {d.route && <Card title={t.strip.title}><RouteStrip origin={tr.origin} destination={tr.destination} totalKm={(d.route.base_km ?? 0) + d.route.length_m / 1000}
@@ -206,8 +225,8 @@ export default function TripDetail() {
               {!d.route && <Card><p className="text-sm text-warning">{t.trip.routeNone}</p>{canWrite && <Button className="mt-2" size="sm" variant="secondary" onClick={() => replan.mutate()} loading={replan.isPending}><RefreshCw className="h-4 w-4" />{t.trip.replan}</Button>}</Card>}
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Stat label={t.trip.progress} value={d.progress?.pct != null && active ? `${Math.round(d.progress.pct)}%` : tr.status === 'concluida' ? '100%' : '—'}><div className="mt-2"><ProgressBar pct={tr.status === 'concluida' ? 100 : d.progress?.pct} /></div></Stat>
-                <Stat label={t.trip.remaining} value={active && d.progress?.km_left != null ? formatKm(d.progress.km_left) : d.route && !active && tr.status !== 'concluida' ? formatKm(d.route.length_m / 1000) : '—'}
-                  sub={d.progress?.km_done != null ? t.trip.done(formatKm(d.progress.km_done)) : d.route ? `${t.trip.distance}: ${formatKm(d.route.length_m / 1000)}` : undefined} />
+                <Stat label={t.trip.remaining} value={active && d.progress?.km_left != null ? formatKm(d.progress.km_left) : d.route && tr.status !== 'concluida' ? formatKm((d.route.base_km ?? 0) + d.route.length_m / 1000) : '—'}
+                  sub={d.progress?.km_done != null ? t.trip.done(formatKm(d.progress.km_done)) : d.route ? (active ? t.ownGps.fullRoute : `${t.trip.distance}: ${formatKm(d.route.length_m / 1000)}`) : undefined} />
                 <Stat label={t.trip.eta} value={active && !noSig && d.progress?.eta_destination && d.progress.eta_confidence !== 'indisponivel' ? formatTime(d.progress.eta_destination) : '—'}
                   sub={active ? (noSig || !d.progress?.eta_destination || d.progress.eta_confidence === 'indisponivel' ? t.trip.etaUnavailable : late ? t.trip.late : d.progress.eta_confidence === 'baixa' ? t.trip.etaApprox : t.trip.onTime) : d.route ? `${t.trip.duration}: ${formatDuration(d.route.duration_s)}` : undefined}
                   subTone={late ? 'warning' : 'success'} />

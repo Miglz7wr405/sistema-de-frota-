@@ -15,6 +15,8 @@ import { toE164 } from '@/lib/format';
 import { PlacePicker, type PlaceOpt } from './PlacePicker';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
 import { useStartWithReplace } from './BusyTripDialog';
+import { openOwnDriverApp } from './ownDriver';
+import { useMe } from '@/app/session';
 
 const place = z.custom<PlaceOpt | null>((v) => !!v && typeof v === 'object', { message: t.validation.place });
 const Schema = z.object({ origin: place, destination: place, vehicle_id: z.string().optional(), driver_id: z.string().optional(),
@@ -30,6 +32,7 @@ export default function TripForm() {
   const [busy, setBusy] = useState<'start' | 'save' | null>(null);
   const { vehicles, drivers } = useAssets();
   const replaceFlow = useStartWithReplace();
+  const me = useMe();
   const existing = useQuery({ queryKey: ['trip', id], queryFn: () => api<{ trip: Record<string, any> }>(`/api/trips/${id}`), enabled: !!id });
   const f = useForm<F>({ resolver: zodResolver(Schema), defaultValues: { origin: null, destination: null, vehicle_id: '', driver_id: '', cargo: '', owner: '', owner_phone: '' } });
 
@@ -65,7 +68,10 @@ export default function TripForm() {
         if (id) { if (start) await api(`/api/trips/${id}/transition`, { body: { to: 'em_viagem', replace } }); }
         // criar e iniciar numa só operação: se não puder iniciar, não fica nenhuma viagem a mais
         else tripId = (await api<{ id: string }>('/api/trips', { body: { ...body, planned_departure: new Date().toISOString(), start, replace } })).id;
-        nav(`/app/trips/${tripId}`);
+        // o motorista é o próprio utilizador: abre logo a app do motorista neste telemóvel (GPS a enviar)
+        const mine = drivers.data?.find((x) => x.id === v.driver_id)?.user_id;
+        if (start && mine && mine === me.data?.user?.id) await openOwnDriverApp(tripId!);
+        else nav(`/app/trips/${tripId}`);
       });
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
   })();

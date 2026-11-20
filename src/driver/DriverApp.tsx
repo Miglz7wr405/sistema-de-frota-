@@ -131,7 +131,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
             {!moving && <div className="card flex items-center gap-4 p-4"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Navigation className="h-6 w-6" /></span>
               <div><p className="text-sm text-muted">{t.driverApp.nextPoint}</p><p className="text-xl font-bold">{next ? `${next.name} · ${formatKm((next.kmFromOrigin - (rt.snap?.kmDone ?? 0)) / scale)}` : rt.snap ? t.label(rt.snap.label) : t.common.noData}</p></div></div>}
             <div className="grid grid-cols-2 gap-3">
-              <div className="card p-4"><p className="text-sm text-muted">{t.driverApp.toDestination}</p><p className="text-3xl font-bold">{kmLeft != null ? formatKm(kmLeft) : '—'}</p></div>
+              <div className="card p-4"><p className="text-sm text-muted">{t.driverApp.toDestination}</p><p className="text-3xl font-bold">{kmLeft != null ? formatKm(kmLeft) : me.route ? formatKm(me.route.lengthM / 1000) : '—'}</p>
+                {kmLeft == null && me.route && <p className="text-xs text-muted">{t.ownGps.fullRoute}</p>}</div>
               <div className="card p-4"><p className="text-sm text-muted">{t.driverApp.eta}</p><p className="text-3xl font-bold">{etaOk ? formatTime(rt.snap!.etaDestination!) : '—'}</p>
                 {!etaOk && <p className="text-xs text-muted">{t.trip.etaUnavailable}</p>}</div>
             </div>

@@ -545,3 +545,22 @@ d('carga e responsável da carga', () => {
   });
 });
 
+d('usar o GPS deste telemóvel (motorista = o próprio utilizador)', () => {
+  it('só o próprio motorista obtém a sessão; outro motorista e outra organização são recusados', async () => {
+    const own = (await sys.query(`select d.id from drivers d join app_users u on u.id = d.user_id where u.email = 'a@teste.mz'`)).rows[0].id;
+    const veh = await call('POST', '/api/vehicles', A, { plate: 'ADM 300 P' });
+    const mine = await call('POST', '/api/trips', A, { origin_place_id: ids.origin, destination_place_id: ids.dest, vehicle_id: veh.json.id, driver_id: own });
+    const r = await call('POST', `/api/trips/${mine.json.id}/my-driver-session`, A);
+    expect(r.status).toBe(201);
+    const me = await call('GET', '/api/driver/me', { bearer: r.json.driverToken });
+    expect(me.status).toBe(200);
+    expect(me.json.consentRequired).toBe(false);
+    // viagem cujo motorista NÃO é o utilizador → recusado
+    const other = await call('POST', '/api/trips', A, { origin_place_id: ids.origin, destination_place_id: ids.dest, driver_id: ids.driver });
+    expect((await call('POST', `/api/trips/${other.json.id}/my-driver-session`, A)).status).toBe(403);
+    // outra organização → recusado
+    expect((await call('POST', `/api/trips/${mine.json.id}/my-driver-session`, B)).status).toBe(403);
+    expect((await sys.query(`select count(*)::int n from audit_logs where action = 'motorista.sessao_propria'`)).rows[0].n).toBe(1);
+  });
+});
+

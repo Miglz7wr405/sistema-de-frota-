@@ -200,6 +200,22 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.locator('.maplibregl-marker').first().waitFor({ timeout: 10000 });
     await tp.waitForTimeout(2000);
   });
+  await tstep('13c-viagem-real-motorista-sou-eu', async () => {
+    // viagem REAL com o motorista = o próprio utilizador → "Iniciar viagem agora" abre logo o ecrã do motorista com o GPS
+    await tp.goto(B + '/app/trips/new');
+    const pick = async (idx, txt, opt) => { const i = tp.getByPlaceholder('Escreva o nome da localidade').nth(idx); await i.fill(txt); await tp.getByRole('button', { name: new RegExp('^' + opt) }).first().click(); };
+    await pick(0, 'Quel', 'Quelimane');
+    await pick(1, 'Beir', 'Beira');
+    await tp.getByRole('button', { name: '+ Novo' }).nth(0).click();
+    await tp.getByRole('dialog').getByLabel('Matrícula').fill('ADM 219 P');
+    await tp.getByRole('dialog').getByRole('button', { name: 'Guardar' }).click();
+    await tp.getByRole('dialog').waitFor({ state: 'detached' });
+    await tp.getByLabel('Motorista').selectOption({ label: 'Miguel Teste' });
+    await tp.getByRole('button', { name: 'Iniciar viagem agora' }).click();
+    await tp.waitForURL(/\/driver\/?$/, { timeout: 25000 });
+    await tp.getByText(/Quelimane → Beira/).first().waitFor({ timeout: 15000 });
+    await tp.getByText(/GPS a enviar/).first().waitFor({ timeout: 15000 });
+  });
   await step('14-camiao-na-coordenada-certa', async () => {
     await page.goto(B + '/app/live-map');
     await page.getByText('TESTE TELEMOVEL').first().waitFor({ timeout: 15000 });

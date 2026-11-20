@@ -8,7 +8,8 @@ import { loadRouteModel } from '../trip-route.js';
 import { simplify } from '../../src/lib/geo/geometry.js';
 import { afterTripClosed } from './trips.js';
 
-export const CONSENT_VERSION = '2026-11';
+import { CONSENT_VERSION } from '../own-driver.js';
+export { CONSENT_VERSION };
 const DRIVER_SESSION_HOURS = 12;
 
 route('POST', '/api/driver/session', async (req) => {
