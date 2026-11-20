@@ -15,7 +15,7 @@ import { toE164 } from '@/lib/format';
 import { PlacePicker, type PlaceOpt } from './PlacePicker';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
 import { useStartWithReplace } from './BusyTripDialog';
-import { openOwnDriverApp } from './ownDriver';
+import { isPhone, openOwnDriverApp } from './ownDriver';
 import { useMe } from '@/app/session';
 
 const place = z.custom<PlaceOpt | null>((v) => !!v && typeof v === 'object', { message: t.validation.place });
@@ -70,7 +70,7 @@ export default function TripForm() {
         else tripId = (await api<{ id: string }>('/api/trips', { body: { ...body, planned_departure: new Date().toISOString(), start, replace } })).id;
         // o motorista é o próprio utilizador: abre logo a app do motorista neste telemóvel (GPS a enviar)
         const mine = drivers.data?.find((x) => x.id === v.driver_id)?.user_id;
-        if (start && mine && mine === me.data?.user?.id) await openOwnDriverApp(tripId!);
+        if (start && mine && mine === me.data?.user?.id && isPhone()) await openOwnDriverApp(tripId!);
         else nav(`/app/trips/${tripId}`);
       });
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }

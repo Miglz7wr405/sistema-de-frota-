@@ -6,3 +6,6 @@ export async function openOwnDriverApp(tripId: string) {
   try { localStorage.setItem('if_driver_token', r.driverToken); localStorage.removeItem('if_driver_me'); } catch { /* sem armazenamento */ }
   location.href = '/driver/';
 }
+
+/** É um telemóvel (o aparelho que pode fazer de "camião")? No computador o dono acompanha; nunca abre o ecrã do motorista. */
+export const isPhone = () => window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 768;
