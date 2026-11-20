@@ -163,9 +163,15 @@ export function step(route: RouteModel, prev: EngineState, fix: Fix, settings: E
   } else {
     const dt = s.lastFixT != null ? Math.max(0, fix.t - s.lastFixT) : 0;
     const fwd = Math.max(30_000, (140 / 3.6) * (dt / 1000) * 1.2);
-    const proj = s.doneM == null
+    let proj = s.doneM == null
       ? projectOnLine(route.coords, route.cum, p)
       : projectOnLine(route.coords, route.cum, p, s.doneM - 2_000, s.doneM + fwd) ?? projectOnLine(route.coords, route.cum, p);
+    // Retomar depois de uma falha longa (app fechada, sem rede, outro aparelho): se a posição não encaixa perto do último ponto
+    // mas encaixa NA ESTRADA mais à frente, avança para lá (só para a frente; recuos continuam a exigir confirmação).
+    if (s.doneM != null && proj && proj.offsetM > settings.corridorM) {
+      const g = projectOnLine(route.coords, route.cum, p);
+      if (g && g.offsetM <= settings.corridorM && g.alongM > s.doneM) proj = g;
+    }
     if (proj) {
       offsetM = proj.offsetM;
       if (proj.offsetM > settings.corridorM) {

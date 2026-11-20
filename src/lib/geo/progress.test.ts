@@ -164,3 +164,18 @@ function expectedSequence(spoken: string[]) {
   for (const s of spoken) expect(known.some((k) => k.test(s)), s).toBe(true);
   return spoken;
 }
+
+describe('retomar depois de uma falha longa', () => {
+  it('a posição muito mais à frente na estrada é aceite (app fechada, sem rede ou outro aparelho)', () => {
+    const coordAt = (m: number) => { let i = 1; while (i < route.cum.length - 1 && route.cum[i]! < m) i++; const f = (m - route.cum[i - 1]!) / (route.cum[i]! - route.cum[i - 1]!);
+      const a = route.coords[i - 1]!, b = route.coords[i]!; return { lng: a[0] + (b[0] - a[0]) * f, lat: a[1] + (b[1] - a[1]) * f }; };
+    const t0 = Date.parse('2026-11-20T08:00:00Z');
+    let s = initialState();
+    for (let k = 0; k <= 4; k++) s = step(route, s, { t: t0 + k * 30_000, ...coordAt(500 * k), accuracyM: 8, speedKmh: 60 }).state;
+    expect(s.doneM! / 1000).toBeCloseTo(2, 0);
+    const far = Math.min(route.lengthM - 1000, route.lengthM * 0.6);
+    const r = step(route, s, { t: t0 + 12 * 60_000, ...coordAt(far), accuracyM: 8, speedKmh: 70 });
+    expect(Math.abs(r.state.doneM! - far)).toBeLessThan(200);
+    expect(r.events.some((e) => e.kind === 'desvio')).toBe(false);
+  });
+});

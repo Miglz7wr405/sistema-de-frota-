@@ -16,6 +16,7 @@ export type Me = {
   trip: { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; cargo_description: string | null; recipient_name?: string | null; recipient_phone?: string | null; planned_arrival: string | null } | null;
   route: { routeId: string; version: number; baseKm: number; coords: LngLat[]; lengthM: number; plannedDurationS: number; places: RouteModel['places'] } | null;
   stops: { id: string; seq: number; kind: string; arrived_at: string | null; place_name: string }[]; serverTime: string;
+  progress?: { km_done: number | null } | null;
 };
 
 export async function driverApi<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
@@ -55,7 +56,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
   const prevFix = useRef<{ t: number; lng: number; lat: number; acc: number } | null>(null);
   const testMode = !!me?.testMode;
   const fast = testMode || !!me?.ownDriver; // o próprio utilizador: envio a cada 5 s
-  const engine = useRef<{ model: RouteModel; state: EngineState; voice: VoiceState; key: string } | null>(null);
+  const engine = useRef<{ model: RouteModel; state: EngineState; voice: VoiceState; key: string; scale: number } | null>(null);
   const buffer = useRef<unknown[]>([]);
   const lastRecorded = useRef<{ t: number; moving: boolean } | null>(null);
   const watchId = useRef<number | null>(null);
@@ -82,17 +83,29 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
   useEffect(() => {
     if (!me?.trip || !me.route) { engine.current = null; return; }
     const key = `if_engine_${me.trip.id}_${me.route.routeId}`;
-    if (engine.current?.key === key) return;
-    const model: RouteModel = { coords: me.route.coords, cum: cumulative(me.route.coords), lengthM: me.route.lengthM, plannedDurationS: me.route.plannedDurationS,
-      places: me.route.places.map((p) => ({ ...p })) };
-    // o motor local usa a geometria simplificada → reescala os km das localidades para a mesma medida
-    const scale = model.cum[model.cum.length - 1]! / model.lengthM;
-    model.places = model.places.map((p) => ({ ...p, kmFromOrigin: p.kmFromOrigin * scale }));
-    model.lengthM = model.cum[model.cum.length - 1]!;
-    let saved: { state: EngineState; voice: VoiceState } | null = null;
-    try { saved = JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { /* estado corrompido: recomeça */ }
-    engine.current = { model, key, state: saved?.state ?? initialState(), voice: saved?.voice ?? initialVoiceState() };
-  }, [me?.trip?.id, me?.route?.routeId]);
+    if (engine.current?.key !== key) {
+      const model: RouteModel = { coords: me.route.coords, cum: cumulative(me.route.coords), lengthM: me.route.lengthM, plannedDurationS: me.route.plannedDurationS,
+        places: me.route.places.map((p) => ({ ...p })) };
+      // o motor local usa a geometria simplificada → reescala os km das localidades para a mesma medida
+      const scale = model.cum[model.cum.length - 1]! / model.lengthM;
+      model.places = model.places.map((p) => ({ ...p, kmFromOrigin: p.kmFromOrigin * scale }));
+      model.lengthM = model.cum[model.cum.length - 1]!;
+      let saved: { state: EngineState; voice: VoiceState } | null = null;
+      try { saved = JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { /* estado corrompido: recomeça */ }
+      engine.current = { model, key, state: saved?.state ?? initialState(), voice: saved?.voice ?? initialVoiceState(), scale };
+    }
+    // O servidor já sabe que o camião vai mais à frente (app fechada durante o caminho, outro aparelho): começa daí.
+    // As localidades que ficaram para trás contam como passadas, sem as anunciar todas de uma vez.
+    const e = engine.current!;
+    const serverM = me.progress?.km_done != null ? (me.progress.km_done - (me.route.baseKm ?? 0)) * 1000 * e.scale : null;
+    if (serverM != null && serverM > (e.state.doneM ?? 0) + 1000) {
+      const now = Date.now();
+      const behind = e.model.places.filter((p) => p.kmFromOrigin * 1000 <= serverM);
+      e.state = { ...initialState(), doneM: serverM, lastAlongM: serverM, lastAlongT: now, lastFixT: now,
+        passed: Object.fromEntries(behind.map((p) => [p.placeId, now])), entered: Object.fromEntries(behind.map((p) => [p.placeId, now])) };
+      e.voice = { ...initialVoiceState(), said: Object.fromEntries(behind.map((p) => [`entra:${p.placeId}`, now])) };
+    }
+  }, [me?.trip?.id, me?.route?.routeId, Math.round(me?.progress?.km_done ?? 0)]);
 
   const sync = useCallback(async () => {
     if (buffer.current.length) {
