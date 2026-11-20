@@ -529,3 +529,19 @@ d('iniciar viagem real com o motorista ainda num teste do telemóvel', () => {
   });
 });
 
+d('carga e responsável da carga', () => {
+  it('guarda e devolve a carga e o responsável; telefone inválido recusado indicando o campo; B não vê', async () => {
+    const base = { origin_place_id: ids.origin, destination_place_id: ids.dest };
+    const bad = await call('POST', '/api/trips', A, { ...base, cargo_description: 'Cimento', recipient_phone: '12345' });
+    expect(bad.status).toBe(400);
+    expect(Object.keys(bad.json.details.fieldErrors)).toEqual(['recipient_phone']);
+    const r = await call('POST', '/api/trips', A, { ...base, cargo_description: '30 t de cimento', recipient_name: 'Sr. João Mucavele', recipient_phone: '+258841230000' });
+    expect(r.status).toBe(201);
+    const det = await call('GET', `/api/trips/${r.json.id}`, A);
+    expect(det.json.trip).toMatchObject({ cargo_description: '30 t de cimento', recipient_name: 'Sr. João Mucavele', recipient_phone: '+258841230000' });
+    const list = await call('GET', '/api/trips', A);
+    expect(list.json.find((x: { id: string }) => x.id === r.json.id)).toMatchObject({ cargo_description: '30 t de cimento' });
+    expect((await call('GET', `/api/trips/${r.json.id}`, B)).status).toBe(404);
+  });
+});
+

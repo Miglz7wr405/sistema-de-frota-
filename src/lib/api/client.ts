@@ -28,7 +28,7 @@ export async function api<T = unknown>(path: string, opts: { method?: string; bo
 // nomes legíveis dos campos que o servidor pode recusar (diz QUAL campo, em vez de uma mensagem vaga)
 const FIELD_NAMES: Record<string, string> = {
   origin_place_id: t.trip.origin, destination_place_id: t.trip.destination, vehicle_id: t.trip.vehicle, driver_id: t.trip.driver,
-  plate: t.vehicle.plate, full_name: t.driver.fullName, phone: t.driver.phone, planned_departure: t.trip.plannedDeparture, planned_arrival: t.trip.plannedArrival,
+  plate: t.vehicle.plate, full_name: t.driver.fullName, phone: t.driver.phone, planned_departure: t.trip.plannedDeparture, recipient_phone: t.trip.cargoOwnerPhone, recipient_name: t.trip.cargoOwner, cargo_description: t.trip.cargoLoad, planned_arrival: t.trip.plannedArrival,
 };
 function invalidFields(details: unknown): string | null {
   const fe = (details as { fieldErrors?: Record<string, unknown> } | undefined)?.fieldErrors;

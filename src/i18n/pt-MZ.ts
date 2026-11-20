@@ -128,6 +128,7 @@ export const t = {
     title: 'Viagens', new: 'Nova viagem', edit: 'Editar viagem', startNow: 'Iniciar viagem agora', saveOnly: 'Só guardar', code: 'Código', route: 'Rota', vehicleDriver: 'Camião · Motorista',
     progress: 'Progresso', arrival: 'Chegada', status: 'Estado', origin: 'Origem', destination: 'Destino', stops: 'Pontos de passagem / entregas',
     addStop: 'Adicionar ponto', vehicle: 'Camião', driver: 'Motorista', plannedDeparture: 'Partida prevista', plannedArrival: 'Chegada prevista',
+    cargoLoad: 'Carga', cargoPh: 'Ex.: 30 t de cimento', cargoOwner: 'Responsável da carga', cargoOwnerPhone: 'Telefone do responsável',
     cargo: 'Mercadoria', cargoWeight: 'Peso (t)', recipient: 'Destinatário', recipientPhone: 'Telefone do destinatário', clientRef: 'Referência do cliente',
     privateHint: 'Nome e telefone do destinatário são privados: nunca aparecem na página pública.',
     statuses: { planeada: 'Planeada', aguardando_partida: 'Aguardando partida', em_viagem: 'Em viagem', pausada: 'Pausada', concluida: 'Concluída', cancelada: 'Cancelada' } as Record<string, string>,

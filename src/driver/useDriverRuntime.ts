@@ -13,7 +13,7 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export type Me = {
   testMode?: boolean;
   driver: { id: string; fullName: string }; org: { name: string; settings: Record<string, number> }; consentRequired: boolean;
-  trip: { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; cargo_description: string | null; planned_arrival: string | null } | null;
+  trip: { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; cargo_description: string | null; recipient_name?: string | null; recipient_phone?: string | null; planned_arrival: string | null } | null;
   route: { routeId: string; version: number; baseKm: number; coords: LngLat[]; lengthM: number; plannedDurationS: number; places: RouteModel['places'] } | null;
   stops: { id: string; seq: number; kind: string; arrived_at: string | null; place_name: string }[]; serverTime: string;
 };

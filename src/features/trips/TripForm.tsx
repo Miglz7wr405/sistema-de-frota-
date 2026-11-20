@@ -10,13 +10,16 @@ import { z } from 'zod';
 import { Play } from 'lucide-react';
 import { api, errorMessage } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
-import { Button, Card, Field, PageHeader, Spinner } from '@/components/ui';
+import { Button, Card, Field, Input, PageHeader, Spinner } from '@/components/ui';
+import { toE164 } from '@/lib/format';
 import { PlacePicker, type PlaceOpt } from './PlacePicker';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
 import { useStartWithReplace } from './BusyTripDialog';
 
 const place = z.custom<PlaceOpt | null>((v) => !!v && typeof v === 'object', { message: t.validation.place });
-const Schema = z.object({ origin: place, destination: place, vehicle_id: z.string().optional(), driver_id: z.string().optional() })
+const Schema = z.object({ origin: place, destination: place, vehicle_id: z.string().optional(), driver_id: z.string().optional(),
+  cargo: z.string().max(500).optional(), owner: z.string().max(120).optional(),
+  owner_phone: z.string().optional().refine((v) => !v || !!toE164(v), t.validation.phone) })
   .refine((v) => !v.origin || !v.destination || v.origin.id !== v.destination.id, { message: t.validation.samePlace, path: ['destination'] });
 type F = z.infer<typeof Schema>;
 
@@ -28,7 +31,7 @@ export default function TripForm() {
   const { vehicles, drivers } = useAssets();
   const replaceFlow = useStartWithReplace();
   const existing = useQuery({ queryKey: ['trip', id], queryFn: () => api<{ trip: Record<string, any> }>(`/api/trips/${id}`), enabled: !!id });
-  const f = useForm<F>({ resolver: zodResolver(Schema), defaultValues: { origin: null, destination: null, vehicle_id: '', driver_id: '' } });
+  const f = useForm<F>({ resolver: zodResolver(Schema), defaultValues: { origin: null, destination: null, vehicle_id: '', driver_id: '', cargo: '', owner: '', owner_phone: '' } });
 
   useEffect(() => {
     const tr = existing.data?.trip;
@@ -37,6 +40,7 @@ export default function TripForm() {
       origin: { id: tr.origin_place_id, name: tr.origin, kind: '', province: null, private: false, lng: tr.origin_lng, lat: tr.origin_lat },
       destination: { id: tr.destination_place_id, name: tr.destination, kind: '', province: null, private: false, lng: tr.dest_lng, lat: tr.dest_lat },
       vehicle_id: tr.vehicle_id ?? '', driver_id: tr.driver_id ?? '',
+      cargo: tr.cargo_description ?? '', owner: tr.recipient_name ?? '', owner_phone: tr.recipient_phone ?? '',
     });
   }, [existing.data]);
 
@@ -51,7 +55,8 @@ export default function TripForm() {
 
   const save = (start: boolean) => f.handleSubmit(async (v) => {
     setErr(null); setBusy(start ? 'start' : 'save');
-    const body = { origin_place_id: v.origin!.id, destination_place_id: v.destination!.id, vehicle_id: v.vehicle_id || null, driver_id: v.driver_id || null };
+    const body = { origin_place_id: v.origin!.id, destination_place_id: v.destination!.id, vehicle_id: v.vehicle_id || null, driver_id: v.driver_id || null,
+      cargo_description: v.cargo?.trim() || null, recipient_name: v.owner?.trim() || null, recipient_phone: v.owner_phone ? toE164(v.owner_phone) : null };
     try {
       if (id) await api(`/api/trips/${id}`, { method: 'PATCH', body });
       // iniciar: se o camião/motorista já está noutra viagem, aparece o aviso e repete com a escolha
@@ -80,6 +85,11 @@ export default function TripForm() {
           <Field label={t.trip.destination} error={e.destination?.message as string}><Controller control={f.control} name="destination" render={({ field }) => <PlacePicker value={field.value} onChange={field.onChange} invalid={!!e.destination} />} /></Field>
           <Controller control={f.control} name="vehicle_id" render={({ field }) => <VehiclePicker value={field.value ?? ''} onChange={field.onChange} vehicles={vehicles.data} />} />
           <Controller control={f.control} name="driver_id" render={({ field }) => <DriverPicker value={field.value ?? ''} onChange={field.onChange} drivers={drivers.data} />} />
+          <Field label={`${t.trip.cargoLoad} (${t.common.optional})`}><Input placeholder={t.trip.cargoPh} {...f.register('cargo')} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={`${t.trip.cargoOwner} (${t.common.optional})`}><Input {...f.register('owner')} /></Field>
+            <Field label={t.trip.cargoOwnerPhone} error={e.owner_phone?.message}><Input type="tel" inputMode="tel" placeholder="+258 84 123 4567" {...f.register('owner_phone')} /></Field>
+          </div>
         </div>
       </Card>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">

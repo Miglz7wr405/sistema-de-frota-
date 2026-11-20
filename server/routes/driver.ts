@@ -31,7 +31,7 @@ route('GET', '/api/driver/me', async (req) => {
   return ok(await asDriver(d, async (c) => {
     const consent = await one(c, 'select accepted_at from driver_consents where driver_id = $1 and consent_version = $2', [d.driverId, CONSENT_VERSION]);
     const org = await one<{ name: string; settings: Record<string, number> }>(c, 'select coalesce(public_name, name) name, settings from organizations where id = $1', [d.orgId]);
-    const trip = await one<{ id: string }>(c, `select t.id, t.code, t.status, t.planned_departure, t.planned_arrival, t.cargo_description, t.recipient_name,
+    const trip = await one<{ id: string }>(c, `select t.id, t.code, t.status, t.planned_departure, t.planned_arrival, t.cargo_description, t.recipient_name, t.recipient_phone,
         po.name origin, pd.name destination, v.plate_normalized plate
       from trips t join places po on po.id = t.origin_place_id join places pd on pd.id = t.destination_place_id left join vehicles v on v.id = t.vehicle_id
       where t.driver_id = $1 and t.deleted_at is null and t.status in ('planeada','aguardando_partida','em_viagem','pausada')

@@ -122,6 +122,11 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
                 <Button size="lg" className="mt-3 h-14 w-full text-lg" onClick={rt.reconnect}><Navigation className="h-5 w-5" />{t.driverApp.reconnect}</Button>
               </div>)}
             <SpeedCard rt={rt} kmLeft={kmLeft} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} />
+            {(trip.cargo_description || trip.recipient_name) && <div className="card p-4 text-sm">
+              {trip.cargo_description && <p><span className="text-muted">{t.trip.cargoLoad}:</span> <b>{trip.cargo_description}</b></p>}
+              {(trip.recipient_name || trip.recipient_phone) && <p className="mt-1"><span className="text-muted">{t.trip.cargoOwner}:</span> <b>{trip.recipient_name ?? ''}</b>
+                {trip.recipient_phone && <> · <a className="text-primary" href={`tel:${trip.recipient_phone}`}>{trip.recipient_phone}</a></>}</p>}
+            </div>}
             <DriverRoute me={me} model={rt.route} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} pos={rt.pos} road={rt.road} />
             {!moving && <div className="card flex items-center gap-4 p-4"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Navigation className="h-6 w-6" /></span>
               <div><p className="text-sm text-muted">{t.driverApp.nextPoint}</p><p className="text-xl font-bold">{next ? `${next.name} · ${formatKm((next.kmFromOrigin - (rt.snap?.kmDone ?? 0)) / scale)}` : rt.snap ? t.label(rt.snap.label) : t.common.noData}</p></div></div>}
@@ -158,6 +163,7 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
           </> : (
             <div className="flex flex-1 flex-col gap-3">
               <div className="card p-5"><p className="text-sm text-muted">{trip.code}{trip.plate ? ` · ${trip.plate}` : ''}</p><p className="mt-1 text-lg font-semibold">{trip.cargo_description ?? ''}</p>
+                {trip.recipient_name && <p className="text-sm text-muted">{t.trip.cargoOwner}: {trip.recipient_name}{trip.recipient_phone ? ` · ${trip.recipient_phone}` : ''}</p>}
                 {me.route ? <p className="mt-2 text-muted">{t.trip.distance}: {formatKm(me.route.lengthM / 1000)}</p> : <p className="mt-2 text-warning">{t.trip.routeNone}</p>}</div>
               <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning">{t.driverApp.honesty}</p>
               <Button size="lg" className="mt-auto h-16 text-lg" onClick={() => transition('em_viagem')}><Play className="h-6 w-6" />{t.driverApp.start}</Button>

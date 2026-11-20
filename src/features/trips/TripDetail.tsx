@@ -244,7 +244,11 @@ export default function TripDetail() {
                     <div>{tr.vehicle_id ? <Link className="font-semibold" to={`/app/vehicles/${tr.vehicle_id}`}>{tr.plate}</Link> : '—'}<p className="text-muted">{[tr.make, tr.model].filter(Boolean).join(' ')}</p></div></div>
                   <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft font-semibold text-primary">{(tr.driver_name ?? '?').split(' ').map((x: string) => x[0]).slice(0, 2).join('')}</span>
                     <div>{tr.driver_id ? <Link className="font-semibold" to={`/app/drivers/${tr.driver_id}`}>{tr.driver_name}</Link> : '—'}<p className="text-muted">{tr.license_expires ? `${t.driver.license} · ${formatDate(tr.license_expires)}` : tr.driver_phone ?? ''}</p></div></div>
-                  {(tr.cargo_description || tr.recipient_name) && <div className="border-t border-border pt-3">{tr.cargo_description && <p>{t.trip.cargo}: {tr.cargo_description}{tr.cargo_weight_t ? ` · ${tr.cargo_weight_t} t` : ''}</p>}{tr.recipient_name && <p className="text-muted">{t.trip.recipient}: {tr.recipient_name} {tr.recipient_phone}</p>}</div>}
+                  {(tr.cargo_description || tr.recipient_name || tr.recipient_phone) && <div className="space-y-1 border-t border-border pt-3">
+                    {tr.cargo_description && <p><span className="text-muted">{t.trip.cargoLoad}:</span> <b>{tr.cargo_description}</b>{tr.cargo_weight_t ? ` · ${tr.cargo_weight_t} t` : ''}</p>}
+                    {(tr.recipient_name || tr.recipient_phone) && <p><span className="text-muted">{t.trip.cargoOwner}:</span> <b>{tr.recipient_name ?? ''}</b>
+                      {tr.recipient_phone && <> · <a className="text-primary" href={`tel:${tr.recipient_phone}`}>{tr.recipient_phone}</a></>}</p>}
+                  </div>}
                 </div>
               </Card>
               <Card title={t.trip.timeline} action={<Button size="sm" variant="ghost" onClick={loadReplay}>{t.trip.replay}</Button>}>

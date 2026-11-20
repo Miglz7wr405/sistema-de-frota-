@@ -84,6 +84,9 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await page.getByRole('dialog').getByRole('button', { name: 'Guardar' }).click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
     if (!page.url().endsWith('/app/trips/new')) throw new Error('saiu do formulário');
+    await page.getByLabel(/^Carga/).fill('30 t de cimento');
+    await page.getByLabel(/^Responsável da carga/).fill('Sr. João');
+    await page.getByLabel('Telefone do responsável').fill('841230000');
     const vsel = page.getByLabel('Camião');
     if ((await vsel.locator('option:checked').innerText()) !== 'AAB 123 MC') throw new Error('novo camião não escolhido');
     if ((await page.getByLabel('Motorista').locator('option:checked').innerText()) !== 'Ana Cossa') throw new Error('novo motorista não escolhido');
@@ -91,6 +94,8 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await page.waitForURL(/\/app\/trips\/[0-9a-f-]{36}$/, { timeout: 20000 });
     await page.getByText('AAB 123 MC').first().waitFor();
     await page.getByText('Viagem iniciada').first().waitFor({ timeout: 10000 });
+    await page.getByText('30 t de cimento').first().waitFor();
+    await page.getByText('+258841230000').first().waitFor();
   });
   await step('06c-aviso-ja-em-viagem', async () => {
     // AAB 123 MC já está em viagem (06b): nova viagem com o mesmo camião → aviso → cancelar essa e iniciar esta

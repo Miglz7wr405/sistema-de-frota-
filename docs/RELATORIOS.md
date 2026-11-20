@@ -179,3 +179,8 @@ iniciar". **TESTADO** (integração com isolamento A↔B; E2E 18/18; 51 testes).
    senão a voz portuguesa disponível com tom mais grave. A voz ativa-se ao primeiro toque no ecrã (regra do Chrome).
    **TESTADO** (escolha da voz: 3 testes unitários; E2E). Som real no telemóvel: **por validar** pelo proprietário.
 - Testes: 54 + E2E 18/18.
+
+## Carga e responsável da carga (20/11, 9.ª ronda)
+"Nova viagem" passa a ter, opcionais: **Carga**, **Responsável da carga** e **Telefone do responsável** (campos já existentes na BD:
+`cargo_description`, `recipient_name`, `recipient_phone`; sem migração). Aparecem no detalhe da viagem (telefone com toque para ligar),
+na app do motorista e na lista de viagens. Não aparecem na página pública do cliente (lista branca do DTO). **TESTADO** (55 testes, E2E 18/18).
