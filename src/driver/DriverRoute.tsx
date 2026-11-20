@@ -8,7 +8,7 @@ import type { RouteModel } from '@/lib/geo/progress';
 
 const DriverMap = lazy(() => import('./DriverMap'));
 
-export function DriverRoute({ me, model, kmDone, pos, road, arrivedPlaceId }: { me: Me; model: RouteModel | null; kmDone: number | null; pos: Pos | null; road: Road | null; arrivedPlaceId?: string | null }) {
+export function DriverRoute({ me, model, kmDone, pos, road, arrived }: { me: Me; model: RouteModel | null; kmDone: number | null; pos: Pos | null; road: Road | null; arrived?: { placeId: string; name: string; kmFromOrigin: number } | null }) {
   // primeiro o Mapa (por omissão), depois o Percurso
   const [view, setView] = useState<'strip' | 'map'>(() => (localStorage.getItem('if_driver_view') === 'strip' ? 'strip' : 'map'));
   if (!me.trip || !me.route) return null;
@@ -26,7 +26,7 @@ export function DriverRoute({ me, model, kmDone, pos, road, arrivedPlaceId }: { 
             places={me.route.places.map((p) => ({ name: p.name, km: p.kmFromOrigin, importance: p.importance }))} /></div>
         : <Suspense fallback={<div className="flex h-[340px] items-center justify-center text-sm text-muted">{t.map.loading}</div>}>
             <DriverMap model={model} kmDoneModel={kmDone != null && model ? kmDone * (model.lengthM / 1000 / totalKm) : null} pos={pos} road={road}
-              origin={me.route.coords[0]!} destination={me.route.coords[me.route.coords.length - 1]!} fitKey={me.route.routeId} arrivedPlaceId={arrivedPlaceId} />
+              origin={me.route.coords[0]!} destination={me.route.coords[me.route.coords.length - 1]!} fitKey={me.route.routeId} arrived={arrived} />
           </Suspense>}
     </div>
   );

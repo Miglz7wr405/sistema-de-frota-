@@ -265,7 +265,7 @@ export const t = {
     invalidLink: 'Link de acesso inválido. Peça um novo ao responsável.', wrongPin: 'PIN incorreto.', locked: 'Demasiadas tentativas. Tente daqui a 15 minutos.',
     consentTitle: 'Partilha de localização', consentText: 'Durante as viagens, esta app envia a localização do telemóvel à sua empresa. Fora das viagens não envia nada.',
     pinConsent: 'Ao entrar aceita que, durante as viagens, a localização deste telemóvel seja enviada à sua empresa. Fora das viagens não envia nada.',
-    nowAt: (l: string) => `Agora: ${l}`, passedPlace: (n: string) => `Já passou por ${n}`,
+    nowAt: (l: string) => `Agora: ${l}`, nowIn: (n: string) => `📍 Agora em ${n}`, passedPlace: (n: string) => `Já passou por ${n}`,
     viewStrip: 'Percurso', viewMap: 'Mapa', backToPanel: 'Voltar ao painel', tapForVoice: 'Toque no ecrã para ativar os avisos por voz.', reconnect: 'Ligar GPS novamente', reconnectHint: 'O GPS parou (saiu da app ou perdeu o sinal).',
     consentAccept: 'Aceito', noTrip: 'Não tem nenhuma viagem atribuída.', start: 'Iniciar viagem', pause: 'Pausar', resume: 'Retomar',
     incident: 'Ocorrência', deliver: 'Confirmar entrega', finish: 'Terminar viagem', talk: 'Falar', nextPoint: 'Próximo ponto',

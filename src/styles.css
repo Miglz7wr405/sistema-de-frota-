@@ -17,3 +17,7 @@
 }
 .maplibregl-ctrl-attrib { font-size: 11px; }
 .truck-marker { transition: transform 0.3s linear; }
+
+/* aviso por cima do mapa do motorista: entra a deslizar suavemente */
+.map-banner { animation: map-banner-in .5s ease-out; }
+@keyframes map-banner-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
