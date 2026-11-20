@@ -206,3 +206,17 @@ aproximada) às 14:24 e depois nada, porque o proprietário ficou no detalhe da 
 4. **Detalhe da viagem no telemóvel**: corrigido o conteúdo mais largo que o ecrã (link comprido e grelhas sem `minmax(0,1fr)`);
    retirada a lista repetida de localidades (o esquema do percurso já as mostra). **TESTADO** (E2E mede que nada passa da margem).
 - Testes: 57 + E2E 20/20.
+
+## Teste completo "um senhor regista a viagem e vai" (20/11, 12.ª ronda) — `bash scripts/e2e-viagem.sh`
+Navegador real (Chromium como telemóvel e como computador), mesma API e site, Postgres/PostGIS local (o contentor não tem internet).
+Rotas **reais** do Valhalla copiadas da produção (Quelimane→Beira 657,7 km; Quelimane→Nampula 547,2 km) e 133 localidades OSM reais.
+GPS **emulado** ao longo da estrada real (início e fim em tempo real; o meio com as horas da viagem, como a fila offline).
+Resultado final: **11/11 passos, 0 erros** (consola, páginas, respostas 5xx):
+registo no telemóvel → viagem com "Eu próprio" + carga → ecrã do motorista abre e GPS liga sozinho → 72 km/h, km a avançar →
+650,7 + 7,0 = 657,7 km (= rota) → localidades por ordem (Nicoadala→Caia→Gorongosa→Inchope→Dondo; "Portagem" 21→3) → no computador
+o camião a 0,5 px da coordenada → reabrir no telemóvel liga o GPS sozinho → cliente: "Agora: A 4 km de Beira", mapa fixo → chega à
+Beira e **conclui-se sozinha** → cliente vê "entregue" sem posição → Quelimane→Nampula concluída sozinha (Namacurra→Mocuba→Alto Molócue→Murrupula).
+**Problemas reais encontrados e corrigidos** pelo teste: (1) não havia forma de dizer "o motorista sou eu" → opção "Eu próprio";
+(2) 21 "Portagem" no mesmo sítio → agrupadas; (3) no computador o dono era mandado para o ecrã do motorista (sem GPS) → só no telemóvel;
+(4) ao reabrir a app depois de horas fechada, o cálculo local ficava preso no ponto antigo → retoma na estrada e começa no ponto do servidor.
+Não testado: GPS real com o ecrã bloqueado (limite do navegador), Maputo (sem rota real guardada), Valhalla de produção para rotas novas.
