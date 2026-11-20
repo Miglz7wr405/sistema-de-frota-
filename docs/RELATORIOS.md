@@ -6,7 +6,7 @@
 
 ## Estado geral
 - Produção: https://insightfrota.vercel.app (Vercel Hobby) · BD Neon `insightfrota` (Frankfurt) com as 13 migrações aplicadas; 57 tabelas, todas com RLS (verificado no Neon).
-- Base geográfica real (OpenStreetMap, ODbL) importada a partir da Vercel: **1573 localidades** (22 cidades, 326 vilas, 1171 aldeias, 47 portagens, 6 fronteiras, 1 balança) e **6 de 11 províncias** (Zambézia, Sofala, Manica, Gaza, Cidade de Maputo; polígonos verificados). As restantes (Cabo Delgado, Nampula, Niassa, Inhambane, Maputo, Tete) foram recusadas pelos servidores Overpass gratuitos por excesso de carga; o job agendado tenta completá-las sozinho (1 tentativa a cada 30 min). Localidades sem província não mostram o evento "entrou na província" — nada é inventado.
+- Base geográfica real (OpenStreetMap, ODbL) importada a partir da Vercel: **1573 localidades** (22 cidades, 326 vilas, 1171 aldeias, 47 portagens, 6 fronteiras, 1 balança) e **5 de 11 províncias** (Zambézia, Sofala, Manica, Gaza, Cidade de Maputo; polígonos verificados). As restantes (Cabo Delgado, Nampula, Niassa, Inhambane, Maputo, Tete) foram recusadas pelos servidores Overpass gratuitos por excesso de carga; o job agendado tenta completá-las sozinho (1 tentativa a cada 30 min). Localidades sem província não mostram o evento "entrou na província" — nada é inventado.
 - Jobs agendados: Neon Function `jobs` (a cada 5 min + diário às 00:15 UTC).
 - Testes automáticos: **43 a passar** (6 ficheiros): motor de percurso e voz (15), assistente (2), fila offline (1), integração com Postgres/PostGIS real (23), importação OSM (1), migrações empacotadas (1).
 
