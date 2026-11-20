@@ -10,6 +10,7 @@ export const TOKEN_KEY = 'if_driver_token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 
 export type Me = {
+  testMode?: boolean;
   driver: { id: string; fullName: string }; org: { name: string; settings: Record<string, number> }; consentRequired: boolean;
   trip: { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; cargo_description: string | null; planned_arrival: string | null } | null;
   route: { routeId: string; version: number; baseKm: number; coords: LngLat[]; lengthM: number; plannedDurationS: number; places: RouteModel['places'] } | null;
@@ -22,15 +23,26 @@ export async function driverApi<T>(path: string, method = 'GET', body?: unknown)
   return r.json() as Promise<T>;
 }
 
-type GpsState = { status: 'off' | 'waiting' | 'ok' | 'denied' | 'error'; lastFixAt: number | null; lastSentAt: number | null };
+type GpsState = { status: 'off' | 'waiting' | 'ok' | 'denied' | 'error'; lastFixAt: number | null; lastSentAt: number | null; accuracyM: number | null };
+export type Road = { roadName: string | null; speedLimitKmh: number | null; at: number };
+
+const hav = (a: [number, number], b: [number, number]) => {
+  const R = 6371000, r = Math.PI / 180, dLat = (b[1] - a[1]) * r, dLng = (b[0] - a[0]) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
 
 export function useDriverRuntime(me: Me | null, muted: boolean) {
-  const [gps, setGps] = useState<GpsState>({ status: 'off', lastFixAt: null, lastSentAt: null });
+  const [gps, setGps] = useState<GpsState>({ status: 'off', lastFixAt: null, lastSentAt: null, accuracyM: null });
   const [queued, setQueued] = useState(0);
   const [online, setOnline] = useState(navigator.onLine);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [lastSpoken, setLastSpoken] = useState<string | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
+  const [speedHist, setSpeedHist] = useState<number[]>([]);
+  const [road, setRoad] = useState<Road | null>(null);
+  const prevFix = useRef<{ t: number; lng: number; lat: number; acc: number } | null>(null);
+  const testMode = !!me?.testMode;
   const engine = useRef<{ model: RouteModel; state: EngineState; voice: VoiceState; key: string } | null>(null);
   const buffer = useRef<unknown[]>([]);
   const lastRecorded = useRef<{ t: number; moving: boolean } | null>(null);
@@ -79,7 +91,13 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
           const r = it.kind === 'positions'
             ? await fetch('/api/ingest', { method: 'POST', headers: { authorization: `Bearer ${getToken()}`, 'content-type': 'application/json' }, body: JSON.stringify({ ...it.body, sent_at: new Date().toISOString() }) })
             : await fetch(it.path, { method: it.method, headers: { authorization: `Bearer ${getToken()}`, 'content-type': 'application/json' }, body: JSON.stringify(it.body) });
-          if (r.ok) return 'ok';
+          if (r.ok) {
+            if (it.kind === 'positions') {
+              const j = await r.json().catch(() => null) as { road?: { roadName: string | null; speedLimitKmh: number | null } | null } | null;
+              if (j?.road) setRoad({ ...j.road, at: Date.now() });
+            }
+            return 'ok';
+          }
           if (r.status >= 500 || r.status === 429) return 'retry';
           return 'drop'; // rejeição definitiva (ex.: transição já aplicada): não bloqueia a fila
         } catch { return 'retry'; }
@@ -92,12 +110,20 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
 
   const onFix = useCallback((pos: GeolocationPosition) => {
     const now = pos.timestamp || Date.now();
-    const kmh = pos.coords.speed != null ? pos.coords.speed * 3.6 : null;
+    // Velocidade REAL: a do GPS do telemóvel; se o navegador não a der, calculada entre duas posições precisas consecutivas.
+    let kmh: number | null = pos.coords.speed != null && Number.isFinite(pos.coords.speed) && pos.coords.speed >= 0 ? pos.coords.speed * 3.6 : null;
+    const pf = prevFix.current;
+    if (kmh == null && pf && pos.coords.accuracy <= 30 && pf.acc <= 30) {
+      const dt = (now - pf.t) / 1000;
+      if (dt >= 1 && dt <= 30) kmh = (hav([pf.lng, pf.lat], [pos.coords.longitude, pos.coords.latitude]) / dt) * 3.6;
+    }
+    prevFix.current = { t: now, lng: pos.coords.longitude, lat: pos.coords.latitude, acc: pos.coords.accuracy };
     setSpeed(kmh);
-    setGps((g) => ({ ...g, status: 'ok', lastFixAt: now }));
+    if (kmh != null) setSpeedHist((h) => [...h.slice(-7), kmh!]);
+    setGps((g) => ({ ...g, status: 'ok', lastFixAt: now, accuracyM: pos.coords.accuracy }));
     const st = me?.org.settings ?? {};
     const moving = kmh == null || kmh > 3;
-    const interval = (moving ? st.gps_interval_moving_s ?? 15 : st.gps_interval_stopped_s ?? 120) * 1000;
+    const interval = testMode ? (moving ? 5 : 30) * 1000 : (moving ? st.gps_interval_moving_s ?? 15 : st.gps_interval_stopped_s ?? 120) * 1000;
     const last = lastRecorded.current;
     if (!last || now - last.t >= interval || last.moving !== moving) {
       lastRecorded.current = { t: now, moving };
@@ -118,7 +144,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
       }
       try { localStorage.setItem(e.key, JSON.stringify({ state: e.state, voice: e.voice })); } catch { /* armazenamento cheio */ }
     }
-  }, [me, speak]);
+  }, [me, speak, testMode]);
 
   const batteryPct = useRef<number | null>(null);
   useEffect(() => {
@@ -141,13 +167,13 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
 
   // Envio periódico + quando a rede volta.
   useEffect(() => {
-    const h = setInterval(sync, 10_000);
+    const h = setInterval(sync, testMode ? 5_000 : 10_000);
     const on = () => { setOnline(true); sync(); };
     const off = () => setOnline(false);
     window.addEventListener('online', on); window.addEventListener('offline', off);
     sync();
     return () => { clearInterval(h); window.removeEventListener('online', on); window.removeEventListener('offline', off); };
-  }, [sync]);
+  }, [sync, testMode]);
 
   // Aviso "A localização deixou de ser atualizada" (uma vez por episódio).
   const lostAnnounced = useRef(false);
@@ -168,5 +194,5 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     await sync();
   }, [sync]);
 
-  return { gps, queued, online, snap, speed, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
+  return { gps, queued, online, snap, speed, speedHist, road, testMode, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
 }

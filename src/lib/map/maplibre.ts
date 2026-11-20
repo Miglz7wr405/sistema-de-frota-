@@ -14,8 +14,15 @@ const FALLBACK_STYLE = {
 const LOAD_TIMEOUT_MS = 10_000;
 const COLORS = { primary: '#1769E8', success: '#16A36A', muted: '#94A3B8', danger: '#C62828' };
 
-const truckSvg = (color: string) => `<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="16" fill="${color}" fill-opacity="0.18"/>
-<circle cx="17" cy="17" r="11" fill="${color}" stroke="#fff" stroke-width="2"/><path d="M17 9 L22 21 L17 18.5 L12 21 Z" fill="#fff"/></svg>`;
+// Camião visto de cima (frente para norte; roda com o rumo real do GPS).
+const truckSvg = (color: string) => `<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+<circle cx="17" cy="17" r="16" fill="${color}" fill-opacity="0.16"/>
+<rect x="11.5" y="13" width="11" height="17" rx="2" fill="#fff" stroke="${color}" stroke-width="1.6"/>
+<rect x="12" y="4.5" width="10" height="8" rx="2.5" fill="${color}" stroke="#fff" stroke-width="1.2"/>
+<rect x="13.5" y="5.8" width="7" height="2.6" rx="1" fill="#fff" fill-opacity="0.85"/>
+<rect x="10" y="15" width="1.6" height="4" rx=".6" fill="#10243D"/><rect x="22.4" y="15" width="1.6" height="4" rx=".6" fill="#10243D"/>
+<rect x="10" y="24" width="1.6" height="4" rx=".6" fill="#10243D"/><rect x="22.4" y="24" width="1.6" height="4" rx=".6" fill="#10243D"/>
+</svg>`;
 
 export const maplibreProvider: MapProvider = {
   async create(container, opts) {
@@ -39,6 +46,8 @@ export const maplibreProvider: MapProvider = {
       map = make(FALLBACK_STYLE);
       await waitLoad(map);
     }
+    // projeção ecrã↔coordenadas acessível ao teste E2E (verifica que o camião é desenhado na coordenada certa)
+    (container as HTMLElement & { __project?: (ll: LngLat) => { x: number; y: number } }).__project = (ll) => map.project(ll);
     if (opts.controls !== false) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     const lineSrc = (id: string, color: string, dashed: boolean, width: number, opacity = 1) => {
@@ -76,6 +85,7 @@ export const maplibreProvider: MapProvider = {
     };
     const pointEl = (p: PointMarker) => {
       const el = document.createElement('div');
+      el.style.width = '14px'; el.style.height = '14px';
       const color = p.kind === 'origin' ? COLORS.success : p.kind === 'destination' ? COLORS.danger : p.kind === 'passed' ? COLORS.primary : '#fff';
       el.innerHTML = `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:3px solid ${p.kind === 'waypoint' || p.kind === 'place' ? COLORS.primary : '#fff'};box-shadow:0 0 0 1px rgba(16,36,61,.2)"></div>` +
         (p.label ? `<div style="position:absolute;top:16px;left:50%;transform:translateX(-50%);background:#fff;border-radius:8px;padding:2px 7px;font:600 12px Inter,system-ui;color:#10243D;white-space:nowrap;box-shadow:0 1px 2px rgba(16,36,61,.15)">${esc(p.label)}</div>` : '');
@@ -98,7 +108,8 @@ export const maplibreProvider: MapProvider = {
               renderVehicle(ex.el, v);
             } else {
               const el = document.createElement('div');
-              el.style.position = 'relative'; el.style.cursor = 'pointer';
+              // NUNCA mudar 'position' do elemento: o MapLibre posiciona-o com position:absolute + transform.
+              el.style.width = '34px'; el.style.height = '34px'; el.style.cursor = 'pointer';
               el.addEventListener('click', (e) => { e.stopPropagation(); vehicleClick?.(v.id); });
               renderVehicle(el, v);
               const m = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([v.lng, v.lat]).addTo(map);

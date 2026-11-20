@@ -101,3 +101,21 @@ O proprietário reportou: mapa não abre, GPS não funciona, "nenhum back-end fu
 5. **Demonstração** — botão no painel que põe um camião do simulador a percorrer a rota real Quelimane → Beira (fonte "Simulador").
 6. **Teste E2E** no repositório (`npm run e2e`): 14 passos em navegador real — registo, camião, motorista, link + PIN, viagem,
    GPS emulado, mapas, partilha, página pública, mapa ao vivo, demonstração. Resultado: **14/14**.
+
+## Teste real com o telemóvel + camião na estrada (20/11, 2.ª ronda)
+O proprietário rejeitou a demonstração com simulador e reportou que o ponteiro aparecia "do outro lado" (perto de Bulawayo).
+1. **Ponteiro no sítio errado — causa encontrada e corrigida.** A posição na base de dados estava certa (34,09° E, −18,77° S). O erro
+   estava no desenho: o elemento do marcador tinha `position: relative`, o que anulava o `position: absolute` do MapLibre e
+   deslocava todos os marcadores. Corrigido, com ícone de camião visto de cima a rodar com o rumo real. **TESTADO** (E2E mede a
+   diferença entre o marcador e a coordenada: 0,3 px / 0,5 px).
+2. **Demonstração com simulador removida** (código e dados no Neon: 0 camiões, 0 viagens, 0 posições do simulador).
+3. **"Testar com o meu telemóvel"** (`/app/self-test`): partida = posição GPS real, rota real, app do motorista no mesmo telemóvel,
+   envio a cada 5 s. **TESTADO (automático)**: integração + E2E com GPS emulado. **VALIDADO (real): ainda não** (só o proprietário pode,
+   com o telemóvel).
+4. **Camião em cima da estrada, nome da estrada e limite (OSM)**: ver ADR-022. **TESTADO** com respostas de teste. O serviço real do
+   Valhalla `trace_attributes` em produção: **não confirmado**.
+5. **Velocidade real, a acelerar/a reduzir, km feitos, km que faltam, tempo ao ritmo atual, chegada prevista**: na app do motorista e no
+   detalhe da viagem. **TESTADO (automático)**.
+6. **Esquema do percurso** com curvas e localidades reais (ex.: Beira · Inchope · Gorongosa · Caia · … · Quelimane) no detalhe da viagem
+   e na página do cliente. **TESTADO** (E2E).
+- Testes: **50 a passar** (vitest, com integração em PostGIS real) + **E2E 14/14** em navegador real.

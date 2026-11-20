@@ -9,6 +9,8 @@ import { DEFAULT_SETTINGS, initialState, step, type EngineEvent, type EngineSett
 import { loadRouteModel, planAndStoreTripRoute } from './trip-route.js';
 import { t as i18n } from '../src/i18n/pt-MZ.js';
 import { sendPushForAlerts } from './push.js';
+import { matchToRoad } from './matching.js';
+import { hit } from './auth.js';
 
 export const PointSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -66,6 +68,36 @@ export function cleanBatch(points: InPoint[], sentAt: string | null, now: number
 }
 
 export async function ingest(src: Source, points: InPoint[], sentAt: string | null) {
+  const res = await ingestTx(src, points, sentAt);
+  // Ajuste à estrada com as posições REAIS mais recentes (fora da transação: é um pedido de rede).
+  let road: Awaited<ReturnType<typeof updateRoadMatch>> = null;
+  if (res.accepted > 0 && src.source !== 'simulator' && (await hit(`match:${src.vehicleId}`, 4, 1))) road = await updateRoadMatch(src.vehicleId);
+  return { ...res, road };
+}
+
+/** Ajusta a última posição à estrada e guarda estrada + limite (só o que o OSM tem). */
+export async function updateRoadMatch(vehicleId: string) {
+  const fixes = await withSystem((c) => many<{ lat: number; lng: number; t: number; accuracy_m: number | null }>(c,
+    `select ST_Y(geom::geometry) lat, ST_X(geom::geometry) lng, extract(epoch from device_time) * 1000 t, accuracy_m
+     from vehicle_positions where vehicle_id = $1 and device_time > now() - interval '10 minutes' and coalesce(accuracy_m, 0) <= 100
+     order by device_time desc limit 12`, [vehicleId]));
+  if (!fixes.length) return null;
+  const ordered = fixes.reverse().map((f) => ({ lat: f.lat, lng: f.lng, t: Number(f.t), accuracyM: f.accuracy_m }));
+  const m = await matchToRoad(ordered.length >= 2 ? ordered : [ordered[0]!, { ...ordered[0]!, t: ordered[0]!.t + 1000 }]);
+  if (!m) return null;
+  // Só aceita o ajuste se o ponto ajustado estiver perto do GPS real (≤ 60 m): nunca "arrasta" o camião para outra estrada.
+  const last = ordered[ordered.length - 1]!;
+  if (haversine([last.lng, last.lat], [m.lng, m.lat]) > 60) return null;
+  await withSystem(async (c) => {
+    await c.query(`update vehicle_latest_positions set matched_geom = ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
+        road_name = $4, speed_limit_kmh = $5, matched_at = to_timestamp($6::float8 / 1000) where vehicle_id = $1`, [vehicleId, m.lng, m.lat, m.roadName, m.speedLimitKmh, last.t]);
+    await c.query(`update trip_progress p set road_name = $2, speed_limit_kmh = $3 from vehicle_latest_positions lp
+        where lp.vehicle_id = $1 and p.trip_id = lp.trip_id`, [vehicleId, m.roadName, m.speedLimitKmh]);
+  });
+  return { roadName: m.roadName, speedLimitKmh: m.speedLimitKmh, lat: m.lat, lng: m.lng };
+}
+
+async function ingestTx(src: Source, points: InPoint[], sentAt: string | null) {
   return withSystem(async (c) => {
     const first = points.length ? points.reduce((a, b) => (Date.parse(a.device_time) < Date.parse(b.device_time) ? a : b)) : null;
     const prevRow = first ? await one<{ device_time: Date; lng: number; lat: number }>(c, 'select * from last_position_before($1, $2, $3)',
@@ -73,7 +105,7 @@ export async function ingest(src: Source, points: InPoint[], sentAt: string | nu
     const prev = prevRow ? { t: new Date(prevRow.device_time).getTime(), p: [prevRow.lng, prevRow.lat] as LngLat } : null;
     const { accepted, rejected } = cleanBatch(points, sentAt, Date.now(), prev, src.acceptBefore);
     for (const r of rejected) await c.query('select log_ingest_rejection($1, $2, $3, $4)', [src.orgId, src.sourceId, r.reason, JSON.stringify(r.point)]);
-    if (!accepted.length) return { accepted: 0, rejected: rejected.map((r) => r.reason) };
+    if (!accepted.length) return { accepted: 0, duplicates: 0, rejected: rejected.map((r) => r.reason) };
 
     const rows = await many<{ id: string; device_time: Date; trip_id: string | null; lng: number; lat: number; speed_kmh: number | null; accuracy_m: number | null }>(c,
       'select * from ingest_positions($1, $2, $3, $4, $5)', [src.orgId, src.vehicleId, src.source, src.sourceId, JSON.stringify(accepted)]);

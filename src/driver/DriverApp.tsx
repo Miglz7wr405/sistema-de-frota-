@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Mic, Navigation, Pause, Play, Volume2, VolumeX, Receipt, MapPin } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
-import { formatAgo, formatKm, formatTime } from '@/lib/format';
+import { formatAgo, formatDuration, formatKm, formatTime } from '@/lib/format';
+import { speedTrend } from '@/features/tracking/RouteStrip';
 import { fileToUpload } from '@/lib/api/client';
 import { answer } from '@/lib/geo/assistant';
 import { Button, Field, Input, Modal, Select, Textarea } from '@/components/ui';
@@ -133,6 +134,7 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
               <div className="card p-4"><p className="text-sm text-muted">{t.driverApp.eta}</p><p className="text-3xl font-bold">{etaOk ? formatTime(rt.snap!.etaDestination!) : '—'}</p>
                 {!etaOk && <p className="text-xs text-muted">{t.trip.etaUnavailable}</p>}</div>
             </div>
+            <SpeedCard rt={rt} kmLeft={kmLeft} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} />
             {rt.lastSpoken && <div className="rounded-2xl bg-primary-soft p-4"><p className="flex items-center gap-2 text-sm font-semibold text-primary"><Volume2 className="h-4 w-4" />{t.driverApp.assistant}</p><p className="mt-1 text-lg">"{rt.lastSpoken}"</p></div>}
             <Button size="lg" className="h-16 w-full text-lg" onClick={talk} loading={listening}><Mic className="h-6 w-6" />{listening ? t.assistant.listening : t.driverApp.talk}</Button>
             {moving ? <p className="text-center text-sm text-muted">{t.driverApp.moving}</p> : <>
@@ -269,4 +271,33 @@ function VoiceTest({ open, onClose, speak }: { open: boolean; onClose: () => voi
     if (speechSynthesis.getVoices().length) check(); else speechSynthesis.onvoiceschanged = check;
   };
   return <Modal open={open} onClose={onClose} title={t.driverApp.voiceTest}><Button className="w-full" onClick={test}>{t.driverApp.voiceTest}</Button>{res && <p className="mt-3 text-sm">{res}</p>}</Modal>;
+}
+
+// Velocidade REAL do GPS, tendência (a acelerar / a reduzir), estrada e limite (só se registado no OpenStreetMap).
+function SpeedCard({ rt, kmLeft, kmDone }: { rt: ReturnType<typeof useDriverRuntime>; kmLeft: number | null; kmDone: number | null }) {
+  const fresh = rt.gps.lastFixAt != null && Date.now() - rt.gps.lastFixAt < 30_000;
+  const speed = fresh && rt.speed != null ? Math.round(rt.speed) : null;
+  const trend = fresh ? speedTrend(rt.speedHist) : null;
+  const road = rt.road && Date.now() - rt.road.at < 60_000 ? rt.road : null;
+  const over = speed != null && road?.speedLimitKmh != null && speed > road.speedLimitKmh + 3;
+  const avg = rt.speedHist.length >= 3 ? rt.speedHist.reduce((a, b) => a + b, 0) / rt.speedHist.length : null;
+  const paceS = fresh && avg != null && avg >= 5 && kmLeft != null ? (kmLeft / avg) * 3600 : null;
+  return (
+    <div className={`card p-4 ${over ? 'border-danger' : ''}`}>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">{t.strip.speed}</p>
+          <p className={`text-5xl font-bold tabular-nums ${over ? 'text-danger' : ''}`}>{speed ?? '—'}<span className="ml-1 text-lg font-medium text-muted">km/h</span></p>
+          {trend && <p className={`text-sm font-semibold ${trend === 'slowing' ? 'text-warning' : trend === 'accelerating' ? 'text-success' : 'text-muted'}`}>{trend === 'accelerating' ? '▲ ' : trend === 'slowing' ? '▼ ' : ''}{t.strip[trend]}</p>}
+        </div>
+        {road?.speedLimitKmh != null
+          ? <span className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-[6px] bg-white text-2xl font-bold ${over ? 'border-danger text-danger' : 'border-danger text-navy'}`} aria-label={t.strip.limit(road.speedLimitKmh)}>{road.speedLimitKmh}</span>
+          : <span className="max-w-[45%] text-right text-xs text-muted">{t.strip.limitUnknown}</span>}
+      </div>
+      {over && <p className="mt-2 font-semibold text-danger">{t.strip.overLimit}</p>}
+      <p className="mt-2 text-sm"><span className="text-muted">{t.strip.road}: </span><span className="font-semibold">{road?.roadName ?? t.strip.noRoad}</span></p>
+      <p className="mt-1 text-sm text-muted">{kmDone != null ? `${t.strip.done(formatKm(kmDone))} · ` : ''}{t.strip.pace}: {paceS != null ? formatDuration(paceS) : '—'}
+        {rt.gps.accuracyM != null ? ` · ${t.strip.accuracy(Math.round(rt.gps.accuracyM))}` : ''}</p>
+    </div>
+  );
 }

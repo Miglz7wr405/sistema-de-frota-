@@ -24,6 +24,7 @@ const Costs = lazy(() => import('@/features/costs/Costs'));
 const Reports = lazy(() => import('@/features/costs/Reports'));
 const Distances = lazy(() => import('@/features/trips/Distances'));
 const Settings = lazy(() => import('@/features/settings/Settings'));
+const SelfTest = lazy(() => import('@/features/selftest/SelfTest'));
 const Platform = lazy(() => import('@/features/platform/Platform'));
 
 const qc = new QueryClient({
@@ -60,6 +61,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="reports" element={<Reports />} />
               <Route path="distances" element={<Distances />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="self-test" element={<SelfTest />} />
             </Route>
             <Route path="/platform" element={<AppLayout platform />}>
               <Route index element={<Platform />} />

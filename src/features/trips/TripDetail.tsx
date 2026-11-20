@@ -11,15 +11,60 @@ import { formatAgo, formatDate, formatDateTime, formatDuration, formatKm, format
 import { useRole } from '@/app/session';
 import { TripStatus } from '../shared';
 import { ShareCard, type Share } from './ShareCard';
+import { RouteStrip, speedTrend } from '../tracking/RouteStrip';
 
 type Detail = {
   trip: Record<string, any>; stops: any[]; events: { id: string; kind: string; occurred_at: string; payload: Record<string, any>; actor_name: string | null }[];
   route: { id: string; base_km: number; length_m: number; duration_s: number; roads: string[]; validated_for_truck: boolean; provider: string; geometry: { coordinates: LngLat[] } } | null;
   places: { place_id: string; name: string; kind: string; importance: number; km_from_origin: number; state: string; eta: string | null; eta_confidence: string | null; passed_at: string | null }[];
-  progress: { km_done: number | null; km_left: number | null; pct: number | null; current_label: string | null; eta_destination: string | null; eta_confidence: string | null; speed_kmh_smoothed: number | null; off_route: boolean | null } | null;
-  position: { lng: number; lat: number; speed_kmh: number | null; heading: number | null; device_time: string; source: string } | null;
+  progress: { km_done: number | null; km_left: number | null; pct: number | null; road_name: string | null; speed_limit_kmh: number | null; current_label: string | null; eta_destination: string | null; eta_confidence: string | null; speed_kmh_smoothed: number | null; off_route: boolean | null } | null;
+  position: { lng: number; lat: number; speed_kmh: number | null; heading: number | null; accuracy_m: number | null; device_time: string; source: string;
+    matched_lng: number | null; matched_lat: number | null; road_name: string | null; speed_limit_kmh: number | null; matched_at: string | null; recent_speeds: number[] | null } | null;
   shares: Share[]; incidents: any[]; proofs: any[]; expenses: any[]; serverTime: string;
 };
+
+// O camião é desenhado em cima da estrada quando a última posição foi ajustada à estrada; senão, na posição GPS bruta.
+function drawnPos(p: NonNullable<Detail['position']>) {
+  const ok = p.matched_lng != null && p.matched_lat != null && p.matched_at && Date.parse(p.matched_at) >= Date.parse(p.device_time) - 1000;
+  return ok ? { lng: p.matched_lng!, lat: p.matched_lat! } : { lng: p.lng, lat: p.lat };
+}
+
+function LivePanel({ d, noSig }: { d: Detail; noSig: boolean }) {
+  const p = d.position;
+  const speed = !noSig && p?.speed_kmh != null ? Math.round(p.speed_kmh) : null;
+  const trend = noSig ? null : speedTrend(p?.recent_speeds);
+  const limit = p?.matched_at && Date.parse(p.matched_at) >= Date.parse(p.device_time) - 60_000 ? p.speed_limit_kmh : null;
+  const road = p?.matched_at && Date.parse(p.matched_at) >= Date.parse(p.device_time) - 60_000 ? p.road_name : null;
+  const over = speed != null && limit != null && speed > limit + 3;
+  const pace = d.progress?.speed_kmh_smoothed;
+  const paceS = !noSig && pace != null && pace >= 5 && d.progress?.km_left != null ? (d.progress.km_left / pace) * 3600 : null;
+  return (
+    <Card>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div>
+          <p className="text-xs text-muted">{t.strip.speed}</p>
+          <p className={`text-3xl font-bold tabular-nums ${over ? 'text-danger' : ''}`}>{speed != null ? speed : '—'}<span className="ml-1 text-base font-medium text-muted">km/h</span></p>
+          {trend && <p className={`text-sm font-medium ${trend === 'slowing' ? 'text-warning' : trend === 'accelerating' ? 'text-success' : 'text-muted'}`}>{trend === 'accelerating' ? '▲ ' : trend === 'slowing' ? '▼ ' : ''}{t.strip[trend]}</p>}
+        </div>
+        <div>
+          <p className="text-xs text-muted">{t.strip.road}</p>
+          <p className="font-semibold">{road ?? t.strip.noRoad}</p>
+          <p className={`text-sm ${over ? 'font-semibold text-danger' : 'text-muted'}`}>{limit != null ? `${over ? `${t.strip.overLimit} · ` : ''}${t.strip.limit(limit)}` : t.strip.limitUnknown}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">{t.strip.pace}</p>
+          <p className="text-xl font-bold">{paceS != null ? formatDuration(paceS) : '—'}</p>
+          <p className="text-sm text-muted">{paceS != null ? `média ${Math.round(pace!)} km/h` : t.strip.paceNone}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">{t.trip.remaining}</p>
+          <p className="text-xl font-bold">{d.progress?.km_left != null ? formatKm(d.progress.km_left) : '—'}</p>
+          <p className="text-sm text-muted">{d.progress?.km_done != null ? t.trip.done(formatKm(d.progress.km_done)) : ''}{p?.accuracy_m != null ? ` · ${t.strip.accuracy(Math.round(p.accuracy_m))}` : ''}</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 const NEXT: Record<string, string[]> = {
   planeada: ['aguardando_partida', 'em_viagem', 'cancelada'], aguardando_partida: ['em_viagem', 'cancelada'],
@@ -95,7 +140,7 @@ export default function TripDetail() {
                 <MapView className="h-[420px] rounded-2xl border border-border" fitKey={d.route?.id ?? 'no-route'} fitTo={fit}
                   state={{
                     routeDone: view?.done ?? null, routeLeft: view?.left ?? null, extraLine: replay,
-                    vehicles: active && d.position ? [{ id: 'v', lng: d.position.lng, lat: d.position.lat, heading: d.position.heading, tone: noSig ? 'danger' : 'primary',
+                    vehicles: active && d.position ? [{ id: 'v', ...drawnPos(d.position), heading: d.position.heading, tone: noSig ? 'danger' : 'primary',
                       label: d.progress?.current_label ?? undefined, sublabel: d.progress?.km_left != null ? `faltam ${formatKm(d.progress.km_left)}${d.position.speed_kmh != null ? ` · ${Math.round(d.position.speed_kmh)} km/h` : ''}` : undefined }] : [],
                     points: [
                       { id: 'o', lng: tr.origin_lng, lat: tr.origin_lat, kind: 'origin', label: tr.origin },
@@ -106,6 +151,10 @@ export default function TripDetail() {
                   {d.position ? <>{fresh === 'atual' ? '🟢' : fresh === 'desatualizada' ? '🟠' : '🔴'} {fresh === 'atual' ? t.freshness.atual : fresh === 'desatualizada' ? t.freshness.desatualizada : t.freshness.sem_sinal} · {formatAgo(d.position.device_time, now)}</> : t.trip.noPosition}</span>}
                 {d.route && !d.route.validated_for_truck && <span className="absolute right-12 top-3 max-w-[220px] rounded-lg bg-white px-3 py-1.5 text-xs text-warning shadow"><AlertTriangle className="mr-1 inline h-3 w-3" />{t.trip.routeNotValidated}</span>}
               </div>
+              {active && d.position && <LivePanel d={d} noSig={noSig} />}
+              {d.route && <Card title={t.strip.title}><RouteStrip origin={tr.origin} destination={tr.destination} totalKm={(d.route.base_km ?? 0) + d.route.length_m / 1000}
+                kmDone={active ? d.progress?.km_done ?? null : tr.status === 'concluida' ? (d.route.base_km ?? 0) + d.route.length_m / 1000 : null} showEta={active && !noSig}
+                places={d.places.map((p) => ({ name: p.name, km: p.km_from_origin, importance: p.importance, state: p.state, passedAt: p.passed_at, eta: p.eta_confidence !== 'indisponivel' ? p.eta : null }))} /></Card>}
               {!d.route && <Card><p className="text-sm text-warning">{t.trip.routeNone}</p>{canWrite && <Button className="mt-2" size="sm" variant="secondary" onClick={() => replan.mutate()} loading={replan.isPending}><RefreshCw className="h-4 w-4" />{t.trip.replan}</Button>}</Card>}
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Stat label={t.trip.progress} value={d.progress?.pct != null && active ? `${Math.round(d.progress.pct)}%` : tr.status === 'concluida' ? '100%' : '—'}><div className="mt-2"><ProgressBar pct={tr.status === 'concluida' ? 100 : d.progress?.pct} /></div></Stat>

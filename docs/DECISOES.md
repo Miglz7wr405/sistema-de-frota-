@@ -196,3 +196,21 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 
 ## ADR-021 — Código da partilha
 **Estado:** Aceite (refina ADR-009). A primeira partilha usa o próprio código da viagem (`FT-XXXX-XXXX`, 30 símbolos × 8 ≈ 39 bits); ao regenerar, código novo. O link usa token de 128 bits (só hash na BD); depois de criado só se mostra o link por código (`/track?code=`), com limitação de tentativas.
+
+## ADR-022 — Camião em cima da estrada (ajuste à estrada) e teste com o telemóvel do dono
+- **Decisão:** em cada envio de posições (no máximo 1 vez a cada 4 s por veículo) o servidor envia as últimas 12 posições GPS reais
+  (precisão ≤ 100 m, últimos 10 min) ao Valhalla `trace_attributes` (FOSSGIS, grátis). Guarda o ponto ajustado, o nome da estrada e
+  o limite de velocidade **só se a via tiver `maxspeed` no OpenStreetMap**. O ajuste fica ligado à posição exata de onde veio
+  (`matched_at` = hora dessa posição): o camião é desenhado na estrada só quando o ajuste corresponde à última posição. Se o ponto
+  ajustado estiver a mais de 60 m do GPS real, é recusado (nunca "arrasta" o camião para outra estrada). Se o serviço falhar, mostra-se a
+  posição GPS bruta. Sem limite etiquetado aparece "limite desconhecido", nunca um valor inventado.
+- **Teste com o telemóvel:** `/app/self-test` cria um camião de teste (`vehicles.is_test`, não conta para o limite do plano, 1 por
+  organização) e um motorista ligado ao próprio utilizador (`drivers.user_id`). A viagem parte da **posição GPS real** do telemóvel
+  (local privado da organização, com o nome da localidade real mais próxima) para um destino da base OSM, com rota real. O
+  consentimento é aceite pelo próprio utilizador. O envio de posições passa a ser de 5 s em movimento.
+- **Esquema do percurso:** linha com curvas desenhada em SVG (não é geografia), com as localidades reais da rota colocadas pela
+  distância **rodoviária** desde a origem e o camião nos km feitos calculados pelo motor de percurso.
+- **Velocidade:** é a do GPS do telemóvel; se o navegador não a der, é calculada entre duas posições consecutivas com precisão ≤ 30 m.
+  A tendência ("a acelerar"/"a reduzir") compara as últimas velocidades reais.
+- ⚠️ DEPENDÊNCIA EXTERNA: Valhalla público (sem SLA). **Não confirmado em produção** que o servidor FOSSGIS responde ao
+  `trace_attributes` a partir da Vercel. Só se confirma com o 1.º teste real (verificar `road_name` no Neon).

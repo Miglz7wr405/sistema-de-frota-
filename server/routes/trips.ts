@@ -73,8 +73,6 @@ route('POST', '/api/trips', async (req) => {
 route('GET', '/api/trips/:id', async (req, p) => {
   const m = await requireMember(req);
   const id = assertUuid(p.id);
-  const { advanceDemo } = await import('../demo.js');
-  await advanceDemo(m.orgId).catch(() => {});
   return ok(await asMember(m, async (c) => {
     const trip = await one(c, `select t.*, po.name origin, ST_X(po.geom::geometry) origin_lng, ST_Y(po.geom::geometry) origin_lat,
         pd.name destination, ST_X(pd.geom::geometry) dest_lng, ST_Y(pd.geom::geometry) dest_lat,
@@ -93,10 +91,14 @@ route('GET', '/api/trips/:id', async (req, p) => {
         ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom::geometry, 0.0002), 5)::json geometry from trip_routes where trip_id = $1 and is_current`, [id]);
     const places = route_ ? await many(c, `select rp.place_id, p.name, p.kind, p.importance, rp.km_from_origin, rp.state, rp.eta, rp.eta_confidence, rp.passed_at
       from trip_route_places rp join places p on p.id = rp.place_id where rp.trip_route_id = $1 order by rp.seq`, [route_.id]) : [];
-    const progress = await one(c, `select km_done, km_left, pct, current_label, eta_destination, eta_confidence, speed_kmh_smoothed, last_position_at, updated_at,
+    const progress = await one(c, `select km_done, km_left, pct, road_name, speed_limit_kmh, current_label, eta_destination, eta_confidence, speed_kmh_smoothed, last_position_at, updated_at,
         (engine_state->>'offRoute')::boolean off_route from trip_progress where trip_id = $1`, [id]);
-    const position = await one(c, `select ST_X(geom::geometry) lng, ST_Y(geom::geometry) lat, speed_kmh, heading, accuracy_m, device_time, source
-      from vehicle_latest_positions where vehicle_id = $1 and trip_id = $2`, [trip.vehicle_id, id]);
+    const position = await one(c, `select ST_X(l.geom::geometry) lng, ST_Y(l.geom::geometry) lat, l.speed_kmh, l.heading, l.accuracy_m, l.device_time, l.source,
+        ST_X(l.matched_geom::geometry) matched_lng, ST_Y(l.matched_geom::geometry) matched_lat, l.road_name, l.speed_limit_kmh, l.matched_at,
+        (select array_agg(s order by t) from (select p.device_time t, p.speed_kmh s from vehicle_positions p
+           where p.vehicle_id = l.vehicle_id and p.device_time > l.device_time - interval '2 minutes' and p.speed_kmh is not null
+           order by p.device_time desc limit 8) x) recent_speeds
+      from vehicle_latest_positions l where l.vehicle_id = $1 and l.trip_id = $2`, [trip.vehicle_id, id]);
     const shares = ['owner', 'admin', 'dispatcher'].includes(m.role) ? await many(c, `select id, short_code, expires_at, revoked_at, is_active, options, views_count, created_at
       from tracking_shares where trip_id = $1 order by created_at desc`, [id]) : [];
     const incidents = await many(c, 'select id, kind, note, photo_file_id, occurred_at, resolved_at from incidents where trip_id = $1 order by occurred_at desc', [id]);

@@ -3,6 +3,7 @@ import { Clock, MapPin, Truck } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
 import { formatAgo, formatKm, formatTime, freshnessOf, normalizeTripCode } from '@/lib/format';
 
+import { RouteStrip } from '@/features/tracking/RouteStrip';
 const TrackMap = lazy(() => import('./TrackMap'));
 
 export type Dto = {
@@ -98,7 +99,7 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
   const etaOk = active && p?.eta && p.eta_confidence !== 'indisponivel';
   const badge = dto.status === 'concluida' ? ['bg-primary text-white', t.trip.statuses.concluida] : dto.status === 'cancelada' ? ['bg-danger text-white', t.track.cancelled]
     : dto.status === 'pausada' ? ['bg-warning text-white', t.track.paused] : dto.status === 'em_viagem' ? ['bg-success text-white', t.trip.statuses.em_viagem] : ['bg-slate-200 text-navy', t.trip.statuses[dto.status]];
-  const major = dto.places.filter((x, i, a) => i === 0 || i === a.length - 1 || x.state !== 'passada' || i >= a.length - 3);
+  const totalKm = p ? p.km_done + p.km_left : Math.max(0, ...dto.places.map((x) => x.km));
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-slate-100">
       <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center text-sm text-muted">{t.map.loading}</div>}><TrackMap dto={dto} stale={fresh === 'sem_sinal'} /></Suspense>
@@ -121,12 +122,9 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
               <p className="text-xs text-muted">{etaOk ? `${t.track.eta}${p!.eta_confidence === 'baixa' ? ` (${t.track.etaApprox})` : ''}` : t.track.etaUnavailable}</p></div></div>
           </div>
         )}
-        {major.length > 0 && <ol className="mt-4 space-y-2.5">{major.map((x, i) => (
-          <li key={i} className="flex items-center gap-3 text-sm">
-            <span className={`h-3 w-3 shrink-0 rounded-full border-2 ${x.state === 'passada' ? 'border-success bg-success' : i === major.length - 1 ? 'border-danger bg-white' : 'border-primary bg-white'}`} />
-            <span className="flex-1">{x.state === 'passada' && i === 0 ? t.track.departed(x.name) : x.name}</span>
-            <span className="tabular-nums text-muted">{x.passed_at ? formatTime(x.passed_at) : x.eta && active ? `~${formatTime(x.eta)}` : ''}</span>
-          </li>))}</ol>}
+        {totalKm > 0 && <div className="mt-4"><RouteStrip origin={dto.origin} destination={dto.destination} totalKm={totalKm}
+          kmDone={active && p ? p.km_done : dto.status === 'concluida' ? totalKm : null} showEta={!!etaOk}
+          places={dto.places.map((x) => ({ name: x.name, km: x.km, state: x.state, passedAt: x.passed_at, eta: x.eta_confidence !== 'indisponivel' ? x.eta : null }))} /></div>}
         {active && <p className={`mt-4 flex items-center justify-center gap-2 text-sm ${fresh === 'atual' ? 'text-muted' : 'text-warning'}`}>
           <span className={`h-2 w-2 rounded-full ${fresh === 'atual' ? 'bg-success' : fresh === 'desatualizada' ? 'bg-warning' : 'bg-danger'}`} />
           {!dto.position ? t.track.noPosition : fresh === 'atual' ? t.track.updated(formatAgo(dto.position.device_time, now)) : t.track.stale(formatAgo(dto.position.device_time, now))}</p>}

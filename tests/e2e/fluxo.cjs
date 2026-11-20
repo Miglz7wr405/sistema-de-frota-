@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-// Teste E2E (navegador real): registo → camião → motorista (link + PIN) → viagem → GPS do telemóvel → mapas → partilha → página pública → demonstração.
+// Teste E2E (navegador real): registo → camião → motorista (link + PIN) → viagem → GPS do telemóvel → mapas → partilha → página pública → teste com o telemóvel → camião na coordenada certa.
 // Uso: npm run e2e (scripts/e2e.sh arranca a BD local, a API e o Vite preview).
 const SHOT = process.env.E2E_SHOTS ?? 'test-results/e2e/';
 require('node:fs').mkdirSync(SHOT, { recursive: true });
@@ -92,19 +92,46 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   try { await cp.goto(shareLink.replace(/^https?:\/\/[^/]+/, B)); await cp.waitForSelector('.maplibregl-canvas', { timeout: 15000 }); const box = await cp.locator('.maplibregl-canvas').boundingBox(); console.log('OK   11-track canvas', JSON.stringify(box)); } catch (e) { failures++; console.log('FAIL 11-track', e.message.split('\n')[0]); }
   await cp.waitForTimeout(1500); await cp.screenshot({ path: SHOT + '11-track.png' });
   await step('12-mapa-ao-vivo', async () => { await page.goto(B + '/app/live-map'); await page.waitForSelector('.maplibregl-canvas'); await page.getByText('ADF 512 MP').first().waitFor(); });
-  await step('13-demonstracao', async () => {
-    await page.goto(B + '/app/dashboard');
-    await page.getByRole('button', { name: 'Iniciar demonstração' }).click();
-    await page.getByText(/Demonstração em curso/).waitFor({ timeout: 20000 });
-    await page.getByRole('button', { name: 'Abrir a viagem de demonstração' }).click();
-    await page.getByText(/percorridos/).first().waitFor({ timeout: 15000 });
-    const pct = await page.getByText(/^\d+%$/).first().innerText();
-    if (pct === '0%') throw new Error('demonstração sem progresso');
+  // 13 — "Testar com o meu telemóvel": tudo a partir do GPS (emulado aqui) do próprio telemóvel do dono
+  const tctx = await browser.newContext({ viewport: { width: 400, height: 860 }, storageState: await ctx.storageState(), geolocation: { latitude: -17.8600, longitude: 36.8800, accuracy: 9 }, permissions: ['geolocation'] });
+  const tp = await tctx.newPage();
+  tp.on('pageerror', (e) => errs.push(`[selftest pageerror] ${e.message.slice(0, 300)}`));
+  const tstep = async (name, fn) => { try { await fn(); console.log('OK  ', name); } catch (e) { failures++; console.log('FAIL', name, e.message.split('\n')[0]); } await tp.screenshot({ path: SHOT + name + '.png' }); };
+  await tstep('13-teste-telemovel', async () => {
+    await tp.goto(B + '/app/self-test');
+    await tp.getByRole('button', { name: 'Usar a minha localização' }).click();
+    await tp.getByText(/Localização obtida \(precisão ±9 m\)/).waitFor({ timeout: 15000 });
+    const sel = tp.getByLabel('2. Escolher o destino');
+    await sel.waitFor({ timeout: 15000 });
+    await sel.selectOption({ index: 1 });
+    await tp.locator('input[type=tel]').fill('+258841234999');
+    await tp.getByRole('button', { name: 'Criar a viagem e abrir a app do motorista' }).click();
+    await tp.waitForURL(/\/driver\/?$/, { timeout: 20000 });
+    await tp.getByRole('button', { name: 'Aceito' }).click();
+    await tp.getByRole('button', { name: 'Iniciar viagem' }).click();
+    // deslocação real emulada: ~110 m a cada 6 s (≈ 66 km/h)
+    for (let i = 1; i <= 5; i++) { await tctx.setGeolocation({ latitude: -17.8600 + i * 0.0007, longitude: 36.8800 - i * 0.0008, accuracy: 9 }); await tp.waitForTimeout(6000); }
+    await tp.getByText(/EN-E2E \(teste\)/).waitFor({ timeout: 15000 });
+    const sp = await tp.locator('p.text-5xl').first().innerText();
+    if (!/^\d+/.test(sp)) throw new Error('velocidade não mostrada: ' + sp);
   });
-  await step('14-terminar-demonstracao', async () => {
-    await page.goto(B + '/app/dashboard');
-    await page.getByRole('button', { name: 'Terminar demonstração' }).click();
-    await page.getByRole('button', { name: 'Iniciar demonstração' }).waitFor({ timeout: 15000 });
+  await step('14-camiao-na-coordenada-certa', async () => {
+    await page.goto(B + '/app/live-map');
+    await page.getByText('TESTE TELEMOVEL').first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(2500); // fim da animação suave
+    const live = await page.evaluate(() => fetch('/api/fleet/live').then((r) => r.json()));
+    const v = live.vehicles.find((x) => x.plate === 'TESTE TELEMOVEL');
+    if (v.lat == null) throw new Error('sem posição');
+    const res = await page.evaluate(([lng, lat, plate]) => {
+      const host = [...document.querySelectorAll('.maplibregl-map')].map((m) => m.parentElement).find((h) => h.__project) || [...document.querySelectorAll('*')].find((h) => h.__project);
+      const p = host.__project([lng, lat]);
+      const c = host.getBoundingClientRect();
+      const mk = [...host.querySelectorAll('.maplibregl-marker')].find((m) => m.textContent.includes(plate));
+      const b = mk.getBoundingClientRect();
+      return { dx: b.left + 17 - (c.left + p.x), dy: b.top + 17 - (c.top + p.y) };
+    }, [v.lng, v.lat, 'TESTE TELEMOVEL']);
+    console.log('     desvio do marcador (px):', JSON.stringify(res));
+    if (Math.abs(res.dx) > 3 || Math.abs(res.dy) > 3) throw new Error('camião desenhado fora da coordenada: ' + JSON.stringify(res));
   });
   const real = [...new Set(errs)].filter((e) => !/Future Flag|GL Driver|GPU stall/.test(e));
   console.log('--- erros da consola/rede ---\n' + (real.join('\n') || '(nenhum)'));

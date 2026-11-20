@@ -404,3 +404,65 @@ d('plataforma', () => {
     await sys.query(`update app_users set is_platform_admin = false where email = 'b@teste.mz'`);
   });
 });
+
+d('testar com o meu telemóvel (dados reais)', () => {
+  it('cria a viagem a partir da posição real, sessão do motorista sem PIN, ajuste à estrada guardado só se perto do GPS', async () => {
+    const { setMatcherForTests } = await import('../server/matching');
+    // posição "real" do telemóvel (nos testes: perto da Cidade Origem de teste)
+    const near = await call('GET', '/api/places/near?lat=-17.95&lng=36.88', A);
+    expect(near.status).toBe(200);
+    expect(near.json.map((p: { id: string }) => p.id)).toContain(ids.dest);
+    expect((await call('GET', '/api/places/near?lat=-17.95&lng=36.88', {})).status).toBe(401);
+
+    expect((await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 900, destinationPlaceId: ids.dest, phone: '+258841110000' })).status).toBe(422);
+    const r = await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 12, destinationPlaceId: ids.dest, phone: '+258841110000' });
+    expect(r.status).toBe(201);
+    const tok = r.json.driverToken as string;
+    // a partida é exatamente a posição enviada
+    const o = (await sys.query(`select ST_X(p.geom::geometry) x, ST_Y(p.geom::geometry) y, p.organization_id is not null priv
+      from trips t join places p on p.id = t.origin_place_id where t.id = $1`, [r.json.tripId])).rows[0];
+    expect([o.x, o.y, o.priv]).toEqual([36.88, -17.95, true]);
+    // camião de teste não conta para o limite do plano (A já tem 5 camiões no plano experimental)
+    expect((await sys.query(`select count(*)::int n from vehicles v join trips t on t.vehicle_id = v.id where t.id = $1 and v.is_test`, [r.json.tripId])).rows[0].n).toBe(1);
+
+    const me = await call('GET', '/api/driver/me', { bearer: tok });
+    expect(me.status).toBe(200);
+    expect(me.json.testMode).toBe(true);
+    expect(me.json.trip.id).toBe(r.json.tripId);
+    expect(me.json.consentRequired).toBe(true); // o próprio utilizador aceita o consentimento no telemóvel
+    expect((await call('POST', '/api/driver/consent', { bearer: tok }, {})).status).toBeLessThan(300);
+    expect((await call('POST', `/api/driver/trips/${r.json.tripId}/transition`, { bearer: tok }, { to: 'em_viagem' })).status).toBe(200);
+
+    // B não vê a viagem de teste de A
+    expect((await call('GET', `/api/trips/${r.json.tripId}`, B)).status).toBe(404);
+
+    // ajuste à estrada: resposta de teste perto do GPS (20 m) → aceite
+    setMatcherForTests(async (fx) => ({ lat: fx[fx.length - 1]!.lat + 0.00018, lng: fx[fx.length - 1]!.lng, roadName: 'EN1', speedLimitKmh: 80, roadClass: 'trunk' }));
+    const t1 = new Date().toISOString();
+    const ing = await call('POST', '/api/ingest', { bearer: tok }, { positions: [{ lat: -17.95, lng: 36.88, device_time: t1, speed_kmh: 42, accuracy_m: 8 }] });
+    expect(ing.status).toBe(200);
+    expect(ing.json.road).toMatchObject({ roadName: 'EN1', speedLimitKmh: 80 });
+    let det = await call('GET', `/api/trips/${r.json.tripId}`, A);
+    expect(det.json.position.road_name).toBe('EN1');
+    expect(det.json.position.speed_limit_kmh).toBe(80);
+    expect(det.json.position.matched_lat).toBeCloseTo(-17.94982, 5);
+    expect(Date.parse(det.json.position.matched_at)).toBe(Date.parse(det.json.position.device_time)); // o ajuste corresponde a ESTA posição
+
+    // resposta longe do GPS (≈ 1 km) → recusada: nunca arrasta o camião para outra estrada
+    await sys.query(`delete from rate_limits where bucket_key like 'match:%'`);
+    setMatcherForTests(async (fx) => ({ lat: fx[fx.length - 1]!.lat + 0.01, lng: fx[fx.length - 1]!.lng, roadName: 'Outra', speedLimitKmh: 120, roadClass: 'trunk' }));
+    const t2 = new Date(Date.now() + 1000).toISOString();
+    const ing2 = await call('POST', '/api/ingest', { bearer: tok }, { positions: [{ lat: -17.9497, lng: 36.88, device_time: t2, speed_kmh: 45, accuracy_m: 8 }] });
+    expect(ing2.json.road).toBeNull();
+    det = await call('GET', `/api/trips/${r.json.tripId}`, A);
+    expect(det.json.position.road_name).toBe('EN1'); // mantém a última estrada válida…
+    expect(Date.parse(det.json.position.matched_at)).toBeLessThan(Date.parse(det.json.position.device_time)); // …mas o desenho usa o GPS bruto
+    setMatcherForTests(async () => null);
+
+    // novo teste termina o anterior
+    const r2 = await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 12, destinationPlaceId: ids.dest, phone: '+258841110000' });
+    expect(r2.status).toBe(201);
+    expect((await sys.query('select status from trips where id = $1', [r.json.tripId])).rows[0].status).toBe('concluida');
+    expect((await call('GET', '/api/driver/me', { bearer: tok })).status).toBe(401);
+  }, 20_000);
+});

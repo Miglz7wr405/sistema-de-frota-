@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Clock, FileText, PlayCircle, Plus, Truck, Wrench } from 'lucide-react';
-import { api, errorMessage } from '@/lib/api/client';
+import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, CheckCircle2, Clock, FileText, PlayCircle, Plus, Smartphone, Truck, Wrench } from 'lucide-react';
+import { api } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
 import { Button, Card, ProgressBar, QueryState, Badge } from '@/components/ui';
 import { MapView } from '@/lib/map/MapView';
@@ -29,10 +29,6 @@ export default function Dashboard() {
   const q = useQuery({ queryKey: ['dashboard'], queryFn: () => api<Dash>('/api/dashboard'), refetchInterval: 15_000 });
   const live = useQuery({ queryKey: ['fleet-live'], queryFn: () => api<Live>('/api/fleet/live'), refetchInterval: 10_000 });
   const trips = useQuery({ queryKey: ['trips', 'active'], queryFn: () => api<TripRow[]>('/api/trips?status=em_viagem,pausada'), refetchInterval: 15_000 });
-  const qc = useQueryClient();
-  const demo = useQuery({ queryKey: ['demo'], queryFn: () => api<{ demo: { tripId: string } | null }>('/api/demo') });
-  const demoStart = useMutation({ mutationFn: () => api('/api/demo/start', { method: 'POST' }), onSuccess: () => qc.invalidateQueries() });
-  const demoStop = useMutation({ mutationFn: () => api('/api/demo/stop', { method: 'POST' }), onSuccess: () => qc.invalidateQueries() });
   const now = Date.now();
   const located = (live.data?.vehicles ?? []).filter((v) => v.lng != null && v.lat != null);
 
@@ -44,20 +40,11 @@ export default function Dashboard() {
       </div>
       <QueryState q={q}>{(d) => (
         <>
+          {canWrite && <Card className="mb-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Smartphone className="h-6 w-6" /></span>
+              <div><p className="font-semibold">{t.dashboard.selfTestTitle}</p><p className="text-sm text-muted">{t.dashboard.selfTestText}</p></div></div>
+            <Link to="/app/self-test" className="shrink-0"><Button>{t.dashboard.selfTestOpen}</Button></Link></div></Card>}
           {d.placesCount === 0 && <p className="mb-4 rounded-lg bg-warning-soft px-4 py-3 text-sm text-warning">{t.dashboard.noPlaces}</p>}
-          {canWrite && (demo.data?.demo ? (
-            <div className="mb-4 flex flex-col gap-2 rounded-card border border-primary/30 bg-primary-soft p-4 sm:flex-row sm:items-center">
-              <p className="flex-1 text-sm text-navy">{t.dashboard.demoActive}</p>
-              <Link to={`/app/trips/${demo.data.demo.tripId}`}><Button size="sm">{t.dashboard.demoOpen}</Button></Link>
-              <Button size="sm" variant="secondary" loading={demoStop.isPending} onClick={() => demoStop.mutate()}>{t.dashboard.demoStop}</Button>
-            </div>
-          ) : demo.data && (
-            <Card className="mb-4" title={t.dashboard.demoTitle}>
-              <p className="mb-3 text-sm text-muted">{t.dashboard.demoText}</p>
-              {demoStart.isError && <p className="mb-2 text-sm text-danger">{errorMessage(demoStart.error)}</p>}
-              <Button onClick={() => demoStart.mutate()} loading={demoStart.isPending}>{t.dashboard.demoStart}</Button>
-            </Card>
-          ))}
           {d.counts.total === 0 && (
             <Card title={t.dashboard.onboarding} className="mb-4">
               <ol className="grid gap-2 sm:grid-cols-4">

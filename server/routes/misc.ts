@@ -78,11 +78,13 @@ route('POST', '/api/routes/plan', async (req) => {
 
 route('GET', '/api/fleet/live', async (req) => {
   const m = await requireMember(req);
-  await tickDemo(m.orgId);
   return ok(await asMember(m, async (c) => ({
-    vehicles: await many(c, `select s.id, s.plate, s.main_status, s.freshness, s.last_position_at, s.last_source, s.speed_kmh, s.heading, s.lng, s.lat,
+    vehicles: await many(c, `select s.id, s.plate, s.main_status, s.freshness, s.last_position_at, s.last_source, s.speed_kmh, s.heading,
+        case when lp.matched_geom is not null and lp.matched_at >= lp.device_time - interval '1 second' then ST_X(lp.matched_geom::geometry) else s.lng end lng,
+        case when lp.matched_geom is not null and lp.matched_at >= lp.device_time - interval '1 second' then ST_Y(lp.matched_geom::geometry) else s.lat end lat,
+        lp.road_name, lp.speed_limit_kmh,
         s.active_trip_id, s.active_trip_code, p.current_label, p.km_left, p.eta_destination, p.eta_confidence, d.full_name driver
-      from vehicle_status_v s left join trip_progress p on p.trip_id = s.active_trip_id left join trips t on t.id = s.active_trip_id left join drivers d on d.id = t.driver_id
+      from vehicle_status_v s left join vehicle_latest_positions lp on lp.vehicle_id = s.id left join trip_progress p on p.trip_id = s.active_trip_id left join trips t on t.id = s.active_trip_id left join drivers d on d.id = t.driver_id
       where s.organization_id = $1 order by s.plate`, [m.orgId]),
     serverTime: new Date().toISOString(),
   })));
@@ -91,7 +93,6 @@ route('GET', '/api/fleet/live', async (req) => {
 route('GET', '/api/dashboard', async (req) => {
   const m = await requireMember(req);
   await maybeRunJobs();
-  await tickDemo(m.orgId);
   return ok(await asMember(m, async (c) => {
     const counts = await one(c, `select count(*)::int total,
         count(*) filter (where main_status = 'em_viagem')::int em_viagem, count(*) filter (where main_status = 'disponivel')::int disponiveis,
@@ -130,20 +131,3 @@ route('GET', '/api/geo/provinces', async () => {
   const { withSystem } = await import('../db.js');
   return ok(await withSystem((c) => many(c, 'select id, name from admin_areas where level = 1 order by name')));
 });
-
-// ── Demonstração (simulador) ──
-import { advanceDemo, demoStatus, startDemo, stopDemo } from '../demo.js';
-route('GET', '/api/demo', async (req) => {
-  const m = await requireMember(req);
-  return ok({ demo: await demoStatus(m.orgId) });
-});
-route('POST', '/api/demo/start', async (req) => {
-  const m = await requireMember(req, WRITE);
-  return ok({ demo: await startDemo(m.orgId, m.userId) }, 201);
-});
-route('POST', '/api/demo/stop', async (req) => {
-  const m = await requireMember(req, WRITE);
-  await stopDemo(m.orgId);
-  return ok({ ok: true });
-});
-export const tickDemo = (org: string) => advanceDemo(org).catch((e) => console.warn('[demo]', (e as Error).message));

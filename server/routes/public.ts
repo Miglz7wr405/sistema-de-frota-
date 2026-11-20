@@ -34,10 +34,6 @@ async function resolve(req: Req, via: 'code' | 'link' | 'preview') {
 
 route('GET', '/api/track', async (req) => {
   const r = await resolve(req, req.query.get('token') ? 'link' : 'code');
-  // se for a viagem de demonstração, avança o simulador (no máximo de 15 em 15 s)
-  const org = await withSystem((c) => one<{ organization_id: string; demo: boolean }>(c,
-    `select s.organization_id, (o.settings->'demo'->>'tripId') = s.trip_id::text as demo from tracking_shares s join organizations o on o.id = s.organization_id where s.id = $1`, [r.shareId]));
-  if (org?.demo) { const { advanceDemo } = await import('../demo.js'); await advanceDemo(org.organization_id).catch(() => {}); }
   const dto = await withSystem(async (c) => {
     await c.query('select public_share_log($1, $2, $3, $4)', [r.shareId, r.ip, req.headers['user-agent'] ?? '', r.via]);
     await c.query(`select bump_usage(organization_id, 'public_views') from tracking_shares where id = $1`, [r.shareId]);
