@@ -134,6 +134,11 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
       {!trip ? <Centered>{t.driverApp.noTrip}</Centered> : (
         <main className="flex flex-1 flex-col gap-3 p-4">
           {status === 'em_viagem' || status === 'pausada' ? <>
+            {(rt.gps.status !== 'ok' || !rt.gps.lastFixAt || Date.now() - rt.gps.lastFixAt > 30_000) && rt.gps.status !== 'waiting' && (
+              <div className="rounded-2xl border border-danger/30 bg-danger-soft p-4">
+                <p className="text-sm text-danger">{rt.gps.status === 'denied' ? t.driverApp.gpsDeniedHelp : t.driverApp.reconnectHint}</p>
+                <Button size="lg" className="mt-3 h-14 w-full text-lg" onClick={rt.reconnect}><Navigation className="h-5 w-5" />{t.driverApp.reconnect}</Button>
+              </div>)}
             <SpeedCard rt={rt} kmLeft={kmLeft} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} />
             <DriverRoute me={me} model={rt.route} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} pos={rt.pos} road={rt.road} />
             {!moving && <div className="card flex items-center gap-4 p-4"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Navigation className="h-6 w-6" /></span>

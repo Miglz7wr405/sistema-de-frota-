@@ -45,7 +45,7 @@ export function errorMessage(e: unknown): string {
     validacao: t.errors.validation, dados_invalidos: t.errors.validation, demasiados_pedidos: t.errors.rateLimited,
     transicao_invalida: t.errors.invalidTransition, limite_plano: t.errors.planLimit, viagem_sem_camiao_ou_motorista: t.errors.tripNoAssets,
     motivo_obrigatorio: t.errors.reasonRequired, ultimo_owner: t.errors.lastOwner, credenciais_invalidas: t.errors.invalidCredentials,
-    rota_indisponivel: t.errors.routeUnavailable, precisao_insuficiente: t.selftest.poorAccuracy, sem_destino_perto: t.selftest.noDestination, ficheiro_grande: t.errors.fileTooLarge, corpo_grande: t.errors.fileTooLarge,
+    rota_indisponivel: t.errors.routeUnavailable, precisao_insuficiente: t.selftest.poorAccuracy, motorista_em_viagem: t.errors.driverBusy, camiao_em_viagem: t.errors.vehicleBusy, sem_destino_perto: t.selftest.noDestination, ficheiro_grande: t.errors.fileTooLarge, corpo_grande: t.errors.fileTooLarge,
   };
   return map[e.code] ?? t.errors.generic;
 }

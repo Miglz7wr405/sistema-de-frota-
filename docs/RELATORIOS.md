@@ -152,3 +152,13 @@ O proprietário não conseguia iniciar uma viagem ("Atribua um camião e um moto
 O formulário tinha "muita coisa sem interesse" e mostrou "Verifique os campos assinalados". Agora: **Origem, Destino, Camião (+ Novo),
 Motorista (+ Novo: nome e telefone)** e **"Iniciar viagem agora"** (partida = agora) ou "Só guardar". Com 1 camião/1 motorista já vêm
 escolhidos. Erros do servidor passam a dizer o campo. Os campos retirados continuam na API/BD (ADR-023). **TESTADO** (E2E 17/17, 50 testes).
+
+## GPS a religar e mapa limpo (20/11, 6.ª ronda)
+1. **"Ligar GPS novamente"** na app do motorista quando o GPS pára; o GPS também religa sozinho ao voltar à app (e há uma vigilância
+   que o religa se ficar 45 s sem posição com a app aberta). No detalhe da viagem, se o motorista é o próprio utilizador (teste com o
+   telemóvel) e está "Sem sinal": botão **"Reconectar o GPS deste telemóvel"**. **IMPLEMENTADO** (religar em aparelho real: por validar).
+2. Retirada a mensagem "Rota sugerida, não validada para veículos pesados" (detalhe, distâncias, página do cliente).
+3. Créditos do mapa (OpenFreeMap/OpenStreetMap) fechados no botão "i": a licença do OpenStreetMap obriga a que existam, mas deixam de
+   tapar o mapa.
+4. Iniciar viagem: um teste do telemóvel esquecido com o mesmo motorista/camião é terminado sozinho; criar+iniciar é uma só operação
+   (sem viagens "Planeada" a mais se falhar); mensagem clara se o motorista/camião já está noutra viagem real. **TESTADO** (51 testes, E2E 17/17).

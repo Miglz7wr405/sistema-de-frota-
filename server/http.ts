@@ -44,6 +44,9 @@ export function mapError(e: unknown): Res {
   }
   if (pe.code === 'P0002') return { status: 404, json: { error: msg || 'nao_encontrado' } };
   if (pe.code === '42501') return { status: 403, json: { error: 'sem_permissao' } };
+  // camião/motorista já numa viagem em curso: mensagem própria (não é "registo duplicado")
+  if (pe.code === '23505' && pe.constraint === 'trips_one_active_driver') return { status: 409, json: { error: 'motorista_em_viagem' } };
+  if (pe.code === '23505' && pe.constraint === 'trips_one_active_vehicle') return { status: 409, json: { error: 'camiao_em_viagem' } };
   if (pe.code === '23505') return { status: 409, json: { error: 'duplicado', details: pe.constraint } };
   if (pe.code === '23503') return { status: 409, json: { error: 'referencia', details: pe.constraint } };
   if (pe.code && ['23514', '22P02', '22007', '22008', '23502', '22003', '23P01'].includes(pe.code))

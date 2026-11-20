@@ -113,6 +113,10 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   await dstep('08-motorista-em-viagem', async () => { await dp.getByText(/Falta para o destino/).waitFor(); });
   await step('09-detalhe-com-gps', async () => {
     await page.goto(tripUrl); await page.waitForSelector('.maplibregl-canvas'); await page.getByText(/percorridos/).first().waitFor({ timeout: 15000 });
+    // sem a mensagem "não validada" e sem os créditos por cima do mapa (ficam só no botão "i")
+    if (await page.getByText(/não validada/).count()) throw new Error('mensagem "não validada" ainda aparece');
+    await page.waitForTimeout(1600);
+    if (await page.getByText(/OpenFreeMap|OpenStreetMap/).first().isVisible().catch(() => false)) throw new Error('créditos do mapa visíveis por cima do mapa');
     // esquema: camião a avançar com km feitos
     await page.getByText(/km feitos/).first().waitFor({ timeout: 10000 });
     // mapa fixo: arrastar não muda o enquadramento

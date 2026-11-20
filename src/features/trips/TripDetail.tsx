@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Edit3, Play, RefreshCw, Truck } from 'lucide-react';
+import { Edit3, Play, RefreshCw, Truck } from 'lucide-react';
 import { api, errorMessage } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
 import { Badge, Button, Card, Modal, ProgressBar, QueryState, Stat, Textarea } from '@/components/ui';
 import { MapView } from '@/lib/map/MapView';
 import { cumulative, sliceLine, type LngLat } from '@/lib/geo/geometry';
 import { formatAgo, formatDate, formatDateTime, formatDuration, formatKm, formatMoney, formatTime, freshnessOf } from '@/lib/format';
-import { useRole } from '@/app/session';
+import { useMe, useRole } from '@/app/session';
 import { TripStatus } from '../shared';
 import { ShareCard, type Share } from './ShareCard';
 import { RouteStrip, speedTrend } from '../tracking/RouteStrip';
@@ -106,6 +106,7 @@ export default function TripDetail() {
   const { id } = useParams();
   const qc = useQueryClient();
   const { canWrite, canSeeCosts } = useRole();
+  const me = useMe();
   const q = useQuery({ queryKey: ['trip', id], queryFn: () => api<Detail>(`/api/trips/${id}`), refetchInterval: (qq) => (['em_viagem', 'pausada'].includes(qq.state.data?.trip.status) ? 10_000 : 60_000) });
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -182,8 +183,13 @@ export default function TripDetail() {
                   }} />
                 {active && <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-sm font-medium shadow">
                   {d.position ? <>{fresh === 'atual' ? '🟢' : fresh === 'desatualizada' ? '🟠' : '🔴'} {fresh === 'atual' ? t.freshness.atual : fresh === 'desatualizada' ? t.freshness.desatualizada : t.freshness.sem_sinal} · {formatAgo(d.position.device_time, now)}</> : t.trip.noPosition}</span>}
-                {d.route && !d.route.validated_for_truck && <span className="absolute right-12 top-3 max-w-[220px] rounded-lg bg-white px-3 py-1.5 text-xs text-warning shadow"><AlertTriangle className="mr-1 inline h-3 w-3" />{t.trip.routeNotValidated}</span>}
               </div>
+              {/* GPS parou e o motorista é o próprio utilizador (teste com o telemóvel): religar aqui mesmo */}
+              {active && noSig && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && (
+                <div className="rounded-2xl border border-danger/30 bg-danger-soft p-4">
+                  <p className="text-sm text-danger">{t.reconnect.hint}</p>
+                  <a href="/driver/" className="mt-3 block"><Button size="lg" className="h-14 w-full text-lg"><Play className="h-5 w-5" />{t.reconnect.button}</Button></a>
+                </div>)}
               {active && d.position && <LivePanel d={d} noSig={noSig} />}
               {d.route && <Card title={t.strip.title}><RouteStrip origin={tr.origin} destination={tr.destination} totalKm={(d.route.base_km ?? 0) + d.route.length_m / 1000}
                 kmDone={active ? d.progress?.km_done ?? null : tr.status === 'concluida' ? (d.route.base_km ?? 0) + d.route.length_m / 1000 : null} showEta={active && !noSig}

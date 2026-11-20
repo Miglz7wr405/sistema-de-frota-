@@ -48,6 +48,9 @@ export const maplibreProvider: MapProvider = {
     }
     // projeção ecrã↔coordenadas acessível ao teste E2E (verifica que o camião é desenhado na coordenada certa)
     (container as HTMLElement & { __project?: (ll: LngLat) => { x: number; y: number } }).__project = (ll) => map.project(ll);
+    // créditos do mapa (obrigatórios pela licença do OpenStreetMap) só no botão "i", fechado: o mapa fica limpo
+    const closeAttrib = () => container.querySelectorAll('.maplibregl-ctrl-attrib').forEach((el) => { el.classList.remove('maplibregl-compact-show'); el.removeAttribute('open'); });
+    closeAttrib(); map.once('idle', closeAttrib); map.on('resize', () => setTimeout(closeAttrib, 0)); setTimeout(closeAttrib, 1500);
     if (opts.controls !== false) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     const lineSrc = (id: string, color: string, dashed: boolean, width: number, opacity = 1) => {

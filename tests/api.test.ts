@@ -479,3 +479,29 @@ d('testar com o meu telemóvel (dados reais)', () => {
     expect((await call('GET', '/api/driver/me', { bearer: tok })).status).toBe(401);
   }, 20_000);
 });
+
+d('iniciar viagem real com o motorista ainda num teste do telemóvel', () => {
+  it('o teste aberto é terminado; criar+iniciar é uma só operação; conflito real dá mensagem clara e não deixa viagem a mais', async () => {
+    const st = await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 10 });
+    expect(st.status).toBe(201);
+    const drv = (await sys.query('select driver_id from trips where id = $1', [st.json.tripId])).rows[0].driver_id;
+    await sys.query(`update plans set limits = limits || '{"max_vehicles": 50}' where code = 'trial'`);
+    const v1 = await call('POST', '/api/vehicles', A, { plate: 'ADM 219 P' });
+    const v2 = await call('POST', '/api/vehicles', A, { plate: 'ADM 220 P' });
+    expect([v1.status, v2.status]).toEqual([201, 201]);
+    const body = { origin_place_id: ids.origin, destination_place_id: ids.dest, driver_id: drv, start: true };
+    // 1) motorista ainda no teste do telemóvel → o teste termina e a viagem real começa
+    const r = await call('POST', '/api/trips', A, { ...body, vehicle_id: v1.json.id });
+    expect(r.status).toBe(201);
+    expect((await sys.query('select status from trips where id = $1', [st.json.tripId])).rows[0].status).toBe('concluida');
+    expect((await sys.query('select status from trips where id = $1', [r.json.id])).rows[0].status).toBe('em_viagem');
+    // 2) motorista numa viagem REAL em curso → 409 claro e nenhuma viagem "planeada" criada
+    const before = (await sys.query(`select count(*)::int n from trips where status = 'planeada'`)).rows[0].n;
+    const r2 = await call('POST', '/api/trips', A, { ...body, vehicle_id: v2.json.id });
+    expect(r2.status).toBe(409);
+    expect(r2.json.error).toBe('motorista_em_viagem');
+    expect((await sys.query(`select count(*)::int n from trips where status = 'planeada'`)).rows[0].n).toBe(before);
+    expect((await sys.query('select status from trips where id = $1', [r.json.id])).rows[0].status).toBe('em_viagem');
+  });
+});
+

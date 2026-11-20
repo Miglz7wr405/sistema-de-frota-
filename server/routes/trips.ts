@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { route, ok, parse, HttpError, assertUuid } from '../http.js';
-import { many, one } from '../db.js';
+import { many, one, type Tx } from '../db.js';
 import { requireMember, asMember, WRITE, ADMIN, audit } from '../auth.js';
 import { planAndStoreTripRoute } from '../trip-route.js';
 import { randomToken, sha256 } from '../crypto.js';
@@ -49,10 +49,22 @@ route('GET', '/api/trips', async (req) => {
     [m.orgId, statuses, q.get('q') || null, q.get('vehicleId') || null, q.get('driverId') || null, q.get('from') || null, q.get('to') || null])));
 });
 
+/** Antes de iniciar uma viagem: termina testes "Testar com o meu telemóvel" ainda abertos com o mesmo camião ou motorista
+ *  (um teste esquecido não pode bloquear uma viagem real). Viagens reais em curso NÃO são tocadas (dá erro claro). */
+async function closeOpenTests(c: Tx, tripId: string): Promise<string[]> {
+  const rows = await many<{ id: string }>(c, `select o.id from trips t join trips o on o.id <> t.id and o.deleted_at is null
+      and o.status in ('em_viagem','pausada') and (o.vehicle_id = t.vehicle_id or o.driver_id = t.driver_id)
+      join vehicles ov on ov.id = o.vehicle_id and ov.is_test where t.id = $1`, [tripId]);
+  for (const r of rows) await c.query(`select 1 from trip_transition($1, 'concluida')`, [r.id]);
+  return rows.map((r) => r.id);
+}
+
 route('POST', '/api/trips', async (req) => {
   const m = await requireMember(req, WRITE);
   const b = parse(TripSchema, req.body);
-  return ok(await asMember(m, async (c) => {
+  const start = (req.body as { start?: unknown } | null)?.start === true;
+  let closed: string[] = [];
+  const res = await asMember(m, async (c) => {
     const cols = TCOLS.filter((k) => b[k] !== undefined);
     const t = await one<{ id: string; code: string }>(c, `insert into trips (organization_id, created_by, ${cols.join(',')})
       values ($1, $2, ${cols.map((_, i) => `$${i + 3}`).join(',')}) returning id, code`, [m.orgId, m.userId, ...cols.map((k) => b[k])]);
@@ -66,8 +78,15 @@ route('POST', '/api/trips', async (req) => {
     if (r) await c.query(`insert into trip_events (organization_id, trip_id, kind, actor_type, actor_id, payload) values ($1,$2,'rota','system',null,$3)`,
       [m.orgId, t!.id, JSON.stringify({ km: Math.round(r.lengthM / 100) / 10, provider: r.provider })]);
     await audit(c, m, 'viagem.criar', 'trips', t!.id);
+    // criar + iniciar na MESMA transação: se não puder iniciar, nada fica criado (sem viagens "Planeada" a mais)
+    if (start) {
+      closed = await closeOpenTests(c, t!.id);
+      await c.query(`select 1 from trip_transition($1, 'em_viagem')`, [t!.id]);
+    }
     return { id: t!.id, code: t!.code, route: r ? { lengthKm: r.lengthM / 1000, durationS: r.durationS } : null };
-  }), 201);
+  });
+  for (const id of closed) await afterTripClosed(id);
+  return ok(res, 201);
 });
 
 route('GET', '/api/trips/:id', async (req, p) => {
@@ -76,7 +95,7 @@ route('GET', '/api/trips/:id', async (req, p) => {
   return ok(await asMember(m, async (c) => {
     const trip = await one(c, `select t.*, po.name origin, ST_X(po.geom::geometry) origin_lng, ST_Y(po.geom::geometry) origin_lat,
         pd.name destination, ST_X(pd.geom::geometry) dest_lng, ST_Y(pd.geom::geometry) dest_lat,
-        v.plate_normalized plate, v.make, v.model, d.full_name driver_name, d.phone driver_phone,
+        v.plate_normalized plate, v.make, v.model, d.full_name driver_name, d.phone driver_phone, d.user_id driver_user_id,
         (select doc.expires_on from documents doc where doc.driver_id = d.id and doc.doc_type = 'carta_conducao' order by doc.expires_on desc limit 1) license_expires,
         coalesce((o.settings->>'late_tolerance_min')::int, 30) late_tolerance_min,
         coalesce((o.settings->>'freshness_current_s')::int, 120) freshness_current_s, coalesce((o.settings->>'freshness_stale_s')::int, 900) freshness_stale_s
@@ -156,7 +175,12 @@ route('POST', '/api/trips/:id/transition', async (req, p) => {
   const m = await requireMember(req, WRITE);
   const b = parse(z.object({ to: z.enum(['aguardando_partida', 'em_viagem', 'pausada', 'concluida', 'cancelada']), reason: z.string().max(500).optional() }), req.body);
   const id = assertUuid(p.id);
-  const t = await asMember(m, (c) => one(c, 'select id, status, code from trip_transition($1, $2, $3)', [id, b.to, b.reason ?? null]));
+  let closed: string[] = [];
+  const t = await asMember(m, async (c) => {
+    if (b.to === 'em_viagem') closed = await closeOpenTests(c, id);
+    return one(c, 'select id, status, code from trip_transition($1, $2, $3)', [id, b.to, b.reason ?? null]);
+  });
+  for (const x of closed) await afterTripClosed(x);
   if (b.to === 'concluida') await afterTripClosed(id);
   return ok(t);
 });

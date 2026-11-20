@@ -110,6 +110,9 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     setQueued(await positionsCount() + buffer.current.length);
   }, [me?.trip?.id]);
 
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+
   const onFix = useCallback((pos: GeolocationPosition) => {
     const now = pos.timestamp || Date.now();
     // Velocidade REAL: a do GPS do telemóvel; se o navegador não a der, calculada entre duas posições precisas consecutivas.
@@ -154,19 +157,40 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     (navigator as Navigator & { getBattery?: () => Promise<{ level: number }> }).getBattery?.().then((b) => { batteryPct.current = Math.round(b.level * 100); }).catch(() => {});
   }, []);
 
-  // GPS só durante a viagem ativa (privacidade, L2).
+  // GPS só durante a viagem ativa (privacidade, L2). Religa sozinho ao voltar à app, e pode ser religado com o botão.
+  const onFixRef = useRef(onFix);
+  onFixRef.current = onFix;
+  const lastFixRef = useRef<number | null>(null);
+  lastFixRef.current = gps.lastFixAt;
+  const startWatch = useCallback(() => {
+    if (!('geolocation' in navigator)) { setGps((g) => ({ ...g, status: 'error' })); return; }
+    if (watchId.current != null) navigator.geolocation.clearWatch(watchId.current);
+    setGps((g) => ({ ...g, status: g.status === 'ok' ? 'ok' : 'waiting' }));
+    watchId.current = navigator.geolocation.watchPosition((p) => onFixRef.current(p),
+      (err) => setGps((g) => ({ ...g, status: err.code === err.PERMISSION_DENIED ? 'denied' : 'error' })),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 30_000 });
+  }, []);
+  const reqWake = useCallback(() => (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<WakeLockSentinel> } }).wakeLock?.request('screen').then((w) => { wake.current = w; }).catch(() => {}), []);
   useEffect(() => {
     if (!active) return;
-    if (!('geolocation' in navigator)) { setGps((g) => ({ ...g, status: 'error' })); return; }
-    setGps((g) => ({ ...g, status: 'waiting' }));
-    watchId.current = navigator.geolocation.watchPosition(onFix, (err) => setGps((g) => ({ ...g, status: err.code === err.PERMISSION_DENIED ? 'denied' : 'error' })),
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 30_000 });
-    const req = () => (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<WakeLockSentinel> } }).wakeLock?.request('screen').then((w) => { wake.current = w; }).catch(() => {});
-    req();
-    const vis = () => { if (document.visibilityState === 'visible') req(); };
+    startWatch(); reqWake();
+    // ao voltar à app (saiu sem querer): religa o GPS e envia o que ficou na fila
+    const vis = () => { if (document.visibilityState === 'visible') { startWatch(); reqWake(); void syncRef.current(); } };
     document.addEventListener('visibilitychange', vis);
-    return () => { if (watchId.current != null) navigator.geolocation.clearWatch(watchId.current); wake.current?.release().catch(() => {}); document.removeEventListener('visibilitychange', vis); };
-  }, [active, onFix]);
+    window.addEventListener('focus', vis);
+    // vigilância: sem posição há mais de 45 s com a app aberta → religa
+    const dog = setInterval(() => {
+      if (document.visibilityState === 'visible' && (lastFixRef.current == null || Date.now() - lastFixRef.current > 45_000)) startWatch();
+    }, 20_000);
+    return () => {
+      if (watchId.current != null) navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+      wake.current?.release().catch(() => {});
+      document.removeEventListener('visibilitychange', vis); window.removeEventListener('focus', vis); clearInterval(dog);
+    };
+  }, [active, startWatch, reqWake]);
+  /** Botão "Ligar GPS novamente". */
+  const reconnect = useCallback(() => { startWatch(); reqWake(); void syncRef.current(); }, [startWatch, reqWake]);
 
   // Envio periódico + quando a rede volta.
   useEffect(() => {
@@ -197,5 +221,5 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     await sync();
   }, [sync]);
 
-  return { gps, queued, online, snap, speed, speedHist, road, pos, testMode, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
+  return { gps, queued, online, snap, speed, speedHist, road, pos, testMode, reconnect, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
 }

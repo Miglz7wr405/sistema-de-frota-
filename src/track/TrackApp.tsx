@@ -129,7 +129,6 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
           <span className={`h-2 w-2 rounded-full ${fresh === 'atual' ? 'bg-success' : fresh === 'desatualizada' ? 'bg-warning' : 'bg-danger'}`} />
           {!dto.position ? t.track.noPosition : fresh === 'atual' ? t.track.updated(formatAgo(dto.position.device_time, now)) : t.track.stale(formatAgo(dto.position.device_time, now))}</p>}
         {offline && <p className="mt-2 text-center text-xs text-warning">{t.states.offline}</p>}
-        {dto.route_validated_for_truck === false && active && <p className="mt-2 text-center text-xs text-muted">{t.track.routeWarning}</p>}
         <p className="mt-4 text-center text-xs text-muted">{t.track.poweredBy} · © OpenStreetMap</p>
       </section>
     </div>

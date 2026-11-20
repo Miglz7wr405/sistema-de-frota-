@@ -52,9 +52,13 @@ export default function TripForm() {
     const body = { origin_place_id: v.origin!.id, destination_place_id: v.destination!.id, vehicle_id: v.vehicle_id || null, driver_id: v.driver_id || null };
     try {
       let tripId = id;
-      if (id) await api(`/api/trips/${id}`, { method: 'PATCH', body });
-      else tripId = (await api<{ id: string }>('/api/trips', { body: { ...body, planned_departure: new Date().toISOString() } })).id;
-      if (start) await api(`/api/trips/${tripId}/transition`, { body: { to: 'em_viagem' } });
+      if (id) {
+        await api(`/api/trips/${id}`, { method: 'PATCH', body });
+        if (start) await api(`/api/trips/${id}/transition`, { body: { to: 'em_viagem' } });
+      } else {
+        // criar e iniciar numa só operação: se não puder iniciar, não fica nenhuma viagem a mais
+        tripId = (await api<{ id: string }>('/api/trips', { body: { ...body, planned_departure: new Date().toISOString(), start } })).id;
+      }
       nav(`/app/trips/${tripId}`);
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
   })();
