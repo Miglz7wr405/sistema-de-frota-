@@ -162,7 +162,7 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     const res = await dp.evaluate(([lng, lat]) => {
       const host = [...document.querySelectorAll('*')].find((h) => h.__project); const p = host.__project([lng, lat]); const c = host.getBoundingClientRect();
       const mk = [...host.querySelectorAll('.maplibregl-marker')].find((m) => m.textContent.includes('ADM 219 P')); const b = mk.getBoundingClientRect();
-      return { dx: b.left + 17 - (c.left + p.x), dy: b.top + 17 - (c.top + p.y) };
+      return { dx: b.left + b.width / 2 - (c.left + p.x), dy: b.bottom - (c.top + p.y) };
     }, [v.lng, v.lat]);
     if (Math.abs(res.dx) > 3 || Math.abs(res.dy) > 3) throw new Error('camião fora da coordenada ' + JSON.stringify(res));
     return `camião desenhado a ${Math.hypot(res.dx, res.dy).toFixed(1)} px da coordenada; link ${shareLink.replace(/^https?:\/\/[^/]+/, '')}`;

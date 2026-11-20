@@ -34,11 +34,10 @@ export default function DriverMap({ model, kmDoneModel, pos, road, origin, desti
   const state = useMemo(() => ({
     routeDone: model && doneM ? sliceLine(model.coords, model.cum, 0, doneM) : null,
     routeLeft: model ? (doneM != null ? sliceLine(model.coords, model.cum, doneM, model.lengthM) : model.coords) : null,
-    vehicles: here ? [{ id: 'eu', lng: here.lng, lat: here.lat, heading: pos?.heading ?? null, tone: 'primary' as const }] : [],
-    points: [{ id: 'o', lng: origin[0], lat: origin[1], kind: 'origin' as const }, { id: 'd', lng: destination[0], lat: destination[1], kind: 'destination' as const },
-      // o nome da localidade onde o camião está, em cima da estrada
-      ...(arrived && model ? (() => { const m = Math.min(model.lengthM, arrived.kmFromOrigin * 1000); const p = sliceLine(model.coords, model.cum, m, Math.min(model.lengthM, m + 1))[0];
-        return p ? [{ id: 'aqui', lng: p[0], lat: p[1], kind: 'place' as const, label: arrived.name }] : []; })() : [])],
+    vehicles: here ? [{ id: 'eu', lng: here.lng, lat: here.lat, heading: pos?.heading ?? null, tone: 'primary' as const,
+      // o nome da localidade onde está, numa etiqueta ao lado do camião (sem pontos por cima uns dos outros)
+      ...(arrived ? { label: arrived.name } : {}) }] : [],
+    points: [{ id: 'o', lng: origin[0], lat: origin[1], kind: 'origin' as const }, { id: 'd', lng: destination[0], lat: destination[1], kind: 'destination' as const }],
   }), [model, doneM, here?.lat, here?.lng, pos?.heading, origin, destination, arrivedPlaceId]);
 
   // relógio de 1 s para mudar de vista no momento certo

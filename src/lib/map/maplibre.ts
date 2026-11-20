@@ -14,14 +14,17 @@ const FALLBACK_STYLE = {
 const LOAD_TIMEOUT_MS = 10_000;
 const COLORS = { primary: '#1769E8', success: '#16A36A', muted: '#94A3B8', danger: '#C62828' };
 
-// Camião visto de cima (frente para norte; roda com o rumo real do GPS).
-const truckSvg = (color: string) => `<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
-<circle cx="17" cy="17" r="16" fill="${color}" fill-opacity="0.16"/>
-<rect x="11.5" y="13" width="11" height="17" rx="2" fill="#fff" stroke="${color}" stroke-width="1.6"/>
-<rect x="12" y="4.5" width="10" height="8" rx="2.5" fill="${color}" stroke="#fff" stroke-width="1.2"/>
-<rect x="13.5" y="5.8" width="7" height="2.6" rx="1" fill="#fff" fill-opacity="0.85"/>
-<rect x="10" y="15" width="1.6" height="4" rx=".6" fill="#10243D"/><rect x="22.4" y="15" width="1.6" height="4" rx=".6" fill="#10243D"/>
-<rect x="10" y="24" width="1.6" height="4" rx=".6" fill="#10243D"/><rect x="22.4" y="24" width="1.6" height="4" rx=".6" fill="#10243D"/>
+// Camião visto de lado, sempre direito, dentro de um círculo com uma ponta em baixo (alfinete).
+// A ponta (fundo do elemento, anchor 'bottom') é a coordenada: o camião fica sempre EM CIMA da estrada.
+const TRUCK_W = 40, TRUCK_H = 48;
+const truckSvg = (color: string) => `<svg width="${TRUCK_W}" height="${TRUCK_H}" viewBox="0 0 40 48" aria-hidden="true" style="display:block; filter:drop-shadow(0 1px 2px rgba(16,36,61,.35))">
+<path d="M13 33 L20 47 L27 33 Z" fill="${color}"/>
+<circle cx="20" cy="19" r="17" fill="${color}" stroke="#fff" stroke-width="2.5"/>
+<rect x="7" y="11.5" width="16" height="11" rx="1.5" fill="#fff"/>
+<path d="M24.5 14.5 h4.6 a1.5 1.5 0 0 1 1.2.6 l2.6 3.6 a1.5 1.5 0 0 1 .3.9 v2.9 h-8.7 z" fill="#fff"/>
+<path d="M26.3 16 h2.5 l2 2.8 h-4.5 z" fill="${color}"/>
+<circle cx="12" cy="24.5" r="2.7" fill="${color}" stroke="#fff" stroke-width="1.6"/>
+<circle cx="28" cy="24.5" r="2.7" fill="${color}" stroke="#fff" stroke-width="1.6"/>
 </svg>`;
 
 export const maplibreProvider: MapProvider = {
@@ -84,8 +87,8 @@ export const maplibreProvider: MapProvider = {
 
     const renderVehicle = (el: HTMLDivElement, v: VehicleMarker) => {
       // camião sempre direito (não roda com o rumo do GPS; o rumo continua guardado nos dados)
-      el.innerHTML = `<div style="width:34px; height:34px">${truckSvg(COLORS[v.tone])}</div>` +
-        (v.label ? `<div style="position:absolute; left:38px; top:2px; background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:3px 8px; white-space:nowrap; font: 600 12px Inter,system-ui; color:#10243D; box-shadow:0 1px 2px rgba(16,36,61,.08)">${esc(v.label)}${v.sublabel ? `<div style="font-weight:500; color:${v.tone === 'danger' ? COLORS.danger : v.tone === 'success' ? '#0F7A4F' : '#64748B'}">${esc(v.sublabel)}</div>` : ''}</div>` : '');
+      el.innerHTML = truckSvg(COLORS[v.tone]) +
+        (v.label ? `<div style="position:absolute; left:${TRUCK_W + 4}px; top:4px; background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:3px 8px; white-space:nowrap; font: 600 12px Inter,system-ui; color:#10243D; box-shadow:0 1px 2px rgba(16,36,61,.08)">${esc(v.label)}${v.sublabel ? `<div style="font-weight:500; color:${v.tone === 'danger' ? COLORS.danger : v.tone === 'success' ? '#0F7A4F' : '#64748B'}">${esc(v.sublabel)}</div>` : ''}</div>` : '');
     };
     const pointEl = (p: PointMarker) => {
       const el = document.createElement('div');
@@ -113,10 +116,10 @@ export const maplibreProvider: MapProvider = {
             } else {
               const el = document.createElement('div');
               // NUNCA mudar 'position' do elemento: o MapLibre posiciona-o com position:absolute + transform.
-              el.style.width = '34px'; el.style.height = '34px'; el.style.cursor = 'pointer';
+              el.style.width = `${TRUCK_W}px`; el.style.height = `${TRUCK_H}px`; el.style.cursor = 'pointer'; el.style.zIndex = '2'; // camião por cima dos pontos
               el.addEventListener('click', (e) => { e.stopPropagation(); vehicleClick?.(v.id); });
               renderVehicle(el, v);
-              const m = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([v.lng, v.lat]).addTo(map);
+              const m = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([v.lng, v.lat]).addTo(map);
               vMarkers.set(v.id, { m, el, from: [v.lng, v.lat], to: [v.lng, v.lat], t0: 0 });
             }
           }

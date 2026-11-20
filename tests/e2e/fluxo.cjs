@@ -198,10 +198,16 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     // mapa fixo: arrastar não muda nada
     await tp.waitForTimeout(3000);
     const proj = () => tp.evaluate(() => { const h = [...document.querySelectorAll('*')].find((x) => x.__project); return h.__project([36.88, -17.86]); });
-    const before = await proj(); const bx = await tp.locator('.maplibregl-canvas').boundingBox();
-    await tp.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2); await tp.mouse.down(); await tp.mouse.move(bx.x + 40, bx.y + 40, { steps: 6 }); await tp.mouse.up();
-    const after = await proj();
-    if (Math.abs(after.x - before.x) > 1 || Math.abs(after.y - before.y) > 1) throw new Error('o mapa do motorista mexeu');
+    // (o zoom automático do sistema pode coincidir com o arrastar: repete uma vez, longe dessa mudança)
+    let moved = true;
+    for (let k = 0; k < 2 && moved; k++) {
+      if (k) await tp.waitForTimeout(5000);
+      const before = await proj(); const bx = await tp.locator('.maplibregl-canvas').boundingBox();
+      await tp.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2); await tp.mouse.down(); await tp.mouse.move(bx.x + 40, bx.y + 40, { steps: 6 }); await tp.mouse.up();
+      const after = await proj();
+      moved = Math.abs(after.x - before.x) > 1 || Math.abs(after.y - before.y) > 1;
+    }
+    if (moved) throw new Error('o mapa do motorista mexeu');
     await tp.getByRole('tab', { name: 'Percurso' }).click();
     if (!(await tp.locator('svg[role=img]').count())) throw new Error('sem esquema do percurso');
   });
@@ -281,7 +287,7 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
       const c = host.getBoundingClientRect();
       const mk = [...host.querySelectorAll('.maplibregl-marker')].find((m) => m.textContent.includes(plate));
       const b = mk.getBoundingClientRect();
-      return { dx: b.left + 17 - (c.left + p.x), dy: b.top + 17 - (c.top + p.y) };
+      return { dx: b.left + b.width / 2 - (c.left + p.x), dy: b.bottom - (c.top + p.y) };
     }, [v.lng, v.lat, 'TESTE TELEMOVEL']);
     console.log('     desvio do marcador (px):', JSON.stringify(res));
     if (Math.abs(res.dx) > 3 || Math.abs(res.dy) > 3) throw new Error('camião desenhado fora da coordenada: ' + JSON.stringify(res));

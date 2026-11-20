@@ -81,9 +81,14 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
       {truckX != null && truckY != null && (
         // movimento suave entre atualizações (a única animação obrigatória)
         <g style={{ transform: `translate(${truckX}px, ${truckY}px)`, transition: 'transform 1.5s ease-in-out' }}>
-          <circle r="15" fill="#1769E8" fillOpacity="0.16" />
-          <rect x="-5.5" y="-4" width="11" height="15" rx="2" fill="#fff" stroke="#1769E8" strokeWidth="1.6" />
-          <rect x="-5" y="-12" width="10" height="8" rx="2.5" fill="#1769E8" stroke="#fff" strokeWidth="1.2" />
+          {/* o mesmo camião do mapa: visto de lado, direito, num círculo azul */}
+          <circle r="17" fill="#1769E8" stroke="#fff" strokeWidth="2.5" />
+          <g transform="translate(-20,-19)">
+            <rect x="7" y="11.5" width="16" height="11" rx="1.5" fill="#fff" />
+            <path d="M24.5 14.5 h4.6 a1.5 1.5 0 0 1 1.2.6 l2.6 3.6 a1.5 1.5 0 0 1 .3.9 v2.9 h-8.7 z" fill="#fff" />
+            <circle cx="12" cy="24.5" r="2.7" fill="#1769E8" stroke="#fff" strokeWidth="1.6" />
+            <circle cx="28" cy="24.5" r="2.7" fill="#1769E8" stroke="#fff" strokeWidth="1.6" />
+          </g>
         </g>
       )}
     </svg>
