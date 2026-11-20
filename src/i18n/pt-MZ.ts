@@ -173,6 +173,13 @@ export const t = {
       `${company ? company + ': ' : ''}A sua carga ${origin} → ${dest} está a caminho. Acompanhe aqui: ${link}\nCódigo da viagem: ${code}`,
     none: 'Ainda não há link de rastreamento para esta viagem.',
   },
+  busy: {
+    title: 'Já tem uma viagem em curso',
+    who: (plate: string | null, driver: string | null) => (plate && driver ? `O camião ${plate} e o motorista ${driver.trim()} já estão nesta viagem:`
+      : plate ? `O camião ${plate} já está nesta viagem:` : `O motorista ${(driver ?? '').trim()} já está nesta viagem:`),
+    question: 'Pretende cancelar essa viagem para iniciar esta?',
+    cancelAndStart: 'Cancelar essa viagem e iniciar esta', finishAndStart: 'Essa viagem já chegou — concluir e iniciar esta',
+  },
   reconnect: { button: 'Reconectar o GPS deste telemóvel', hint: 'Abre a app do motorista e volta a ligar o GPS.' },
   assign: { title: 'Para iniciar, escolha o camião e o motorista', saveStart: 'Guardar e iniciar viagem', save: 'Guardar' },
   strip: {

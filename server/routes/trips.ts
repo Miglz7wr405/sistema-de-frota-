@@ -49,20 +49,45 @@ route('GET', '/api/trips', async (req) => {
     [m.orgId, statuses, q.get('q') || null, q.get('vehicleId') || null, q.get('driverId') || null, q.get('from') || null, q.get('to') || null])));
 });
 
-/** Antes de iniciar uma viagem: termina testes "Testar com o meu telemóvel" ainda abertos com o mesmo camião ou motorista
- *  (um teste esquecido não pode bloquear uma viagem real). Viagens reais em curso NÃO são tocadas (dá erro claro). */
-async function closeOpenTests(c: Tx, tripId: string): Promise<string[]> {
-  const rows = await many<{ id: string }>(c, `select o.id from trips t join trips o on o.id <> t.id and o.deleted_at is null
+const ReplaceSchema = z.object({ tripIds: z.array(z.string().uuid()).min(1).max(2), action: z.enum(['cancelar', 'concluir']) }).optional();
+type Replace = z.infer<typeof ReplaceSchema>;
+
+/** Antes de iniciar uma viagem:
+ *  - testes "Testar com o meu telemóvel" esquecidos com o mesmo camião/motorista terminam sozinhos;
+ *  - viagens REAIS em curso com o mesmo camião/motorista: sem escolha → 409 `ja_em_viagem` com os dados delas (para o aviso);
+ *    com `replace` (o utilizador escolheu no aviso) → canceladas ou concluídas na mesma transação, pela máquina de estados.
+ *  Só vê viagens da própria organização (RLS). Devolve as viagens fechadas (para o pós-processamento). */
+async function prepareStart(c: Tx, tripId: string, replace: Replace): Promise<string[]> {
+  const closed: string[] = [];
+  const tests = await many<{ id: string }>(c, `select o.id from trips t join trips o on o.id <> t.id and o.deleted_at is null
       and o.status in ('em_viagem','pausada') and (o.vehicle_id = t.vehicle_id or o.driver_id = t.driver_id)
       join vehicles ov on ov.id = o.vehicle_id and ov.is_test where t.id = $1`, [tripId]);
-  for (const r of rows) await c.query(`select 1 from trip_transition($1, 'concluida')`, [r.id]);
-  return rows.map((r) => r.id);
+  for (const r of tests) { await c.query(`select 1 from trip_transition($1, 'concluida')`, [r.id]); closed.push(r.id); }
+  const busy = await many<{ id: string; code: string; status: string; origin: string; destination: string; plate: string | null; driver: string | null; same_vehicle: boolean; same_driver: boolean }>(c,
+    `select o.id, o.code, o.status, po.name origin, pd.name destination, ov.plate_normalized plate, od.full_name driver,
+        o.vehicle_id = t.vehicle_id same_vehicle, o.driver_id = t.driver_id same_driver
+     from trips t join trips o on o.id <> t.id and o.deleted_at is null and o.status in ('em_viagem','pausada')
+       and (o.vehicle_id = t.vehicle_id or o.driver_id = t.driver_id)
+     join places po on po.id = o.origin_place_id join places pd on pd.id = o.destination_place_id
+     left join vehicles ov on ov.id = o.vehicle_id left join drivers od on od.id = o.driver_id
+     where t.id = $1`, [tripId]);
+  if (!busy.length) return closed;
+  // só substitui se o utilizador escolheu TODAS as viagens em conflito (as que viu no aviso)
+  if (!replace || !busy.every((x) => replace.tripIds.includes(x.id))) throw new HttpError(409, 'ja_em_viagem', { trips: busy });
+  const code = (await one<{ code: string }>(c, 'select code from trips where id = $1', [tripId]))!.code;
+  for (const x of busy) {
+    if (replace.action === 'cancelar') await c.query(`select 1 from trip_transition($1, 'cancelada', $2)`, [x.id, `Substituída pela viagem ${code}`]);
+    else await c.query(`select 1 from trip_transition($1, 'concluida')`, [x.id]);
+    closed.push(x.id);
+  }
+  return closed;
 }
 
 route('POST', '/api/trips', async (req) => {
   const m = await requireMember(req, WRITE);
   const b = parse(TripSchema, req.body);
   const start = (req.body as { start?: unknown } | null)?.start === true;
+  const replace = parse(ReplaceSchema, (req.body as { replace?: unknown } | null)?.replace);
   let closed: string[] = [];
   const res = await asMember(m, async (c) => {
     const cols = TCOLS.filter((k) => b[k] !== undefined);
@@ -80,7 +105,7 @@ route('POST', '/api/trips', async (req) => {
     await audit(c, m, 'viagem.criar', 'trips', t!.id);
     // criar + iniciar na MESMA transação: se não puder iniciar, nada fica criado (sem viagens "Planeada" a mais)
     if (start) {
-      closed = await closeOpenTests(c, t!.id);
+      closed = await prepareStart(c, t!.id, replace);
       await c.query(`select 1 from trip_transition($1, 'em_viagem')`, [t!.id]);
     }
     return { id: t!.id, code: t!.code, route: r ? { lengthKm: r.lengthM / 1000, durationS: r.durationS } : null };
@@ -177,7 +202,7 @@ route('POST', '/api/trips/:id/transition', async (req, p) => {
   const id = assertUuid(p.id);
   let closed: string[] = [];
   const t = await asMember(m, async (c) => {
-    if (b.to === 'em_viagem') closed = await closeOpenTests(c, id);
+    if (b.to === 'em_viagem') closed = await prepareStart(c, id, parse(ReplaceSchema, (req.body as { replace?: unknown } | null)?.replace));
     return one(c, 'select id, status, code from trip_transition($1, $2, $3)', [id, b.to, b.reason ?? null]);
   });
   for (const x of closed) await afterTripClosed(x);

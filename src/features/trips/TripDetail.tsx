@@ -13,6 +13,7 @@ import { TripStatus } from '../shared';
 import { ShareCard, type Share } from './ShareCard';
 import { RouteStrip, speedTrend } from '../tracking/RouteStrip';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
+import { useStartWithReplace } from './BusyTripDialog';
 
 type Detail = {
   trip: Record<string, any>; stops: any[]; events: { id: string; kind: string; occurred_at: string; payload: Record<string, any>; actor_name: string | null }[];
@@ -74,16 +75,18 @@ function AssignCard({ tripId, vehicleId, driverId, onDone }: { tripId: string; v
   const [d, setD] = useState(driverId ?? '');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const replaceFlow = useStartWithReplace();
   const go = async (start: boolean) => {
     setBusy(true); setErr(null);
     try {
       await api(`/api/trips/${tripId}`, { method: 'PATCH', body: { vehicle_id: v || null, driver_id: d || null } });
-      if (start) await api(`/api/trips/${tripId}/transition`, { body: { to: 'em_viagem' } });
-      onDone();
+      if (start) await replaceFlow.run(async (replace) => { await api(`/api/trips/${tripId}/transition`, { body: { to: 'em_viagem', replace } }); onDone(); });
+      else onDone();
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   };
   return (
     <Card title={t.assign.title}>
+      {replaceFlow.dialog}
       <div className="grid gap-3 sm:grid-cols-2">
         <VehiclePicker value={v} onChange={setV} vehicles={vehicles.data} />
         <DriverPicker value={d} onChange={setD} drivers={drivers.data} />
@@ -112,8 +115,13 @@ export default function TripDetail() {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [replay, setReplay] = useState<LngLat[] | null>(null);
+  const replaceFlow = useStartWithReplace();
+  const refresh = () => { qc.invalidateQueries({ queryKey: ['trip', id] }); qc.invalidateQueries({ queryKey: ['trips'] }); };
   const transition = useMutation({
-    mutationFn: (b: { to: string; reason?: string }) => api(`/api/trips/${id}/transition`, { body: b }),
+    // iniciar: se o camião/motorista já está noutra viagem, aparece o aviso (cancelar/concluir essa e iniciar esta)
+    mutationFn: async (b: { to: string; reason?: string }) => b.to === 'em_viagem'
+      ? replaceFlow.run(async (replace) => { await api(`/api/trips/${id}/transition`, { body: { ...b, replace } }); refresh(); })
+      : api(`/api/trips/${id}/transition`, { body: b }),
     onSuccess: () => { setErr(null); setCancelOpen(false); qc.invalidateQueries({ queryKey: ['trip', id] }); qc.invalidateQueries({ queryKey: ['trips'] }); },
     onError: (e) => setErr(errorMessage(e)),
   });
@@ -165,6 +173,7 @@ export default function TripDetail() {
               {NEXT[tr.status]?.includes('cancelada') && <Button variant="danger" onClick={() => setCancelOpen(true)}>{t.trip.actions.cancelada}</Button>}
             </div>}
           </div>
+          {replaceFlow.dialog}
           {err && <p role="alert" className="mb-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>}
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="space-y-4 lg:col-span-2">

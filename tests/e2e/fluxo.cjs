@@ -92,6 +92,23 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await page.getByText('AAB 123 MC').first().waitFor();
     await page.getByText('Viagem iniciada').first().waitFor({ timeout: 10000 });
   });
+  await step('06c-aviso-ja-em-viagem', async () => {
+    // AAB 123 MC já está em viagem (06b): nova viagem com o mesmo camião → aviso → cancelar essa e iniciar esta
+    await page.goto(B + '/app/trips/new');
+    const pick = async (idx, txt, opt) => { const i = page.getByPlaceholder('Escreva o nome da localidade').nth(idx); await i.fill(txt); await page.getByRole('button', { name: new RegExp('^' + opt) }).first().click(); };
+    await pick(0, 'Quel', 'Quelimane');
+    await pick(1, 'Beir', 'Beira');
+    await page.getByLabel('Camião').selectOption({ label: 'AAB 123 MC (Em viagem)' });
+    await page.getByLabel('Motorista').selectOption({ label: 'Ana Cossa' });
+    await page.getByRole('button', { name: 'Iniciar viagem agora' }).click();
+    const dlg = page.getByRole('dialog', { name: 'Já tem uma viagem em curso' });
+    await dlg.waitFor({ timeout: 10000 });
+    await dlg.getByText(/Beira → Quelimane/).waitFor();
+    await page.screenshot({ path: SHOT + '06c-aviso.png' });
+    await dlg.getByRole('button', { name: 'Cancelar essa viagem e iniciar esta' }).click();
+    await page.waitForURL(/\/app\/trips\/[0-9a-f-]{36}$/, { timeout: 20000 });
+    await page.getByText('Viagem iniciada').first().waitFor({ timeout: 10000 });
+  });
   // Motorista
   const dctx = await browser.newContext({ viewport: { width: 400, height: 860 }, geolocation: { latitude: -17.8775, longitude: 36.8902 }, permissions: ['geolocation'] });
   const dp = await dctx.newPage();

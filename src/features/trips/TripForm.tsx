@@ -13,6 +13,7 @@ import { t } from '@/i18n/pt-MZ';
 import { Button, Card, Field, PageHeader, Spinner } from '@/components/ui';
 import { PlacePicker, type PlaceOpt } from './PlacePicker';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
+import { useStartWithReplace } from './BusyTripDialog';
 
 const place = z.custom<PlaceOpt | null>((v) => !!v && typeof v === 'object', { message: t.validation.place });
 const Schema = z.object({ origin: place, destination: place, vehicle_id: z.string().optional(), driver_id: z.string().optional() })
@@ -25,6 +26,7 @@ export default function TripForm() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<'start' | 'save' | null>(null);
   const { vehicles, drivers } = useAssets();
+  const replaceFlow = useStartWithReplace();
   const existing = useQuery({ queryKey: ['trip', id], queryFn: () => api<{ trip: Record<string, any> }>(`/api/trips/${id}`), enabled: !!id });
   const f = useForm<F>({ resolver: zodResolver(Schema), defaultValues: { origin: null, destination: null, vehicle_id: '', driver_id: '' } });
 
@@ -51,15 +53,15 @@ export default function TripForm() {
     setErr(null); setBusy(start ? 'start' : 'save');
     const body = { origin_place_id: v.origin!.id, destination_place_id: v.destination!.id, vehicle_id: v.vehicle_id || null, driver_id: v.driver_id || null };
     try {
-      let tripId = id;
-      if (id) {
-        await api(`/api/trips/${id}`, { method: 'PATCH', body });
-        if (start) await api(`/api/trips/${id}/transition`, { body: { to: 'em_viagem' } });
-      } else {
+      if (id) await api(`/api/trips/${id}`, { method: 'PATCH', body });
+      // iniciar: se o camião/motorista já está noutra viagem, aparece o aviso e repete com a escolha
+      await replaceFlow.run(async (replace) => {
+        let tripId = id;
+        if (id) { if (start) await api(`/api/trips/${id}/transition`, { body: { to: 'em_viagem', replace } }); }
         // criar e iniciar numa só operação: se não puder iniciar, não fica nenhuma viagem a mais
-        tripId = (await api<{ id: string }>('/api/trips', { body: { ...body, planned_departure: new Date().toISOString(), start } })).id;
-      }
-      nav(`/app/trips/${tripId}`);
+        else tripId = (await api<{ id: string }>('/api/trips', { body: { ...body, planned_departure: new Date().toISOString(), start, replace } })).id;
+        nav(`/app/trips/${tripId}`);
+      });
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
   })();
 
@@ -69,6 +71,7 @@ export default function TripForm() {
   const canStart = !id || ['planeada', 'aguardando_partida'].includes(existing.data?.trip.status);
   return (
     <form onSubmit={(ev) => { ev.preventDefault(); void save(ready && canStart); }} noValidate className="mx-auto max-w-xl">
+      {replaceFlow.dialog}
       <PageHeader title={id ? t.trip.edit : t.trip.new} back={<Link to={id ? `/app/trips/${id}` : '/app/trips'} className="text-sm text-primary">← {t.common.back}</Link>} />
       {err && <p role="alert" className="mb-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>}
       <Card>

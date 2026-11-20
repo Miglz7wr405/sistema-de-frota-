@@ -162,3 +162,10 @@ escolhidos. Erros do servidor passam a dizer o campo. Os campos retirados contin
    tapar o mapa.
 4. Iniciar viagem: um teste do telemóvel esquecido com o mesmo motorista/camião é terminado sozinho; criar+iniciar é uma só operação
    (sem viagens "Planeada" a mais se falhar); mensagem clara se o motorista/camião já está noutra viagem real. **TESTADO** (51 testes, E2E 17/17).
+
+## Aviso "Já tem uma viagem em curso" (20/11, 7.ª ronda)
+Ao iniciar uma viagem com um camião/motorista que já está noutra viagem em curso, aparece o aviso com a viagem em causa (código,
+origem → destino) e a pergunta "Pretende cancelar essa viagem para iniciar esta?": **Cancelar essa viagem e iniciar esta** (motivo
+"Substituída pela viagem FT-…"), **Essa viagem já chegou — concluir e iniciar esta**, ou **Voltar**. Tudo numa só transação, pela
+máquina de estados (eventos e auditoria). Funciona em "Iniciar viagem agora", no botão "Iniciar viagem" e no cartão "Guardar e
+iniciar". **TESTADO** (integração com isolamento A↔B; E2E 18/18; 51 testes).

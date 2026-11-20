@@ -499,9 +499,33 @@ d('iniciar viagem real com o motorista ainda num teste do telemóvel', () => {
     const before = (await sys.query(`select count(*)::int n from trips where status = 'planeada'`)).rows[0].n;
     const r2 = await call('POST', '/api/trips', A, { ...body, vehicle_id: v2.json.id });
     expect(r2.status).toBe(409);
-    expect(r2.json.error).toBe('motorista_em_viagem');
+    expect(r2.json.error).toBe('ja_em_viagem');
+    // o aviso traz a viagem em conflito (código, origem → destino, o motorista em comum)
+    expect(r2.json.details.trips).toHaveLength(1);
+    expect(r2.json.details.trips[0]).toMatchObject({ id: r.json.id, origin: 'Cidade Origem', destination: 'Cidade Destino', same_driver: true, same_vehicle: false });
     expect((await sys.query(`select count(*)::int n from trips where status = 'planeada'`)).rows[0].n).toBe(before);
     expect((await sys.query('select status from trips where id = $1', [r.json.id])).rows[0].status).toBe('em_viagem');
+    // B não consegue usar a escolha com uma viagem de A (não a vê: continua o aviso só com as dele, aqui nenhuma → nada muda em A)
+    const bv = await call('POST', '/api/vehicles', B, { plate: 'BBB 111 MC' });
+    const bd = await call('POST', '/api/drivers', B, { full_name: 'Motorista B', phone: '+258841119999' });
+    const bp = await call('POST', '/api/trips', B, { origin_place_id: ids.origin, destination_place_id: ids.dest, vehicle_id: bv.json.id, driver_id: bd.json.id, start: true,
+      replace: { tripIds: [r.json.id], action: 'cancelar' } });
+    expect(bp.status).toBe(201);
+    expect((await sys.query('select status from trips where id = $1', [r.json.id])).rows[0].status).toBe('em_viagem');
+    // escolha "Cancelar essa viagem e iniciar esta"
+    const r3 = await call('POST', '/api/trips', A, { ...body, vehicle_id: v2.json.id, replace: { tripIds: [r.json.id], action: 'cancelar' } });
+    expect(r3.status).toBe(201);
+    const old1 = (await sys.query('select status, cancel_reason from trips where id = $1', [r.json.id])).rows[0];
+    expect(old1.status).toBe('cancelada');
+    expect(old1.cancel_reason).toMatch(/^Substituída pela viagem FT-/);
+    expect((await sys.query('select status from trips where id = $1', [r3.json.id])).rows[0].status).toBe('em_viagem');
+    // escolha "Essa viagem já chegou — concluir e iniciar esta" (pelo botão Iniciar de uma viagem planeada)
+    const p4 = await call('POST', '/api/trips', A, { origin_place_id: ids.origin, destination_place_id: ids.dest, vehicle_id: v2.json.id, driver_id: drv });
+    expect((await call('POST', `/api/trips/${p4.json.id}/transition`, A, { to: 'em_viagem' })).json.error).toBe('ja_em_viagem');
+    const t4 = await call('POST', `/api/trips/${p4.json.id}/transition`, A, { to: 'em_viagem', replace: { tripIds: [r3.json.id], action: 'concluir' } });
+    expect(t4.status).toBe(200);
+    expect((await sys.query('select status from trips where id = $1', [r3.json.id])).rows[0].status).toBe('concluida');
+    expect((await sys.query('select status from trips where id = $1', [p4.json.id])).rows[0].status).toBe('em_viagem');
   });
 });
 
