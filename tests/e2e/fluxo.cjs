@@ -172,7 +172,7 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   const tctx = await browser.newContext({ viewport: { width: 400, height: 860 }, storageState: await ctx.storageState(), geolocation: { latitude: -17.8600, longitude: 36.8800, accuracy: 9 }, permissions: ['geolocation'] });
   const tp = await tctx.newPage();
   tp.on('pageerror', (e) => errs.push(`[selftest pageerror] ${e.message.slice(0, 300)}`));
-  const tstep = async (name, fn) => { try { await fn(); console.log('OK  ', name); } catch (e) { failures++; console.log('FAIL', name, e.message.split('\n')[0]); } await tp.screenshot({ path: SHOT + name + '.png' }); };
+  const tstep = async (name, fn) => { try { const info = await fn(); console.log('OK  ', name, info ?? ''); } catch (e) { failures++; console.log('FAIL', name, e.message.split('\n')[0]); } await tp.screenshot({ path: SHOT + name + '.png' }); };
   await tstep('13-teste-telemovel', async () => {
     // UM toque no painel: sem perguntas (a permissão de GPS já foi dada a este site)
     await tp.goto(B + '/app/dashboard');
@@ -209,7 +209,12 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.getByRole('tab', { name: 'Mapa' }).click();
     await tp.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
     await tp.locator('.maplibregl-marker').first().waitFor({ timeout: 10000 });
-    await tp.waitForTimeout(2000);
+    // o mapa não fica parado: de 30 em 30 s aproxima sozinho (animação) e volta à rota inteira
+    const span = () => tp.evaluate(() => { const h = [...document.querySelectorAll('*')].find((x) => x.__project); const a = h.__project([36.88, -17.86]), b = h.__project([36.81, -17.6]); return Math.hypot(a.x - b.x, a.y - b.y); });
+    const s0 = await span(); let maxS = s0, minS = s0;
+    for (let i = 0; i < 40; i++) { await tp.waitForTimeout(1000); const v = await span(); maxS = Math.max(maxS, v); minS = Math.min(minS, v); if (maxS > minS * 2.5 && i > 15) break; }
+    if (!(maxS > minS * 2.5)) throw new Error(`o mapa não aproximou/afastou sozinho (${minS.toFixed(0)}–${maxS.toFixed(0)} px)`);
+    return `zoom automático: ${minS.toFixed(0)} px ↔ ${maxS.toFixed(0)} px`;
   });
   await tstep('13c-viagem-real-motorista-sou-eu', async () => {
     // viagem REAL com o motorista = o próprio utilizador → "Iniciar viagem agora" abre logo o ecrã do motorista com o GPS.
