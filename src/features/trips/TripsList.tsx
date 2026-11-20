@@ -1,3 +1,4 @@
+import { TripLink } from './TripLink';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -11,7 +12,7 @@ import { Eta, TripStatus } from '../shared';
 
 type Row = { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; driver: string | null; pct: number | null;
   eta_destination: string | null; eta_confidence: string | null; is_late: boolean; planned_departure: string | null; actual_departure: string | null; actual_arrival: string | null;
-  recipient_name: string | null; cargo_description?: string | null; last_position_at: string | null };
+  recipient_name: string | null; cargo_description?: string | null; driver_user_id?: string | null; last_position_at: string | null };
 
 export default function TripsList() {
   const { canWrite } = useRole();
@@ -46,7 +47,7 @@ export default function TripsList() {
             const noSig = active && freshnessOf(r.last_position_at) === 'sem_sinal';
             return (
               <tr key={r.id} className="hover:bg-slate-50">
-                <td className="table-td"><Link className="font-semibold text-primary" to={`/app/trips/${r.id}`}>{r.code}</Link></td>
+                <td className="table-td"><TripLink className="font-semibold text-primary" id={r.id} status={r.status} driverUserId={r.driver_user_id}>{r.code}</TripLink></td>
                 <td className="table-td">{r.origin} → {r.destination}{(r.cargo_description || r.recipient_name) && <div className="text-xs text-muted">{[r.cargo_description, r.recipient_name].filter(Boolean).join(' · ')}</div>}</td>
                 <td className="table-td">{r.plate ?? '—'} · {r.driver ?? '—'}</td>
                 <td className="table-td text-sm">{formatDateTime(r.actual_departure ?? r.planned_departure)}</td>

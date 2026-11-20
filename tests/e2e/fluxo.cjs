@@ -214,10 +214,11 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   await tstep('13c-viagem-real-motorista-sou-eu', async () => {
     // viagem REAL com o motorista = o próprio utilizador → "Iniciar viagem agora" abre logo o ecrã do motorista com o GPS.
     // Com o teste ainda em curso, entrar na app abre o ecrã do motorista; "Voltar ao painel" deixa ficar no painel.
-    await tp.goto(B + '/app/dashboard');
-    await tp.waitForURL(/\/driver\/?$/, { timeout: 20000 });
+    // "Voltar ao painel": fica no painel (não volta a abrir o ecrã do motorista)
     await tp.getByText('Voltar ao painel').click();
     await tp.waitForURL(/\/app\/dashboard/, { timeout: 15000 });
+    await tp.waitForTimeout(4000);
+    if (!/\/app\/dashboard/.test(tp.url())) throw new Error('voltar ao painel não ficou no painel: ' + tp.url());
     await tp.goto(B + '/app/trips/new');
     const pick = async (idx, txt, opt) => { const i = tp.getByPlaceholder('Escreva o nome da localidade').nth(idx); await i.fill(txt); await tp.getByRole('button', { name: new RegExp('^' + opt) }).first().click(); };
     await pick(0, 'Quel', 'Quelimane');
@@ -234,6 +235,20 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     // viagem real: "Voltar ao painel" sim; botões de teste não
     await tp.getByText('Voltar ao painel').waitFor();
     if (await tp.getByRole('button', { name: 'Terminar teste' }).count()) throw new Error('"Terminar teste" numa viagem real');
+  });
+  await tstep('13e-voltar-e-voltar-a-entrar', async () => {
+    // seta "voltar" do telemóvel: regressa ao formulário e FICA (não prende no ecrã do motorista)
+    await tp.goBack(); await tp.waitForTimeout(4000);
+    if (/\/driver/.test(tp.url())) throw new Error('voltar ficou preso no ecrã do motorista');
+    // tocar na viagem em curso (lista de viagens) → direto ao ecrã do motorista
+    await tp.goto(B + '/app/trips'); const row = tp.locator('tr', { hasText: 'Quelimane' }).filter({ hasText: 'Beira' }).filter({ hasText: 'Em viagem' }).first();
+    await row.locator('a').first().click();
+    await tp.waitForURL(/\/driver\/?$/, { timeout: 20000 });
+    await tp.getByText(/GPS a enviar/).first().waitFor({ timeout: 15000 });
+    // fechar a app e abrir de novo (sessão nova): abre sozinho o ecrã do motorista com o GPS
+    const t2 = await (await browser.newContext({ viewport: { width: 400, height: 860 }, storageState: await tctx.storageState(), geolocation: { latitude: -17.86, longitude: 36.88, accuracy: 9 }, permissions: ['geolocation'] })).newPage();
+    await t2.goto(B + '/app/dashboard'); await t2.waitForURL(/\/driver\/?$/, { timeout: 20000 }); await t2.getByText(/GPS a enviar/).first().waitFor({ timeout: 15000 });
+    await t2.close();
   });
   await tstep('13d-telemovel-sem-scroll-lateral', async () => {
     // detalhe de uma viagem (motorista João) no telemóvel: nada pode alargar a página

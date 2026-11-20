@@ -35,9 +35,10 @@ export default function SelfTest() {
       setFix(f);
       if (f.accuracy > 500) throw new Error(t.selftest.poorAccuracy);
       setPhase('starting');
-      const r = await api<{ driverToken: string }>('/api/selftest/start', { body: { lat: f.lat, lng: f.lng, accuracy: f.accuracy, ...(destinationPlaceId ? { destinationPlaceId } : {}) } });
-      try { localStorage.setItem('if_driver_token', r.driverToken); localStorage.removeItem('if_driver_me'); } catch { /* sem armazenamento */ }
-      location.href = '/driver/';
+      const r = await api<{ driverToken: string; tripId: string }>('/api/selftest/start', { body: { lat: f.lat, lng: f.lng, accuracy: f.accuracy, ...(destinationPlaceId ? { destinationPlaceId } : {}) } });
+      try { localStorage.setItem('if_driver_token', r.driverToken); localStorage.removeItem('if_driver_me'); sessionStorage.setItem('if_auto_driver', r.tripId); } catch { /* sem armazenamento */ }
+      // replace: a página de teste não fica no histórico (voltar não arranca outro teste)
+      location.replace('/driver/');
     } catch (e) {
       setPhase('idle');
       setErr(e instanceof Error && !('status' in e) ? e.message : errorMessage(e));

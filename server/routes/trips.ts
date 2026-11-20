@@ -29,7 +29,7 @@ route('GET', '/api/trips', async (req) => {
   const statuses = q.get('status')?.split(',').filter(Boolean) ?? null;
   return ok(await asMember(m, (c) => many(c, `
     select t.id, t.code, t.status, t.planned_departure, t.planned_arrival, t.actual_departure, t.actual_arrival, t.client_reference,
-      po.name as origin, pd.name as destination, v.plate_normalized as plate, d.full_name as driver, t.recipient_name, t.cargo_description,
+      po.name as origin, pd.name as destination, v.plate_normalized as plate, d.full_name as driver, d.user_id as driver_user_id, t.recipient_name, t.cargo_description,
       p.pct, p.km_left, p.eta_destination, p.eta_confidence, p.current_label, lp.device_time as last_position_at,
       (p.eta_destination is not null and p.eta_confidence in ('alta','media') and t.planned_arrival is not null
         and p.eta_destination > t.planned_arrival + make_interval(mins => coalesce((o.settings->>'late_tolerance_min')::int, 30))) as is_late

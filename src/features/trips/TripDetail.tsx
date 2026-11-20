@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Edit3, Play, RefreshCw, Truck } from 'lucide-react';
@@ -14,7 +14,8 @@ import { ShareCard, type Share } from './ShareCard';
 import { RouteStrip, speedTrend } from '../tracking/RouteStrip';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
 import { useStartWithReplace } from './BusyTripDialog';
-import { isPhone, openOwnDriverApp, stayOnPanel } from './ownDriver';
+import { autoOpenOnce, isPhone, openOwnDriverApp } from './ownDriver';
+import { OpenDriverCard } from './OpenDriverCard';
 
 type Detail = {
   trip: Record<string, any>; stops: any[]; events: { id: string; kind: string; occurred_at: string; payload: Record<string, any>; actor_name: string | null }[];
@@ -110,10 +111,12 @@ function AssignCard({ tripId, vehicleId, driverId, onDone }: { tripId: string; v
 
 // Abre sozinho o ecrã do motorista (que envia o GPS) — sem botão. Só para a viagem em que o motorista é o próprio utilizador.
 function AutoOwnGps({ tripId }: { tripId: string }) {
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { openOwnDriverApp(tripId).catch((e) => setErr(errorMessage(e))); }, [tripId]);
-  return <p className="rounded-2xl bg-primary-soft p-4 text-sm text-navy">{err ?? t.ownGps.opening}</p>;
+  const [opened] = useState(() => autoOpenOnce(tripId));
+  // já abriu nesta sessão e o utilizador voltou: não o prende — fica um botão para abrir quando quiser
+  if (opened) return <p className="rounded-2xl bg-primary-soft p-4 text-sm text-navy">{t.ownGps.opening}</p>;
+  return <OpenDriverCard tripId={tripId} />;
 }
+
 
 const NEXT: Record<string, string[]> = {
   planeada: ['aguardando_partida', 'em_viagem', 'cancelada'], aguardando_partida: ['em_viagem', 'cancelada'],
@@ -214,7 +217,7 @@ export default function TripDetail() {
               </div>
               {/* GPS parou e o motorista é o próprio utilizador (teste com o telemóvel): religar aqui mesmo */}
               {/* o motorista é o próprio utilizador e a posição não está atual: o GPS deste telemóvel liga-se sozinho */}
-              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && isPhone() && !stayOnPanel() && <AutoOwnGps tripId={id!} />}
+              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && isPhone() && <AutoOwnGps tripId={id!} />}
               {/* motorista real noutro telemóvel e a posição não está atual */}
               {active && fresh !== 'atual' && (!tr.driver_user_id || tr.driver_user_id !== me.data?.user?.id) && tr.driver_id && (
                 <div className="rounded-2xl border border-warning/40 bg-warning-soft p-4 text-sm text-navy">

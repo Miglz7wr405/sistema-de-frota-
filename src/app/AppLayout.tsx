@@ -1,4 +1,4 @@
-import { isPhone, openOwnDriverApp } from '@/features/trips/ownDriver';
+import { autoOpenOnce, isPhone } from '@/features/trips/ownDriver';
 import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -36,7 +36,7 @@ export function AppLayout({ platform }: { platform?: boolean }) {
     if (new URLSearchParams(loc.search).get('painel') === '1') { try { sessionStorage.setItem('if_painel', '1'); } catch { /* */ } return; }
     let stay = false; try { stay = sessionStorage.getItem('if_painel') === '1'; } catch { /* */ }
     if (stay || !me.data?.activeOrgId || !isPhone()) return;
-    api<{ id: string } | null>('/api/own-active-trip').then((t) => { if (t?.id) void openOwnDriverApp(t.id); }).catch(() => {});
+    api<{ id: string } | null>('/api/own-active-trip').then((t) => { if (t?.id) autoOpenOnce(t.id); }).catch(() => {});
   }, [me.data?.activeOrgId]);
   const notif = useQuery({ queryKey: ['notifications'], queryFn: () => api<{ unread: number }>('/api/notifications'), refetchInterval: 30_000, enabled: !!me.data?.activeOrgId });
 

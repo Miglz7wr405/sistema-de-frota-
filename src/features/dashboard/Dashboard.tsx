@@ -10,6 +10,9 @@ import { formatDate, formatDateTime, formatKm, formatTime, freshnessOf } from '@
 import { Eta, TripStatus, vehicleTone } from '../shared';
 import type { LngLat } from '@/lib/map/types';
 import { RouteStrip, stripFromLive, type LiveTrip } from '../tracking/RouteStrip';
+import { OpenDriverCard } from '../trips/OpenDriverCard';
+import { TripLink } from '../trips/TripLink';
+import { isPhone } from '../trips/ownDriver';
 
 type Dash = {
   counts: { total: number; em_viagem: number; disponiveis: number; manutencao: number; sem_sinal: number };
@@ -21,13 +24,14 @@ type Dash = {
   recent: { kind: string; occurred_at: string; code: string; trip_id: string; payload: Record<string, string> }[];
   placesCount: number; devices: { total: number; online: number }; serverTime: string;
 };
-type Live = { vehicles: (LiveTrip & { active_trip_id: string | null; active_trip_code: string | null; id: string; plate: string; main_status: string; freshness: string; lng: number | null; lat: number | null; heading: number | null; speed_kmh: number | null; last_position_at: string | null })[] };
-type TripRow = { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; driver: string | null; pct: number | null; eta_destination: string | null; eta_confidence: string | null; is_late: boolean; last_position_at: string | null };
+type Live = { vehicles: (LiveTrip & { active_trip_id: string | null; active_trip_code: string | null; driver_user_id?: string | null; id: string; plate: string; main_status: string; freshness: string; lng: number | null; lat: number | null; heading: number | null; speed_kmh: number | null; last_position_at: string | null })[] };
+type TripRow = { id: string; code: string; status: string; driver_user_id?: string | null; origin: string; destination: string; plate: string | null; driver: string | null; pct: number | null; eta_destination: string | null; eta_confidence: string | null; is_late: boolean; last_position_at: string | null };
 
 export default function Dashboard() {
   const me = useMe();
   const { canWrite } = useRole();
   const q = useQuery({ queryKey: ['dashboard'], queryFn: () => api<Dash>('/api/dashboard'), refetchInterval: 15_000 });
+  const ownTrip = useQuery({ queryKey: ['own-active-trip'], queryFn: () => api<{ id: string } | null>('/api/own-active-trip'), refetchInterval: 30_000 });
   const live = useQuery({ queryKey: ['fleet-live'], queryFn: () => api<Live>('/api/fleet/live'), refetchInterval: 10_000 });
   const trips = useQuery({ queryKey: ['trips', 'active'], queryFn: () => api<TripRow[]>('/api/trips?status=em_viagem,pausada'), refetchInterval: 15_000 });
   const now = Date.now();
@@ -45,6 +49,7 @@ export default function Dashboard() {
       </div>
       <QueryState q={q}>{(d) => (
         <>
+          {ownTrip.data?.id && isPhone() && <div className="mb-4"><OpenDriverCard tripId={ownTrip.data.id} /></div>}
           {canWrite && <Card className="mb-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Smartphone className="h-6 w-6" /></span>
               <div><p className="font-semibold">{t.dashboard.selfTestTitle}</p><p className="text-sm text-muted">{t.dashboard.selfTestText}</p></div></div>
@@ -75,7 +80,7 @@ export default function Dashboard() {
           {(() => {
             const act = (live.data?.vehicles ?? []).map((v) => ({ v, st: stripFromLive(v) })).filter((x) => x.st && x.v.active_trip_id).slice(0, 6);
             return act.length > 0 && <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{act.map(({ v, st }) => (
-              <Card key={v.id} title={<Link className="hover:text-primary" to={`/app/trips/${v.active_trip_id}`}>{v.plate} · {v.active_trip_code}</Link>}
+              <Card key={v.id} title={<TripLink className="hover:text-primary" id={v.active_trip_id!} status="em_viagem" driverUserId={v.driver_user_id}>{v.plate} · {v.active_trip_code}</TripLink>}
                 action={v.speed_kmh != null && freshnessOf(v.last_position_at, now) === 'atual' ? <Badge tone="success">{Math.round(v.speed_kmh)} km/h</Badge> : undefined}>
                 <RouteStrip {...st!} showEta={false} /></Card>))}</div>;
           })()}
@@ -106,7 +111,7 @@ export default function Dashboard() {
                   const noSig = freshnessOf(r.last_position_at, now) === 'sem_sinal' || !r.last_position_at;
                   return (
                     <tr key={r.id}>
-                      <td className="table-td"><Link className="font-semibold text-primary" to={`/app/trips/${r.id}`}>{r.code}</Link></td>
+                      <td className="table-td"><TripLink className="font-semibold text-primary" id={r.id} status={r.status} driverUserId={r.driver_user_id}>{r.code}</TripLink></td>
                       <td className="table-td">{r.origin} → {r.destination}</td>
                       <td className="table-td">{r.plate ?? '—'} · {r.driver?.split(' ').slice(0, 2).join(' ') ?? '—'}</td>
                       <td className="table-td">{r.pct != null && !noSig ? <div className="flex items-center gap-2"><div className="w-28"><ProgressBar pct={r.pct} /></div><span className="text-xs tabular-nums">{Math.round(r.pct)}%</span></div> : <span className="text-muted">{t.common.noData}</span>}</td>
