@@ -25,8 +25,10 @@ const places = { elements: [
 beforeAll(async () => {
   if (!ADMIN) return;
   srv = createServer((req, res) => { let b = ''; req.on('data', (x) => (b += x)); req.on('end', () => { const q = decodeURIComponent(b);
-    const m = /rel\((\d+)\);out geom/.exec(q);
-    res.end(JSON.stringify(m ? { elements: provinces.elements.filter((e) => e.id === Number(m[1])) }
+    const mt = /rel\((\d+)\);out tags/.exec(q);
+    const m = /rel\((\d+)\);way\(r\);out skel geom/.exec(q);
+    res.end(JSON.stringify(mt ? { elements: provinces.elements.filter((e) => e.id === Number(mt[1])).map((e) => ({ type: e.type, id: e.id, tags: e.tags })) }
+      : m ? { elements: provinces.elements.filter((e) => e.id === Number(m[1])).flatMap((e) => e.members.map((w, i) => ({ type: 'way', id: i, geometry: w.geometry }))) }
       : q.includes('admin_level"="4') ? { elements: provinces.elements.map((e) => ({ type: e.type, id: e.id, tags: e.tags })) } : places)); }); }).listen(4011);
   process.env.OVERPASS_URL = 'http://localhost:4011/api/interpreter';
   const a = new pg.Client({ connectionString: ADMIN }); await a.connect(); await a.query(`create database ${dbName}`); await a.end();

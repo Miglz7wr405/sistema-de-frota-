@@ -39,16 +39,17 @@ export async function listProvinces() {
 
 /** Uma província: polígono montado no PostGIS a partir das linhas da relação (uma consulta por relação). */
 export async function importProvince(c: pg.ClientBase, relId: number) {
-  const q = `[out:json][timeout:55];rel(${Math.trunc(relId)});out geom;`;
-  const data = await overpass(q);
-  const rel = data.elements.find((e) => e.type === 'relation');
-  if (!rel) return { provinces: 0 };
-  const ds = await dataset(c, `OSM — província (relação ${relId}, admin_level=4)`, q);
-  const lines = (rel.members ?? []).filter((m: any) => m.type === 'way' && m.geometry && (m.role === 'outer' || m.role === ''))
-    .map((m: any) => ({ type: 'LineString', coordinates: m.geometry.map((p: any) => [p.lon, p.lat]) }));
-  if (!lines.length) return { provinces: 0 };
-  const name = rel.tags?.['name:pt'] ?? rel.tags?.name;
-  const code = rel.tags?.['ISO3166-2'] ?? `osm-r${rel.id}`;
+  const id = Math.trunc(relId);
+  // 1) etiquetas da relação (leve); 2) só as linhas, sem etiquetas (out skel geom) — resposta muito menor.
+  const meta = (await overpass(`[out:json][timeout:25];rel(${id});out tags;`)).elements.find((e) => e.type === 'relation');
+  if (!meta) return { provinces: 0 };
+  const q = `[out:json][timeout:55];rel(${id});way(r);out skel geom;`;
+  const ways = (await overpass(q)).elements.filter((e) => e.type === 'way' && e.geometry);
+  if (!ways.length) return { provinces: 0 };
+  const ds = await dataset(c, `OSM — província (relação ${id}, admin_level=4)`, q);
+  const lines = ways.map((w: any) => ({ type: 'LineString', coordinates: w.geometry.map((p: any) => [p.lon, p.lat]) }));
+  const name = meta.tags?.['name:pt'] ?? meta.tags?.name;
+  const code = meta.tags?.['ISO3166-2'] ?? `osm-r${id}`;
   const r = await c.query(`insert into admin_areas (level, name, code, geom, dataset_id)
     select 1, $1, $2, ST_Multi(ST_CollectionExtract(ST_BuildArea(ST_Collect(ST_GeomFromGeoJSON(g::text))), 3))::geography, $4
     from jsonb_array_elements($3::jsonb) g
