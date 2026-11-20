@@ -85,3 +85,19 @@ Deploy Vercel (Build Output API, Node 22, região Frankfurt), migrações aplica
 1. Testar com 2–3 telemóveis reais numa viagem Quelimane→Beira (GPS, voz offline, fila).
 2. Domínio próprio e plano pago quando houver clientes (Vercel Pro).
 3. App nativa (Capacitor) para GPS em segundo plano; testes Playwright E2E.
+
+## Correções após o primeiro uso real (20/11)
+O proprietário reportou: mapa não abre, GPS não funciona, "nenhum back-end funciona", faltam províncias. Causas encontradas
+**num navegador real** (Playwright/Chromium), que antes não tinha testado:
+1. **Gravações bloqueadas (403)** — a proteção CSRF comparava a origem do navegador com o host interno da Vercel; recusava
+   todos os pedidos de gravação com sessão iniciada (criar camião, motorista, viagem…). Corrigido (Sec-Fetch-Site + anfitriões
+   conhecidos) — **TESTADO** (teste unitário + E2E).
+2. **Mapa invisível** — o CSS do MapLibre (`.maplibregl-map { position: relative }`) anulava a classe `absolute inset-0`; todos os
+   mapas ficavam com 34 px de altura. Corrigido com posição em estilo direto, mais tempo limite de 10 s e mapa de reserva
+   (OpenStreetMap raster) se o OpenFreeMap não carregar — **TESTADO** (E2E verifica altura > 200 px).
+3. **GPS do telemóvel sem efeito** — a 1.ª posição (em cache no navegador) tinha hora anterior ao "Iniciar viagem" e ficava sem
+   viagem associada. Tolerância de 2 min (migração 0014) — **TESTADO** (E2E com GPS emulado).
+4. **Províncias** — passam a vir do geoBoundaries ADM1 (CC BY 4.0, origem OCHA COD-AB), importadas pelo job automático.
+5. **Demonstração** — botão no painel que põe um camião do simulador a percorrer a rota real Quelimane → Beira (fonte "Simulador").
+6. **Teste E2E** no repositório (`npm run e2e`): 14 passos em navegador real — registo, camião, motorista, link + PIN, viagem,
+   GPS emulado, mapas, partilha, página pública, mapa ao vivo, demonstração. Resultado: **14/14**.
