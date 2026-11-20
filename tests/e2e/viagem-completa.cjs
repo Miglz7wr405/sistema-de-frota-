@@ -218,6 +218,10 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     trip2 = (await db.query(`select t.id from trips t join places d on d.id = t.destination_place_id where d.name = 'Nampula' and t.status = 'em_viagem' order by t.created_at desc limit 1`)).rows[0]?.id;
     if (!trip2) throw new Error('viagem Nampula não iniciou');
     await phoneB.close();
+    // um camião não está em duas estradas ao mesmo tempo: a viagem da Beira (já concluída) passa a ter sido 12 h antes
+    await db.query(`update trips set actual_departure = actual_departure - interval '12 hours', actual_arrival = actual_arrival - interval '12 hours' where id = $1`, [tripId]);
+    await db.query(`update vehicle_positions set device_time = device_time - interval '12 hours', received_at = received_at - interval '12 hours' where trip_id = $1`, [tripId]);
+    await db.query(`update vehicle_latest_positions set device_time = device_time - interval '12 hours' where trip_id = $1`, [tripId]);
     await db.query(`update trips set actual_departure = actual_departure - interval '11 hours' where id = $1`, [trip2]);
     await db.query(`update vehicle_positions set device_time = device_time - interval '11 hours', received_at = received_at - interval '11 hours' where trip_id = $1`, [trip2]);
     await db.query(`update vehicle_latest_positions set device_time = device_time - interval '11 hours' where trip_id = $1`, [trip2]);
