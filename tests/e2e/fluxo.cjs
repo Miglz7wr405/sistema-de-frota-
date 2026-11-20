@@ -26,7 +26,8 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await page.waitForURL('**/app/dashboard', { timeout: 15000 });
     await page.getByText('Camiões').first().waitFor();
   });
-  await step('03-dashboard-mapa', async () => { await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 }); const bb = await page.locator('.maplibregl-canvas').first().boundingBox(); if (bb.height < 200) throw new Error('mapa com altura ' + bb.height); });
+  await step('03-dashboard-mapa', async () => {
+    await page.getByRole('link', { name: 'Rastrear viagem' }).waitFor(); await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 }); const bb = await page.locator('.maplibregl-canvas').first().boundingBox(); if (bb.height < 200) throw new Error('mapa com altura ' + bb.height); });
   await step('04-camiao', async () => {
     await page.goto(B + '/app/vehicles');
     await page.getByRole('button', { name: 'Adicionar camião' }).first().click();

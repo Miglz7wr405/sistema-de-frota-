@@ -75,7 +75,7 @@ export const t = {
   roles: { owner: 'Proprietário', admin: 'Administrador', dispatcher: 'Gestor / Despachante', viewer: 'Só leitura' },
   dashboard: {
     hello: (name: string) => `Olá, ${name.split(' ')[0]}!`, subtitle: 'Aqui está o resumo da sua frota hoje.',
-    newTrip: 'Nova viagem', trucks: 'Camiões', onTrip: 'Em viagem', available: 'Disponíveis', maintenance: 'Em manutenção',
+    newTrip: 'Nova viagem', trackTrip: 'Rastrear viagem', trucks: 'Camiões', onTrip: 'Em viagem', available: 'Disponíveis', maintenance: 'Em manutenção',
     noSignal: 'Sem sinal GPS', fleetLocation: 'Localização da frota', openLiveMap: 'Abrir mapa ao vivo', alerts: 'Alertas',
     openAlerts: (n: number) => `${n} ${plural(n, 'aberto', 'abertos')}`, seeAllAlerts: 'Ver todos os alertas',
     activeTrips: 'Viagens em curso', seeAllTrips: 'Ver todas', noActiveTrips: 'Nenhuma viagem em curso.',

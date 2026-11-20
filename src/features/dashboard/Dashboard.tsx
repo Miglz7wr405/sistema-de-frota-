@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Clock, FileText, PlayCircle, Plus, Smartphone, Truck, Wrench } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, FileText, PlayCircle, Plus, Search, Smartphone, Truck, Wrench } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
 import { Button, Card, ProgressBar, QueryState, Badge } from '@/components/ui';
@@ -37,7 +37,11 @@ export default function Dashboard() {
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h1 className="text-3xl font-bold">{t.dashboard.hello(me.data?.user?.fullName ?? '')}</h1><p className="text-muted">{t.dashboard.subtitle}</p></div>
-        {canWrite && <Link to="/app/trips/new"><Button size="lg"><Plus className="h-5 w-5" />{t.dashboard.newTrip}</Button></Link>}
+        <div className="flex gap-2">
+          {canWrite && <Link to="/app/trips/new" className="flex-1 sm:flex-none"><Button size="lg" className="w-full"><Plus className="h-5 w-5" />{t.dashboard.newTrip}</Button></Link>}
+          {/* página de acompanhamento por código (a mesma que o cliente usa) */}
+          <a href="/track" className="flex-1 sm:flex-none"><Button size="lg" variant="secondary" className="w-full"><Search className="h-5 w-5" />{t.dashboard.trackTrip}</Button></a>
+        </div>
       </div>
       <QueryState q={q}>{(d) => (
         <>
