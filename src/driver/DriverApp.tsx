@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Mic, Navigation, Pause, Play, Volume2, VolumeX, Receipt, MapPin } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Navigation, Pause, Play, Volume2, VolumeX, Receipt, MapPin } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
 import { formatAgo, formatDuration, formatKm, formatTime } from '@/lib/format';
 import { speedTrend } from '@/features/tracking/RouteStrip';
 import { fileToUpload } from '@/lib/api/client';
-import { answer } from '@/lib/geo/assistant';
 import { Button, Field, Input, Modal, Select, Textarea } from '@/components/ui';
 import { DriverRoute } from './DriverRoute';
 import { TOKEN_KEY, driverApi, getToken, useDriverRuntime, type Me } from './useDriverRuntime';
@@ -81,7 +80,6 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
   const [muted, setMuted] = useState(localStorage.getItem('if_driver_muted') === '1');
   const rt = useDriverRuntime(me, muted);
   const [modal, setModal] = useState<'incident' | 'delivery' | 'expense' | 'voice' | null>(null);
-  const [listening, setListening] = useState(false);
   const trip = me.trip;
   const status = trip?.status;
   const moving = (rt.speed ?? 0) > 10; // em movimento: interface reduzida (segurança rodoviária)
@@ -98,24 +96,6 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
     setTimeout(reload, 3000);
   };
 
-  const talk = () => {
-    const SR = (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition
-      ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
-    if (!SR) { rt.speak(t.assistant.unsupported); return; }
-    const r = new SR();
-    r.lang = 'pt-PT'; r.interimResults = false; r.maxAlternatives = 1;
-    r.onresult = (e) => {
-      const q = e.results[0]?.[0]?.transcript ?? '';
-      rt.speak(answer(q, rt.snap, rt.route ? { ...rt.route, places: rt.route.places.map((p) => ({ ...p, kmFromOrigin: p.kmFromOrigin })) } : null, {
-        noInfo: t.voice.noInfo, notUnderstood: t.assistant.notUnderstood, whereAmI: t.assistant.whereAmI, remaining: (km) => t.assistant.remaining(Math.round(km / scale)),
-        nextCity: (n, km) => t.assistant.nextCity(n, Math.round(km / scale)), toPlace: (n, km) => t.assistant.toPlace(n, Math.round(km / scale)), arrival: t.assistant.arrival, province: t.assistant.province,
-      }, (ms) => formatTime(ms), (s) => t.label(s.label)));
-    };
-    r.onerror = () => rt.speak(t.assistant.unsupported);
-    r.onend = () => setListening(false);
-    setListening(true);
-    r.start();
-  };
 
   const gpsLine = !navigator.onLine || !rt.online ? t.driverApp.offline(rt.queued)
     : rt.gps.status === 'denied' ? t.driverApp.gpsDenied : rt.gps.status === 'ok' && rt.gps.lastFixAt ? t.driverApp.gpsSending(formatAgo(rt.gps.lastFixAt)) : t.driverApp.gpsNoFix;
@@ -124,6 +104,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
       <header className="bg-navy px-5 pb-4 pt-5 text-white">
+        {/* o dono (teste com o telemóvel) volta ao painel; motoristas reais só têm esta app */}
+        {rt.testMode && <a href="/app/dashboard" className="mb-2 inline-block text-sm font-semibold text-[#6EA8FF]">← {t.driverApp.backToPanel}</a>}
         <p className="text-sm text-slate-300">{t.driverApp.hello(me.driver.fullName)}</p>
         <div className="flex items-center justify-between gap-2"><h1 className="text-2xl font-bold text-white">{trip ? `${trip.origin} → ${trip.destination}` : '—'}</h1>
           {trip && <span className="rounded-full bg-success-soft px-3 py-1 text-sm font-semibold text-success-text">{t.trip.statuses[trip.status]}</span>}</div>
@@ -148,8 +130,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
               <div className="card p-4"><p className="text-sm text-muted">{t.driverApp.eta}</p><p className="text-3xl font-bold">{etaOk ? formatTime(rt.snap!.etaDestination!) : '—'}</p>
                 {!etaOk && <p className="text-xs text-muted">{t.trip.etaUnavailable}</p>}</div>
             </div>
+            {!rt.voiceReady && !muted && <p className="text-center text-sm text-muted">{t.driverApp.tapForVoice}</p>}
             {rt.lastSpoken && <div className="rounded-2xl bg-primary-soft p-4"><p className="flex items-center gap-2 text-sm font-semibold text-primary"><Volume2 className="h-4 w-4" />{t.driverApp.assistant}</p><p className="mt-1 text-lg">"{rt.lastSpoken}"</p></div>}
-            <Button size="lg" className="h-16 w-full text-lg" onClick={talk} loading={listening}><Mic className="h-6 w-6" />{listening ? t.assistant.listening : t.driverApp.talk}</Button>
             {moving ? <p className="text-center text-sm text-muted">{t.driverApp.moving}</p> : <>
               <div className="grid grid-cols-2 gap-3">
                 {status === 'em_viagem' ? <Button variant="secondary" size="lg" className="h-16" onClick={() => transition('pausada')}><Pause className="h-5 w-5" />{t.driverApp.pause}</Button>
@@ -198,8 +180,6 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
   );
 }
 
-type SpeechRecognitionLike = { lang: string; interimResults: boolean; maxAlternatives: number; start(): void;
-  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onerror: (() => void) | null; onend: (() => void) | null };
 
 async function uploadFile(file: Blob, kind: string): Promise<string | null> {
   // Ficheiros precisam de rede (não ficam na fila para poupar espaço do telemóvel).

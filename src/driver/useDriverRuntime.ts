@@ -5,6 +5,7 @@ import { cumulative, type LngLat } from '@/lib/geo/geometry';
 import { initialState, step, type EngineState, type RouteModel, type Snapshot } from '@/lib/geo/progress';
 import { DEFAULT_VOICE, evaluate, initialVoiceState, type VoiceState } from '@/lib/geo/voice';
 import { t, voiceTexts } from '@/i18n/pt-MZ';
+import { pickVoice } from './voicePick';
 
 export const TOKEN_KEY = 'if_driver_token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
@@ -39,6 +40,14 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
   const [online, setOnline] = useState(navigator.onLine);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [lastSpoken, setLastSpoken] = useState<string | null>(null);
+  // o Chrome só deixa falar depois de um toque: ao 1.º toque em qualquer sítio a voz fica ativa
+  const [voiceReady, setVoiceReady] = useState(() => (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? false);
+  useEffect(() => {
+    if (voiceReady || !('speechSynthesis' in window)) return;
+    const unlock = () => { try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch { /* */ } setVoiceReady(true); };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    return () => window.removeEventListener('pointerdown', unlock);
+  }, [voiceReady]);
   const [speed, setSpeed] = useState<number | null>(null);
   const [speedHist, setSpeedHist] = useState<number[]>([]);
   const [road, setRoad] = useState<Road | null>(null);
@@ -59,9 +68,11 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     setLastSpoken(text);
     if (mutedRef.current || !('speechSynthesis' in window)) return false;
     const u = new SpeechSynthesisUtterance(text);
-    const voices = speechSynthesis.getVoices();
-    u.voice = voices.find((v) => v.lang === 'pt-PT') ?? voices.find((v) => v.lang.startsWith('pt')) ?? null;
-    u.lang = u.voice?.lang ?? 'pt-PT';
+    // voz gratuita do telemóvel; masculina se existir uma reconhecível, senão a portuguesa disponível com tom um pouco mais grave
+    const { voice, male } = pickVoice(speechSynthesis.getVoices());
+    u.voice = voice;
+    u.lang = voice?.lang ?? 'pt-PT';
+    if (!male) u.pitch = 0.8;
     speechSynthesis.speak(u);
     return true;
   }, []);
@@ -141,7 +152,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     const e = engine.current;
     if (e && me?.trip?.status === 'em_viagem') {
       const r = step(e.model, e.state, { t: now, lng: pos.coords.longitude, lat: pos.coords.latitude, accuracyM: pos.coords.accuracy, speedKmh: kmh });
-      const v = evaluate(e.voice, r.snapshot, r.events, now, voiceTexts, { ...DEFAULT_VOICE, minImportance: st.voice_min_importance ?? 3 });
+      const v = evaluate(e.voice, r.snapshot, r.events, now, voiceTexts, { ...DEFAULT_VOICE, minImportance: st.voice_min_importance ?? 2 });
       e.state = r.state; e.voice = v.state;
       setSnap(r.snapshot);
       if (v.speak) {
@@ -221,5 +232,5 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     await sync();
   }, [sync]);
 
-  return { gps, queued, online, snap, speed, speedHist, road, pos, testMode, reconnect, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
+  return { gps, queued, online, snap, speed, speedHist, road, pos, testMode, reconnect, voiceReady, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
 }

@@ -127,7 +127,11 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   // mover o camião ao longo do caminho
   // movimento realista: ~0,002° (~220 m) a cada 16 s ≈ 50 km/h, saindo de Quelimane para oeste/sul
   for (let i = 1; i <= 6; i++) { await dctx.setGeolocation({ latitude: -17.8775 + i * 0.0012, longitude: 36.8902 - i * 0.0016, accuracy: 10 }); await dp.waitForTimeout(16000); }
-  await dstep('08-motorista-em-viagem', async () => { await dp.getByText(/Falta para o destino/).waitFor(); });
+  await dstep('08-motorista-em-viagem', async () => {
+    await dp.getByText(/Falta para o destino/).waitFor();
+    // viagem REAL: sem botões de teste e sem "Falar"
+    for (const n of ['Falar', 'Mudar destino', 'Terminar teste', 'Voltar ao painel']) if (await dp.getByText(n, { exact: false }).count()) throw new Error(`"${n}" numa viagem real`);
+  });
   await step('09-detalhe-com-gps', async () => {
     await page.goto(tripUrl); await page.waitForSelector('.maplibregl-canvas'); await page.getByText(/percorridos/).first().waitFor({ timeout: 15000 });
     // sem a mensagem "não validada" e sem os créditos por cima do mapa (ficam só no botão "i")
@@ -176,6 +180,10 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.getByText(/EN-E2E \(teste\)/).waitFor({ timeout: 15000 });
     const sp = await tp.locator('p.text-5xl').first().innerText();
     if (!/^\d+/.test(sp)) throw new Error('velocidade não mostrada: ' + sp);
+    // modo teste: "Voltar ao painel" e "Terminar teste"; sem "Falar"
+    await tp.getByText('Voltar ao painel').waitFor();
+    await tp.getByRole('button', { name: 'Terminar teste' }).waitFor();
+    if (await tp.getByRole('button', { name: 'Falar' }).count()) throw new Error('botão "Falar" ainda existe');
     // esquema do percurso com o camião
     await tp.getByRole('tab', { name: 'Percurso' }).waitFor();
     if (!(await tp.locator('svg[role=img]').count())) throw new Error('sem esquema do percurso');

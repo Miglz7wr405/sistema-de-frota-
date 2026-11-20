@@ -169,3 +169,13 @@ origem → destino) e a pergunta "Pretende cancelar essa viagem para iniciar est
 "Substituída pela viagem FT-…"), **Essa viagem já chegou — concluir e iniciar esta**, ou **Voltar**. Tudo numa só transação, pela
 máquina de estados (eventos e auditoria). Funciona em "Iniciar viagem agora", no botão "Iniciar viagem" e no cartão "Guardar e
 iniciar". **TESTADO** (integração com isolamento A↔B; E2E 18/18; 51 testes).
+
+## Ecrã do motorista mais limpo + voz em cada sítio (20/11, 8.ª ronda)
+1. "← Voltar ao painel" no topo quando é o dono a testar com o telemóvel (motoristas reais só têm esta app: não aparece).
+2. Retirado o botão "Falar" (reconhecimento de voz). "Mudar destino"/"Terminar teste" só no modo teste (E2E confirma que numa
+   viagem real não aparecem).
+3. Voz gratuita do telemóvel (speechSynthesis/Google-Android, sem ElevenLabs): "Está a entrar em X" agora também nas aldeias
+   (importância ≥ 2), além de província, km para o destino e chegada. Voz masculina se o telemóvel tiver uma reconhecível pelo nome;
+   senão a voz portuguesa disponível com tom mais grave. A voz ativa-se ao primeiro toque no ecrã (regra do Chrome).
+   **TESTADO** (escolha da voz: 3 testes unitários; E2E). Som real no telemóvel: **por validar** pelo proprietário.
+- Testes: 54 + E2E 18/18.
