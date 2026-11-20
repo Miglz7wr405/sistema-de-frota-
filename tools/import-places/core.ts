@@ -146,7 +146,9 @@ export async function importProvincesGeoBoundaries(c: pg.ClientBase, override?: 
     n++;
   }
   // Liga cada localidade à província que a contém; no litoral (polígono simplificado) usa a província mais próxima até 10 km.
-  await c.query(`update places p set province_id = a.id from admin_areas a where a.level = 1 and ST_Covers(a.geom, p.geom) and p.province_id is distinct from a.id`);
+  // Polígonos podem sobrepor-se (ex.: Cidade de Maputo dentro de Maputo): escolhe o MAIS PEQUENO que contém a localidade.
+  await c.query(`update places p set province_id = (select a.id from admin_areas a where a.level = 1 and ST_Covers(a.geom, p.geom) order by ST_Area(a.geom) limit 1)
+    where exists (select 1 from admin_areas a where a.level = 1 and ST_Covers(a.geom, p.geom))`);
   await c.query(`update places p set province_id = (select a.id from admin_areas a where a.level = 1 and ST_DWithin(a.geom, p.geom, 10000) order by ST_Distance(a.geom, p.geom) limit 1)
     where p.province_id is null`);
   return { provinces: n, source };
