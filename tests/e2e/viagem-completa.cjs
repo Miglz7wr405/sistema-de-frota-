@@ -190,6 +190,7 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     const p = h.__project(a), q = h.__project(b); return Math.hypot(p.x - q.x, p.y - q.y); }, [BEIRA.coords[0], BEIRA.coords[BEIRA.coords.length - 1]]);
   let zoomInfo = '';
   await step('09-ultimos-km-ate-a-beira', pb, async () => {
+    await pb.getByRole('tab', { name: 'Mapa' }).click();
     await pb.waitForSelector('.maplibregl-canvas', { timeout: 15000 }); await pb.waitForTimeout(3000);
     const overview = await scale(); await pb.screenshot({ path: SHOT + '09a-mapa-rota-inteira.png' });
     let zoomed = null;
