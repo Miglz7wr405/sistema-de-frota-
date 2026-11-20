@@ -12,6 +12,7 @@ import { useRole } from '@/app/session';
 import { TripStatus } from '../shared';
 import { ShareCard, type Share } from './ShareCard';
 import { RouteStrip, speedTrend } from '../tracking/RouteStrip';
+import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
 
 type Detail = {
   trip: Record<string, any>; stops: any[]; events: { id: string; kind: string; occurred_at: string; payload: Record<string, any>; actor_name: string | null }[];
@@ -61,6 +62,36 @@ function LivePanel({ d, noSig }: { d: Detail; noSig: boolean }) {
           <p className="text-xl font-bold">{d.progress?.km_left != null ? formatKm(d.progress.km_left) : '—'}</p>
           <p className="text-sm text-muted">{d.progress?.km_done != null ? t.trip.done(formatKm(d.progress.km_done)) : ''}{p?.accuracy_m != null ? ` · ${t.strip.accuracy(Math.round(p.accuracy_m))}` : ''}</p>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+// Viagem sem camião/motorista: escolher (ou criar) aqui mesmo e iniciar, sem ir a outro ecrã.
+function AssignCard({ tripId, vehicleId, driverId, onDone }: { tripId: string; vehicleId: string | null; driverId: string | null; onDone: () => void }) {
+  const { vehicles, drivers } = useAssets();
+  const [v, setV] = useState(vehicleId ?? '');
+  const [d, setD] = useState(driverId ?? '');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const go = async (start: boolean) => {
+    setBusy(true); setErr(null);
+    try {
+      await api(`/api/trips/${tripId}`, { method: 'PATCH', body: { vehicle_id: v || null, driver_id: d || null } });
+      if (start) await api(`/api/trips/${tripId}/transition`, { body: { to: 'em_viagem' } });
+      onDone();
+    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  };
+  return (
+    <Card title={t.assign.title}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <VehiclePicker value={v} onChange={setV} vehicles={vehicles.data} />
+        <DriverPicker value={d} onChange={setD} drivers={drivers.data} />
+      </div>
+      {err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        <Button variant="secondary" disabled={busy} onClick={() => go(false)}>{t.assign.save}</Button>
+        <Button disabled={!v || !d} loading={busy} onClick={() => go(true)}><Play className="h-4 w-4" />{t.assign.saveStart}</Button>
       </div>
     </Card>
   );
@@ -126,7 +157,7 @@ export default function TripDetail() {
               <h1 className="flex flex-wrap items-center gap-3 text-2xl font-bold sm:text-3xl">{tr.origin} → {tr.destination}<TripStatus status={tr.status} late={late} noSignal={noSig} /></h1>
             </div>
             {canWrite && <div className="flex flex-wrap gap-2">
-              {(NEXT[tr.status] ?? []).filter((s) => s !== 'cancelada').map((s) => (
+              {(NEXT[tr.status] ?? []).filter((s) => s !== 'cancelada' && !(s === 'em_viagem' && (!tr.vehicle_id || !tr.driver_id))).map((s) => (
                 <Button key={s} variant={s === 'em_viagem' ? 'primary' : 'secondary'} onClick={() => transition.mutate({ to: s })} loading={transition.isPending}>
                   {s === 'em_viagem' && <Play className="h-4 w-4" />}{s === 'em_viagem' && tr.status === 'pausada' ? t.trip.actions.retomar : t.trip.actions[s]}</Button>))}
               {!['concluida', 'cancelada'].includes(tr.status) && <Link to={`/app/trips/${id}/edit`}><Button variant="secondary"><Edit3 className="h-4 w-4" />{t.common.edit}</Button></Link>}
@@ -136,8 +167,10 @@ export default function TripDetail() {
           {err && <p role="alert" className="mb-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>}
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="space-y-4 lg:col-span-2">
+              {canWrite && ['planeada', 'aguardando_partida'].includes(tr.status) && (!tr.vehicle_id || !tr.driver_id) &&
+                <AssignCard tripId={id!} vehicleId={tr.vehicle_id} driverId={tr.driver_id} onDone={() => { qc.invalidateQueries({ queryKey: ['trip', id] }); qc.invalidateQueries({ queryKey: ['trips'] }); }} />}
               <div className="relative">
-                <MapView className="h-[420px] rounded-2xl border border-border" fitKey={d.route?.id ?? 'no-route'} fitTo={fit}
+                <MapView className="h-[420px] rounded-2xl border border-border" fitKey={d.route?.id ?? 'no-route'} fitTo={fit} interactive={false} controls={false}
                   state={{
                     routeDone: view?.done ?? null, routeLeft: view?.left ?? null, extraLine: replay,
                     vehicles: active && d.position ? [{ id: 'v', ...drawnPos(d.position), heading: d.position.heading, tone: noSig ? 'danger' : 'primary',

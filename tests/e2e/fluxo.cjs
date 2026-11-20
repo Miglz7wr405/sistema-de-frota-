@@ -55,12 +55,39 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     const pick = async (idx, txt, opt) => { const i = page.getByPlaceholder('Escreva o nome da localidade').nth(idx); await i.fill(txt); await page.getByRole('button', { name: new RegExp('^' + opt) }).first().click(); };
     await pick(0, 'Quel', 'Quelimane');
     await pick(1, 'Beir', 'Beira');
-    await page.locator('select').nth(0).selectOption({ index: 1 });
-    await page.locator('select').nth(1).selectOption({ index: 1 });
+    // só há 1 camião e 1 motorista: já vêm escolhidos
+    if (!(await page.getByLabel('Camião').inputValue())) throw new Error('camião não pré-escolhido');
+    if (!(await page.getByLabel('Motorista').inputValue())) throw new Error('motorista não pré-escolhido');
     await page.getByRole('button', { name: 'Guardar' }).click();
     await page.waitForURL(/\/app\/trips\/[0-9a-f-]{36}$/, { timeout: 20000 });
     tripUrl = page.url();
     await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+  });
+  await step('06b-viagem-com-novo-camiao-e-motorista', async () => {
+    // "+ Novo" dentro do formulário da viagem: 3 campos (camião) e 2 campos (motorista), sem sair
+    await page.goto(B + '/app/trips/new');
+    const pick = async (idx, txt, opt) => { const i = page.getByPlaceholder('Escreva o nome da localidade').nth(idx); await i.fill(txt); await page.getByRole('button', { name: new RegExp('^' + opt) }).first().click(); };
+    await pick(0, 'Beir', 'Beira');
+    await pick(1, 'Quel', 'Quelimane');
+    await page.getByRole('button', { name: '+ Novo' }).nth(0).click();
+    const dlg = page.getByRole('dialog');
+    await dlg.getByLabel('Matrícula').fill('AAB 123 MC');
+    await dlg.getByLabel('Marca').fill('Mercedes');
+    await dlg.getByLabel('Modelo').fill('Actros');
+    await dlg.getByRole('button', { name: 'Guardar' }).click();
+    await dlg.waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: '+ Novo' }).nth(1).click();
+    await page.getByRole('dialog').getByLabel('Nome').fill('Ana Cossa');
+    await page.getByRole('dialog').getByLabel('Telefone').fill('847654321');
+    await page.getByRole('dialog').getByRole('button', { name: 'Guardar' }).click();
+    await page.getByRole('dialog').waitFor({ state: 'detached' });
+    if (!page.url().endsWith('/app/trips/new')) throw new Error('saiu do formulário');
+    const vsel = page.getByLabel('Camião');
+    if ((await vsel.locator('option:checked').innerText()) !== 'AAB 123 MC') throw new Error('novo camião não escolhido');
+    if ((await page.getByLabel('Motorista').locator('option:checked').innerText()) !== 'Ana Cossa') throw new Error('novo motorista não escolhido');
+    await page.getByRole('button', { name: 'Guardar' }).last().click();
+    await page.waitForURL(/\/app\/trips\/[0-9a-f-]{36}$/, { timeout: 20000 });
+    await page.getByText('AAB 123 MC').first().waitFor();
   });
   // Motorista
   const dctx = await browser.newContext({ viewport: { width: 400, height: 860 }, geolocation: { latitude: -17.8775, longitude: 36.8902 }, permissions: ['geolocation'] });
@@ -81,7 +108,21 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   // movimento realista: ~0,002° (~220 m) a cada 16 s ≈ 50 km/h, saindo de Quelimane para oeste/sul
   for (let i = 1; i <= 6; i++) { await dctx.setGeolocation({ latitude: -17.8775 + i * 0.0012, longitude: 36.8902 - i * 0.0016, accuracy: 10 }); await dp.waitForTimeout(16000); }
   await dstep('08-motorista-em-viagem', async () => { await dp.getByText(/Falta para o destino/).waitFor(); });
-  await step('09-detalhe-com-gps', async () => { await page.goto(tripUrl); await page.waitForSelector('.maplibregl-canvas'); await page.getByText(/percorridos/).first().waitFor({ timeout: 15000 }); });
+  await step('09-detalhe-com-gps', async () => {
+    await page.goto(tripUrl); await page.waitForSelector('.maplibregl-canvas'); await page.getByText(/percorridos/).first().waitFor({ timeout: 15000 });
+    // esquema: camião a avançar com km feitos
+    await page.getByText(/km feitos/).first().waitFor({ timeout: 10000 });
+    // mapa fixo: arrastar não muda o enquadramento
+    await page.waitForTimeout(1500);
+    const proj = () => page.evaluate(() => { const h = [...document.querySelectorAll('*')].find((x) => x.__project); return h.__project([36.89, -17.88]); });
+    const before = await proj();
+    const box = await page.locator('.maplibregl-canvas').first().boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 - 150, box.y + box.height / 2 - 80, { steps: 8 }); await page.mouse.up();
+    await page.mouse.wheel(0, -500); await page.waitForTimeout(800);
+    const after = await proj();
+    if (Math.abs(after.x - before.x) > 1 || Math.abs(after.y - before.y) > 1) throw new Error('o mapa mexeu: ' + JSON.stringify({ before, after }));
+  });
   let shareLink = null;
   await step('10-partilha', async () => {
     await page.getByRole('button', { name: 'Criar link para o cliente' }).click();

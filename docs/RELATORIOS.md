@@ -133,3 +133,17 @@ Queixa: "pergunta muito" e "não vejo o mapa nem o esquema com o camião". Feito
    feitos, ou mapa com a rota feita/por fazer e o camião em cima da estrada (segue o camião). **TESTADO** (E2E).
 4. **Painel e mapa ao vivo**: esquema com o camião em cada viagem em curso; velocidade, estrada e limite no camião selecionado.
 - Testes: **50** (vitest, com PostGIS real) + **E2E 16/16**.
+
+## Registos diretos e mapa fixo (20/11, 4.ª ronda)
+O proprietário não conseguia iniciar uma viagem ("Atribua um camião e um motorista") porque o registo do camião pedia muitos campos.
+1. **Camião = matrícula, marca, modelo**; **motorista = nome e telefone**. Os outros campos ficam em "Mais detalhes (opcional)",
+   fechados (nada foi apagado). Fonte GPS por omissão: telemóvel do motorista. **TESTADO** (E2E).
+2. **"+ Novo" dentro da viagem**: cria o camião/motorista sem sair do formulário e já o escolhe; com 1 camião e 1 motorista ficam
+   escolhidos sozinhos. Datas, carga e destinatário em "Mais detalhes". **TESTADO** (E2E 06b).
+3. **Viagem sem camião/motorista**: cartão "Para iniciar, escolha…" com "Guardar e iniciar viagem" no próprio detalhe.
+4. **Mapa da viagem fixo** (sem arrastar nem zoom), sempre enquadrado na rota inteira; volta a enquadrar se o ecrã mudar.
+   **TESTADO** (E2E arrasta e roda a roda do rato: 0 px de diferença). A página do cliente mantém o mapa móvel (o painel de baixo
+   cobre metade do ecrã).
+5. **Esquema do percurso**: cada cidade ao lado do seu ponto, passadas a verde com a hora, próxima a azul com "faltam X km",
+   "N km feitos · passou X" no topo e o camião a deslizar entre atualizações.
+- Testes: **50** + **E2E 17/17**.

@@ -19,7 +19,7 @@ export function VehicleForm({ initial, onDone }: { initial?: Record<string, any>
   const s = (k: string) => (initial?.[k] != null ? String(initial[k]) : '');
   const f = useForm<F>({ resolver: zodResolver(Schema), defaultValues: { plate: s('plate'), make: s('make'), model: s('model'), year: s('year'), body_type: initial?.body_type ?? 'rigido',
     capacity_t: s('capacity_t'), gross_weight_t: s('gross_weight_t'), length_m: s('length_m'), width_m: s('width_m'), height_m: s('height_m'), axles: s('axles'),
-    odometer_km: s('odometer_km'), admin_status: initial?.admin_status ?? 'ativo', gps_source_priority: initial?.gps_source_priority ?? 'device', notes: s('notes') } });
+    odometer_km: s('odometer_km'), admin_status: initial?.admin_status ?? 'ativo', gps_source_priority: initial?.gps_source_priority ?? 'phone', notes: s('notes') } });
   const submit = f.handleSubmit(async (v) => {
     setErr(null);
     try {
@@ -39,6 +39,11 @@ export function VehicleForm({ initial, onDone }: { initial?: Record<string, any>
         <Field label={t.vehicle.plate} error={e.plate?.message}><Input {...f.register('plate')} placeholder="ADF 512 MP" /></Field>
         <Field label={t.vehicle.make}><Input {...f.register('make')} /></Field>
         <Field label={t.vehicle.model}><Input {...f.register('model')} /></Field>
+      </div>
+      {/* Só a matrícula é obrigatória; o resto é opcional e fica fechado (direto ao ponto). */}
+      <details className="rounded-xl border border-border px-3 py-2">
+        <summary className="cursor-pointer text-sm font-medium text-primary">{t.common.moreDetails}</summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <Field label={t.vehicle.year} error={e.year?.message}><Input inputMode="numeric" {...f.register('year')} /></Field>
         <Field label={t.vehicle.bodyType}><Select {...f.register('body_type')}>{Object.entries(t.vehicle.bodyTypes).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
         <Field label={t.vehicle.axles} error={e.axles?.message}><Input inputMode="numeric" {...f.register('axles')} /></Field>
@@ -53,6 +58,7 @@ export function VehicleForm({ initial, onDone }: { initial?: Record<string, any>
         <Field label={t.vehicle.photo}><Input type="file" accept="image/*" onChange={(ev) => setPhoto(ev.target.files?.[0] ?? null)} /></Field>
       </div>
       <Field label={t.common.notes}><Textarea {...f.register('notes')} /></Field>
+      </details>
       <div className="flex justify-end"><Button type="submit" loading={f.formState.isSubmitting}>{t.common.save}</Button></div>
     </form>
   );

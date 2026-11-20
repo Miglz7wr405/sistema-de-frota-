@@ -30,7 +30,10 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
     shown = mids.filter((p) => keep.has(p));
   }
   const all: StripPlace[] = [{ name: origin, km: 0, state: 'origem' }, ...shown, { name: destination, km: totalKm, state: 'destino' }];
-  const H = Math.max(260, TOP * 2 + (all.length - 1) * ROW * 1.15);
+  // altura: o suficiente para cada localidade ficar ao lado do seu ponto (sem linhas de ligação), até um máximo
+  let pxPerKm = (Math.max(260, (all.length - 1) * ROW * 1.15)) / totalKm;
+  for (let i = 1; i < all.length; i++) { const dk = all[i]!.km - all[i - 1]!.km; if (dk > 0) pxPerKm = Math.max(pxPerKm, 36 / dk); }
+  const H = Math.min(Math.max(260, (all.length - 1) * ROW * 1.15, 820), TOP * 2 + totalKm * pxPerKm);
   const yOf = (km: number) => TOP + (km / totalKm) * (H - TOP * 2);
 
   // etiquetas: y real pela distância, empurradas para baixo só o necessário para não se sobreporem
@@ -48,7 +51,15 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
   const truckX = frac != null ? curveX(frac) : null;
   const ang = frac != null ? (Math.atan2((H - TOP * 2) / N, curveX(Math.min(1, frac + 1 / N)) - curveX(frac)) * 180) / Math.PI + 90 : 0;
 
+  // onde está agora (localidades REAIS da rota): última passada e próxima
+  const lastPassed = kmDone != null ? [...places].filter((p) => p.km > 0.5 && p.km <= kmDone).sort((a, b) => b.km - a.km)[0] ?? null : null;
+  const nextIdx = kmDone != null ? all.findIndex((p) => p.km > kmDone) : -1;
+
   return (
+    <div>
+      {frac != null && <p className="mb-1 text-sm"><span className="font-semibold text-success-text">{t.strip.done(formatKm(kmDone))}</span>
+        {lastPassed ? <span className="text-muted"> · {t.strip.near(lastPassed.name)}</span> : null}
+        <span className="text-muted"> · {t.strip.left(formatKm(Math.max(0, totalKm - (kmDone ?? 0))))}</span></p>}
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${origin} → ${destination}`}>
       <path d={path(0, 1)} fill="none" stroke="#CBD5E1" strokeWidth="5" strokeLinecap="round" strokeDasharray="2 9" />
       {frac != null && frac > 0 && <path d={path(0, frac)} fill="none" stroke="#16A36A" strokeWidth="6" strokeLinecap="round" />}
@@ -56,26 +67,28 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
         const f = p.km / totalKm, x = curveX(f), y = yOf(p.km), ly = labelY[i]!;
         const end = i === 0 || i === all.length - 1;
         const passed = frac != null && f <= frac;
-        const right = p.passedAt ? `${t.strip.passed} ${formatTime(p.passedAt)}` : showEta && p.eta && !passed ? `~${formatTime(p.eta)}` : '';
+        const isNext = i === nextIdx && kmDone != null;
+        const right = p.passedAt ? `${t.strip.passed} ${formatTime(p.passedAt)}` : isNext ? `${t.strip.left(formatKm(p.km - kmDone!))}${showEta && p.eta ? ` · ~${formatTime(p.eta)}` : ''}` : showEta && p.eta && !passed ? `~${formatTime(p.eta)}` : '';
         return (
           <g key={`${p.name}-${i}`}>
             {Math.abs(ly - y) > 2 && <line x1={x + 8} y1={y} x2={X0 + AMP + 22} y2={ly - 4} stroke="#CBD5E1" strokeWidth="1" />}
             <circle cx={x} cy={y} r={end ? 8 : 5.5} fill={i === 0 ? '#16A36A' : i === all.length - 1 ? '#DC2626' : passed ? '#16A36A' : '#fff'}
               stroke={end ? '#fff' : passed ? '#fff' : '#1769E8'} strokeWidth="2.5" />
-            <text x={X0 + AMP + 26} y={ly} fontSize={end ? 15 : 13.5} fontWeight={end || (p.importance ?? 3) >= 4 ? 700 : 500} fill="#10243D" dominantBaseline="middle">{p.name}</text>
-            <text x={X0 + AMP + 26} y={ly + 15} fontSize="11" fill="#64748B" dominantBaseline="middle">km {Math.round(p.km)}{right ? ` · ${right}` : ''}</text>
+            <text x={X0 + AMP + 26} y={ly} fontSize={end ? 15 : 13.5} fontWeight={end || isNext || (p.importance ?? 3) >= 4 ? 700 : 500} fill={isNext ? '#1769E8' : '#10243D'} dominantBaseline="middle">{p.name}</text>
+            <text x={X0 + AMP + 26} y={ly + 15} fontSize="11" fill={isNext ? '#1769E8' : passed ? '#0F7A4F' : '#64748B'} dominantBaseline="middle">km {Math.round(p.km)}{right ? ` · ${right}` : ''}</text>
           </g>
         );
       })}
       {truckX != null && truckY != null && (
-        <g transform={`translate(${truckX},${truckY}) rotate(${ang})`}>
+        // movimento suave entre atualizações (a única animação obrigatória)
+        <g style={{ transform: `translate(${truckX}px, ${truckY}px) rotate(${ang}deg)`, transition: 'transform 1.5s ease-in-out' }}>
           <circle r="15" fill="#1769E8" fillOpacity="0.16" />
           <rect x="-5.5" y="-4" width="11" height="15" rx="2" fill="#fff" stroke="#1769E8" strokeWidth="1.6" />
           <rect x="-5" y="-12" width="10" height="8" rx="2.5" fill="#1769E8" stroke="#fff" strokeWidth="1.2" />
         </g>
       )}
-      {frac != null && <text x={W - 6} y={TOP - 10} fontSize="11" textAnchor="end" fill="#64748B">{t.strip.done(formatKm(kmDone))} · {t.strip.left(formatKm(Math.max(0, totalKm - (kmDone ?? 0))))}</text>}
     </svg>
+    </div>
   );
 }
 

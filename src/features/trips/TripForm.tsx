@@ -10,6 +10,7 @@ import { t } from '@/i18n/pt-MZ';
 import { Button, Card, Field, Input, PageHeader, Select, Spinner, Textarea } from '@/components/ui';
 import { toE164 } from '@/lib/format';
 import { PlacePicker, type PlaceOpt } from './PlacePicker';
+import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
 
 const place = z.custom<PlaceOpt | null>((v) => !!v && typeof v === 'object', { message: t.validation.place });
 const phone = z.string().optional().refine((v) => !v || !!toE164(v), t.validation.phone);
@@ -29,8 +30,7 @@ export default function TripForm() {
   const { id } = useParams();
   const nav = useNavigate();
   const [err, setErr] = useState<string | null>(null);
-  const vehicles = useQuery({ queryKey: ['vehicles'], queryFn: () => api<{ id: string; plate: string; main_status: string }[]>('/api/vehicles') });
-  const drivers = useQuery({ queryKey: ['drivers'], queryFn: () => api<{ id: string; full_name: string; status: string }[]>('/api/drivers') });
+  const { vehicles, drivers } = useAssets();
   const existing = useQuery({ queryKey: ['trip', id], queryFn: () => api<{ trip: Record<string, any> }>(`/api/trips/${id}`), enabled: !!id });
   const f = useForm<F>({ resolver: zodResolver(Schema), defaultValues: { origin: null, destination: null, stops: [] } });
   const stops = useFieldArray({ control: f.control, name: 'stops' });
@@ -45,6 +45,15 @@ export default function TripForm() {
       client_reference: tr.client_reference ?? '', notes: tr.notes ?? '', stops: [],
     });
   }, [existing.data]);
+
+  // só 1 camião / 1 motorista: ficam já escolhidos (viagem nova)
+  useEffect(() => {
+    if (id) return;
+    const vs = vehicles.data?.filter((v) => v.main_status !== 'inativo' && !v.is_test) ?? [];
+    if (vs.length === 1 && !f.getValues('vehicle_id')) f.setValue('vehicle_id', vs[0]!.id);
+    const ds = drivers.data?.filter((d) => d.status === 'ativo') ?? [];
+    if (ds.length === 1 && !f.getValues('driver_id')) f.setValue('driver_id', ds[0]!.id);
+  }, [id, vehicles.data, drivers.data]);
 
   const submit = f.handleSubmit(async (v) => {
     setErr(null);
@@ -88,14 +97,22 @@ export default function TripForm() {
         </Card>
         <Card title={`${t.trip.vehicle} · ${t.trip.driver}`}>
           <div className="space-y-4">
-            <Field label={t.trip.vehicle}><Select {...f.register('vehicle_id')}><option value="">—</option>{vehicles.data?.filter((v) => v.main_status !== 'inativo').map((v) => <option key={v.id} value={v.id}>{v.plate}{v.main_status === 'em_viagem' ? ` (${t.vehicle.mainStatus.em_viagem})` : ''}</option>)}</Select></Field>
-            <Field label={t.trip.driver}><Select {...f.register('driver_id')}><option value="">—</option>{drivers.data?.filter((d) => d.status === 'ativo').map((d) => <option key={d.id} value={d.id}>{d.full_name}</option>)}</Select></Field>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <Controller control={f.control} name="vehicle_id" render={({ field }) => <VehiclePicker value={field.value ?? ''} onChange={field.onChange} vehicles={vehicles.data} />} />
+            <Controller control={f.control} name="driver_id" render={({ field }) => <DriverPicker value={field.value ?? ''} onChange={field.onChange} drivers={drivers.data} />} />
+            <details className="rounded-xl border border-border px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium text-primary">{t.trip.plannedDeparture} · {t.trip.plannedArrival} ({t.common.optional})</summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field label={t.trip.plannedDeparture}><Input type="datetime-local" {...f.register('planned_departure')} /></Field>
               <Field label={t.trip.plannedArrival} error={e.planned_arrival?.message}><Input type="datetime-local" {...f.register('planned_arrival')} /></Field>
             </div>
+            </details>
           </div>
         </Card>
+      </div>
+      {/* carga, cliente e notas: opcionais, fechados */}
+      <details className="mt-4 rounded-2xl border border-border bg-white px-4 py-3">
+        <summary className="cursor-pointer font-medium text-primary">{t.common.moreDetails}</summary>
+      <div className="mt-3 grid gap-4 lg:grid-cols-2">
         <Card title={t.trip.cargo}>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t.trip.cargo} className="sm:col-span-2"><Input {...f.register('cargo_description')} /></Field>
@@ -111,6 +128,7 @@ export default function TripForm() {
           </div>
         </Card>
       </div>
+      </details>
       <div className="mt-5 flex justify-end gap-2"><Link to="/app/trips"><Button type="button" variant="secondary">{t.common.cancel}</Button></Link><Button type="submit" loading={f.formState.isSubmitting}>{t.common.save}</Button></div>
     </form>
   );

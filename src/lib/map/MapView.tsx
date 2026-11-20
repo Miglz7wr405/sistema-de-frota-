@@ -16,6 +16,8 @@ export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleCli
   const [failed, setFailed] = useState(false);
   const cbs = useRef({ onClick, onVehicleClick });
   cbs.current = { onClick, onVehicleClick };
+  const fitRef = useRef(fitTo);
+  fitRef.current = fitTo;
 
   useEffect(() => {
     let handle: MapHandle | null = null;
@@ -29,7 +31,8 @@ export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleCli
       m.onVehicleClick((id) => cbs.current.onVehicleClick?.(id));
       setH(m);
     }).catch((e) => { console.warn('[mapa]', e?.message ?? e); setFailed(true); });
-    const ro = new ResizeObserver(() => handle?.resize());
+    // mapa fixo (não interativo): volta a enquadrar quando o ecrã muda de tamanho
+    const ro = new ResizeObserver(() => { handle?.resize(); if (!interactive && handle && fitRef.current?.length) handle.fit(fitRef.current); });
     ro.observe(ref.current!);
     return () => { dead = true; ro.disconnect(); handle?.destroy(); };
   }, [interactive]);

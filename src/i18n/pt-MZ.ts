@@ -11,7 +11,7 @@ export const t = {
   common: {
     save: 'Guardar', cancel: 'Cancelar', edit: 'Editar', delete: 'Eliminar', create: 'Criar', add: 'Adicionar', close: 'Fechar',
     back: 'Voltar', search: 'Pesquisar', loading: 'A carregar…', retry: 'Tentar de novo', confirm: 'Confirmar', yes: 'Sim', no: 'Não',
-    none: '—', optional: 'opcional', all: 'Todos', copy: 'Copiar', copied: 'Copiado', download: 'Descarregar', open: 'Abrir',
+    none: '—', optional: 'opcional', moreDetails: 'Mais detalhes (opcional)', addNew: '+ Novo', all: 'Todos', copy: 'Copiar', copied: 'Copiado', download: 'Descarregar', open: 'Abrir',
     seeAll: 'Ver todos', actions: 'Ações', details: 'Detalhes', notes: 'Observações', status: 'Estado', from: 'De', to: 'Até',
     noData: 'Sem dados', unknown: 'Desconhecido', saved: 'Guardado.', deleted: 'Eliminado.', required: 'Obrigatório',
   },
@@ -171,6 +171,7 @@ export const t = {
       `${company ? company + ': ' : ''}A sua carga ${origin} → ${dest} está a caminho. Acompanhe aqui: ${link}\nCódigo da viagem: ${code}`,
     none: 'Ainda não há link de rastreamento para esta viagem.',
   },
+  assign: { title: 'Para iniciar, escolha o camião e o motorista', saveStart: 'Guardar e iniciar viagem', save: 'Guardar' },
   strip: {
     title: 'Percurso',
     done: (km: string) => `${km} feitos`, left: (km: string) => `faltam ${km}`,
@@ -178,7 +179,7 @@ export const t = {
     pace: 'Ao ritmo atual', paceNone: 'Sem dados de ritmo', eta: 'Chegada prevista',
     limit: (n: number) => `limite ${n} km/h`, limitUnknown: 'limite desconhecido (não registado no mapa)',
     overLimit: 'Acima do limite', road: 'Estrada', noRoad: 'Estrada não identificada',
-    accuracy: (m: number) => `precisão do GPS ±${m} m`, passed: 'passou', now: 'agora aqui',
+    accuracy: (m: number) => `precisão do GPS ±${m} m`, passed: 'passou', now: 'agora aqui', near: (n: string) => `passou ${n}`,
   },
   selftest: {
     title: 'Testar com o meu telemóvel',
