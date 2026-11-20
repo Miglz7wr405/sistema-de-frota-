@@ -34,7 +34,23 @@ import { withSystem } from '../db.js';
 import { hit } from '../auth.js';
 import { sendPushForAlerts } from '../push.js';
 
+/** Completa a base de províncias aos poucos (o Overpass gratuito recusa pedidos pesados): 1 tentativa por 30 min. */
+async function completeProvinces() {
+  try {
+    const have = await withSystem((c) => c.query('select code from admin_areas where level = 1'));
+    if ((have.rowCount ?? 0) >= 11 || !(await hit('jobs:provinces', 1800, 1))) return null;
+    process.env.OVERPASS_MIRROR_INDEX = '2';
+    const { listProvinces, importProvince } = await import('../../tools/import-places/core.js');
+    const list = await listProvinces();
+    const done = await withSystem((c) => c.query('select name from admin_areas where level = 1'));
+    const names = new Set(done.rows.map((r) => r.name));
+    const next = list.find((p) => !names.has(p.name));
+    return next ? await withSystem((c) => importProvince(c, next.id)) : null;
+  } catch (e) { console.warn('[provincias]', (e as Error).message); return null; }
+}
+
 export async function runJobs(kind: 'periodic' | 'daily') {
+  if (kind === 'periodic') await completeProvinces();
   return withSystem(async (c) => {
     const since = new Date();
     const r = (await c.query(kind === 'daily' ? 'select run_daily_jobs() j' : 'select run_periodic_jobs() j')).rows[0].j;
