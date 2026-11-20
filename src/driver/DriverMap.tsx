@@ -37,11 +37,11 @@ export default function DriverMap({ model, kmDoneModel, pos, road, origin, desti
   const peek = now % CYCLE_MS >= CYCLE_MS - PEEK_MS;
   const local = doneM != null && !!model && (now < localUntil || peek);
 
-  // vista próxima: 5 km para trás e 40 km para a frente na estrada (como a zona Quelimane → Licuare)
+  // vista próxima: 15 km para trás e 40 km para a frente na estrada (como a zona Quelimane → Licuare)
   const fit = useMemo<LngLat[]>(() => {
     if (!model) return [origin, destination];
     if (!local || doneM == null) return model.coords;
-    const pts = sliceLine(model.coords, model.cum, Math.max(0, doneM - 5_000), Math.min(model.lengthM, doneM + 40_000));
+    const pts = sliceLine(model.coords, model.cum, Math.max(0, doneM - 15_000), Math.min(model.lengthM, doneM + 40_000));
     return here ? [...pts, [here.lng, here.lat]] : pts;
   }, [model, local, fitKey, local ? Math.round((doneM ?? 0) / 5_000) : 0]);
 

@@ -220,3 +220,13 @@ Beira e **conclui-se sozinha** → cliente vê "entregue" sem posição → Quel
 (2) 21 "Portagem" no mesmo sítio → agrupadas; (3) no computador o dono era mandado para o ecrã do motorista (sem GPS) → só no telemóvel;
 (4) ao reabrir a app depois de horas fechada, o cálculo local ficava preso no ponto antigo → retoma na estrada e começa no ponto do servidor.
 Não testado: GPS real com o ecrã bloqueado (limite do navegador), Maputo (sem rota real guardada), Valhalla de produção para rotas novas.
+
+## Entrar na app = GPS ligado; "Agora / Já passou"; mapa do motorista fixo com zoom automático (20/11, 13.ª ronda)
+- No telemóvel, ao entrar na app com uma viagem em curso em que o motorista é o próprio utilizador, abre-se sozinho o ecrã do
+  motorista e o GPS liga-se (sem botões). "Voltar ao painel" deixa ficar no painel até fechar a app.
+- Ao reabrir: "📍 Agora: A 7 km de Beira · Já passou por Manga" logo à entrada (do servidor, antes de andar); o mesmo na página de
+  quem procura pelo código ("Agora: … · Já passou por … às HH:MM").
+- Viagens entre quaisquer províncias: as 11 províncias e as suas cidades estão na base (1573 localidades); nada limita a origem/destino.
+- Mapa do motorista: primeiro "Mapa", depois "Percurso"; fixo (não se arrasta nem faz zoom); mostra a rota inteira; aproxima sozinho
+  (animação de 2,5 s) ao chegar a uma cidade/vila (5 min) e de 10 em 10 min (1 min), depois volta à rota inteira.
+**TESTADO**: 59 testes; E2E 20/20; viagem completa 11/11 (mapa: rota inteira 238 px → aproximado ao chegar à Beira).
