@@ -1,7 +1,8 @@
 // Semeia a BD local de E2E com localidades REAIS (extraídas da base OSM importada em produção; ODbL).
 import pg from 'pg';
 import { readFileSync } from 'node:fs';
-const rows = JSON.parse(readFileSync(new URL('./fixtures/places-corredor.json', import.meta.url)));
+const raw = JSON.parse(readFileSync(process.env.E2E_PLACES_FILE ?? new URL('./fixtures/places-corredor.json', import.meta.url)));
+const rows = Array.isArray(raw) ? raw : raw.localidades;
 const c = new pg.Client({ connectionString: process.env.SYSTEM_DATABASE_URL });
 await c.connect();
 const ds = (await c.query(`insert into geo_datasets (name, source_url, license, retrieved_at) values ('OSM (amostra do corredor Quelimane–Beira)', 'https://overpass-api.de', 'ODbL 1.0', now()) returning id`)).rows[0].id;

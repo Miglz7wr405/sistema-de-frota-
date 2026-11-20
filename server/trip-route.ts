@@ -59,7 +59,7 @@ export async function planAndStoreTripRoute(c: Tx, tripId: string, reason: 'plan
      from places_along_route(ST_GeomFromGeoJSON($1)::geography, $2, 1, 2000) a join places p on p.id = a.place_id`,
     [JSON.stringify({ type: 'LineString', coordinates: simplify(r.coords, 20) }), t.organization_id]);
   const must = new Map<string, PlaceRow>([[origin.id, origin], [dest.id, dest], ...stops.map((s) => [s.id, s] as [string, PlaceRow])]);
-  const rows: { id: string; km: number; off: number }[] = [];
+  const rows: { id: string; km: number; off: number; name: string; must: boolean }[] = [];
   const seen = new Set<string>();
   for (const p of [...cands, ...must.values()]) {
     if (seen.has(p.id) || keepIds.has(p.id) || (startAt && p.id === origin.id)) continue;
@@ -69,9 +69,16 @@ export async function planAndStoreTripRoute(c: Tx, tripId: string, reason: 'plan
     let km = baseKm + pr.alongM / 1000;
     if (p.id === origin.id && !startAt) km = 0;
     if (p.id === dest.id) km = baseKm + r.lengthM / 1000;
-    rows.push({ id: p.id, km, off: pr.offsetM });
+    rows.push({ id: p.id, km, off: pr.offsetM, name: p.name, must: must.has(p.id) });
   }
   rows.sort((a, b) => a.km - b.km);
+  // o OSM tem às vezes vários pontos com o mesmo nome no mesmo sítio (ex.: 21 "Portagem" na mesma praça): fica só um por 1,5 km
+  const lastByName = new Map<string, number>();
+  for (let i = 0; i < rows.length; i++) {
+    const r0 = rows[i]!; const prev = lastByName.get(r0.name);
+    if (!r0.must && prev != null && r0.km - prev < 1.5) { rows.splice(i--, 1); continue; }
+    lastByName.set(r0.name, r0.km);
+  }
   for (const row of rows) {
     await c.query(`insert into trip_route_places (organization_id, trip_route_id, place_id, seq, km_from_origin, offset_m) values ($1,$2,$3,$4,$5,$6)`,
       [t.organization_id, tr!.id, row.id, seq++, row.km, row.off]);

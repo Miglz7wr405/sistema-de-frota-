@@ -111,6 +111,19 @@ route('GET', '/api/drivers', async (req) => {
     from drivers d where d.organization_id = $1 and d.deleted_at is null order by d.full_name`, [m.orgId])));
 });
 
+// "Eu próprio (sou o motorista)": o motorista ligado à conta do utilizador (criado na 1.ª vez). Assim o GPS deste telemóvel
+// liga-se sozinho quando ele inicia a viagem.
+route('POST', '/api/drivers/me', async (req) => {
+  const m = await requireMember(req, WRITE);
+  return ok(await asMember(m, async (c) => {
+    const ex = await one<{ id: string }>(c, 'select id from drivers where organization_id = $1 and user_id = $2 and deleted_at is null', [m.orgId, m.userId]);
+    if (ex) { await c.query(`update drivers set status = 'ativo' where id = $1`, [ex.id]); return ex; }
+    const r = await one<{ id: string }>(c, 'insert into drivers (organization_id, full_name, user_id) values ($1, $2, $3) returning id', [m.orgId, m.fullName, m.userId]);
+    await audit(c, m, 'motorista.criar', 'drivers', r!.id, { proprio: true });
+    return r;
+  }), 201);
+});
+
 route('POST', '/api/drivers', async (req) => {
   const m = await requireMember(req, WRITE);
   const b = parse(DriverSchema, req.body);

@@ -55,8 +55,24 @@ const ors: RoutingProvider = async (points) => {
 let override: RoutingProvider | null = null;
 export const setRoutingProviderForTests = (p: RoutingProvider | null) => { override = p; };
 
-/** SÓ PARA TESTES LOCAIS (E2E sem acesso à internet): linha sintética entre os pontos. Nunca ativa na Vercel. */
+/** SÓ PARA TESTES LOCAIS (E2E sem acesso à internet). Nunca ativa na Vercel.
+ *  Com E2E_ROUTES_FILE: devolve a rota REAL (calculada antes pelo Valhalla e guardada) quando a origem e o destino coincidem
+ *  (≤ 5 km); caso contrário, linha sintética entre os pontos. */
+let realRoutes: { from: LngLat; to: LngLat; coords: LngLat[]; durationS: number; roads: string[] }[] | null = null;
+async function loadRealRoutes() {
+  if (realRoutes || !process.env.E2E_ROUTES_FILE) return realRoutes ?? [];
+  const { readFileSync } = await import('node:fs');
+  const f = JSON.parse(readFileSync(process.env.E2E_ROUTES_FILE, 'utf8')) as { rotas: { polyline: string; duracao_s: number; estradas: string[] }[] };
+  const decode = (str: string): LngLat[] => { let i = 0, lat = 0, lng = 0; const out: LngLat[] = [];
+    while (i < str.length) { for (const k of [0, 1]) { let r = 0, sh = 0, b: number; do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32);
+      const d = r & 1 ? ~(r >> 1) : r >> 1; if (k === 0) lat += d; else lng += d; } out.push([lng / 1e5, lat / 1e5]); } return out; };
+  realRoutes = f.rotas.map((r) => { const coords = decode(r.polyline); return { from: coords[0]!, to: coords[coords.length - 1]!, coords, durationS: r.duracao_s, roads: r.estradas }; });
+  return realRoutes;
+}
+const near = (a: LngLat, b: LngLat) => Math.abs(a[0] - b[0]) < 0.05 && Math.abs(a[1] - b[1]) < 0.05;
 const e2eStub: RoutingProvider = async (points) => {
+  const real = (await loadRealRoutes()).find((r) => points.length === 2 && near(points[0]!, r.from) && near(points[1]!, r.to));
+  if (real) { const cum = cumulative(real.coords); return { provider: 'valhalla-fossgis (guardada)', coords: real.coords, cum, lengthM: cum[cum.length - 1]!, durationS: real.durationS, roads: real.roads, validatedForTruck: false }; }
   const coords: LngLat[] = [];
   for (let k = 0; k < points.length - 1; k++) {
     const [a, b] = [points[k]!, points[k + 1]!];

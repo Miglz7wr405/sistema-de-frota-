@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
+import { useMe } from '@/app/session';
 import { t } from '@/i18n/pt-MZ';
 import { Button, Field, Modal, Select } from '@/components/ui';
 import { VehicleForm } from '../vehicles/VehicleForm';
@@ -34,14 +35,25 @@ export function VehiclePicker({ value, onChange, vehicles }: { value: string; on
   );
 }
 
+const ME = '__eu__';
 export function DriverPicker({ value, onChange, drivers }: { value: string; onChange: (id: string) => void; drivers: Drv[] | undefined }) {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
+  const me = useMe().data?.user?.id;
+  const hasMe = !!drivers?.some((d) => d.user_id && d.user_id === me);
+  // "Eu próprio": cria/usa o motorista ligado à conta (o GPS deste telemóvel liga-se sozinho ao iniciar)
+  const pick = async (v: string) => {
+    if (v !== ME) { onChange(v); return; }
+    const r = await api<{ id: string }>('/api/drivers/me', { method: 'POST' });
+    await qc.invalidateQueries({ queryKey: ['drivers'] });
+    onChange(r.id);
+  };
   return (
     <Field label={t.trip.driver}>
       <div className="flex gap-2">
-        <Select aria-label={t.trip.driver} value={value} onChange={(e) => onChange(e.target.value)}><option value="">—</option>
-          {drivers?.filter((d) => d.status === 'ativo').map((d) => <option key={d.id} value={d.id}>{d.full_name}</option>)}</Select>
+        <Select aria-label={t.trip.driver} value={value} onChange={(e) => void pick(e.target.value)}><option value="">—</option>
+          {!hasMe && <option value={ME}>{t.trip.meDriver}</option>}
+          {drivers?.filter((d) => d.status === 'ativo').map((d) => <option key={d.id} value={d.id}>{d.full_name}{d.user_id && d.user_id === me ? ` ${t.trip.meSuffix}` : ''}</option>)}</Select>
         <Button type="button" variant="secondary" className="shrink-0" onClick={() => setOpen(true)}>{t.common.addNew}</Button>
       </div>
       <Modal open={open} onClose={() => setOpen(false)} title={t.driver.add}>

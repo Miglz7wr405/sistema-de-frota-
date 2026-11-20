@@ -210,7 +210,7 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.getByRole('dialog').getByLabel('Matrícula').fill('ADM 219 P');
     await tp.getByRole('dialog').getByRole('button', { name: 'Guardar' }).click();
     await tp.getByRole('dialog').waitFor({ state: 'detached' });
-    await tp.getByLabel('Motorista').selectOption({ label: 'Miguel Teste' });
+    await tp.getByLabel('Motorista').selectOption({ label: 'Miguel Teste (eu)' });
     await tp.getByRole('button', { name: 'Iniciar viagem agora' }).click();
     await tp.waitForURL(/\/driver\/?$/, { timeout: 25000 });
     await tp.getByText(/Quelimane → Beira/).first().waitFor({ timeout: 15000 });

@@ -125,7 +125,7 @@ export const t = {
     none: 'Sem documentos registados.',
   },
   trip: {
-    title: 'Viagens', new: 'Nova viagem', edit: 'Editar viagem', startNow: 'Iniciar viagem agora', saveOnly: 'Só guardar', code: 'Código', route: 'Rota', vehicleDriver: 'Camião · Motorista',
+    title: 'Viagens', new: 'Nova viagem', edit: 'Editar viagem', startNow: 'Iniciar viagem agora', meDriver: 'Eu próprio (sou o motorista)', meSuffix: '(eu)', saveOnly: 'Só guardar', code: 'Código', route: 'Rota', vehicleDriver: 'Camião · Motorista',
     progress: 'Progresso', arrival: 'Chegada', status: 'Estado', origin: 'Origem', destination: 'Destino', stops: 'Pontos de passagem / entregas',
     addStop: 'Adicionar ponto', vehicle: 'Camião', driver: 'Motorista', plannedDeparture: 'Partida prevista', plannedArrival: 'Chegada prevista',
     cargoLoad: 'Carga', cargoPh: 'Ex.: 30 t de cimento', cargoOwner: 'Responsável da carga', cargoOwnerPhone: 'Telefone do responsável',
