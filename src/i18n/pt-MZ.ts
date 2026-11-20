@@ -27,7 +27,7 @@ export const t = {
     unauthorized: 'A sua sessão terminou. Entre de novo.',
     forbidden: 'Não tem permissão para esta ação.',
     conflict: 'Já existe um registo com estes dados.',
-    validation: 'Verifique os campos assinalados.',
+    validation: 'Verifique os campos assinalados.', fieldInvalid: (f: string) => `Verifique: ${f}.`,
     rateLimited: 'Demasiadas tentativas. Aguarde um pouco.',
     invalidTransition: 'Esta mudança de estado não é permitida.',
     planLimit: 'Atingiu o limite do seu plano.',
@@ -123,7 +123,7 @@ export const t = {
     none: 'Sem documentos registados.',
   },
   trip: {
-    title: 'Viagens', new: 'Nova viagem', edit: 'Editar viagem', code: 'Código', route: 'Rota', vehicleDriver: 'Camião · Motorista',
+    title: 'Viagens', new: 'Nova viagem', edit: 'Editar viagem', startNow: 'Iniciar viagem agora', saveOnly: 'Só guardar', code: 'Código', route: 'Rota', vehicleDriver: 'Camião · Motorista',
     progress: 'Progresso', arrival: 'Chegada', status: 'Estado', origin: 'Origem', destination: 'Destino', stops: 'Pontos de passagem / entregas',
     addStop: 'Adicionar ponto', vehicle: 'Camião', driver: 'Motorista', plannedDeparture: 'Partida prevista', plannedArrival: 'Chegada prevista',
     cargo: 'Mercadoria', cargoWeight: 'Peso (t)', recipient: 'Destinatário', recipientPhone: 'Telefone do destinatário', clientRef: 'Referência do cliente',

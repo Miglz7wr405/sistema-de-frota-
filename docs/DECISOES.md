@@ -214,3 +214,11 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
   A tendência ("a acelerar"/"a reduzir") compara as últimas velocidades reais.
 - ⚠️ DEPENDÊNCIA EXTERNA: Valhalla público (sem SLA). **Não confirmado em produção** que o servidor FOSSGIS responde ao
   `trace_attributes` a partir da Vercel. Só se confirma com o 1.º teste real (verificar `road_name` no Neon).
+
+## ADR-023 — "Nova viagem" só com Origem, Destino, Camião e Motorista
+- **Decisão (pedido explícito do proprietário):** o formulário da viagem passa a ter só Origem, Destino, Camião e Motorista (com
+  "+ Novo"), e o botão "Iniciar viagem agora" (partida = agora). Saíram do formulário: datas previstas, pontos de passagem, carga,
+  peso, referência, destinatário e observações.
+- **O que NÃO foi apagado:** a API (`POST/PATCH /api/trips`) e a base de dados mantêm todos esses campos; viagens antigas não perdem
+  dados e uma integração futura pode continuar a enviá-los.
+- Erros de validação do servidor passam a dizer o campo ("Verifique: Origem.") em vez de "Verifique os campos assinalados".

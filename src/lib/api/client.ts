@@ -25,9 +25,21 @@ export async function api<T = unknown>(path: string, opts: { method?: string; bo
 }
 
 /** Mensagem legível (pt-MZ) para um erro da API. */
+// nomes legíveis dos campos que o servidor pode recusar (diz QUAL campo, em vez de uma mensagem vaga)
+const FIELD_NAMES: Record<string, string> = {
+  origin_place_id: t.trip.origin, destination_place_id: t.trip.destination, vehicle_id: t.trip.vehicle, driver_id: t.trip.driver,
+  plate: t.vehicle.plate, full_name: t.driver.fullName, phone: t.driver.phone, planned_departure: t.trip.plannedDeparture, planned_arrival: t.trip.plannedArrival,
+};
+function invalidFields(details: unknown): string | null {
+  const fe = (details as { fieldErrors?: Record<string, unknown> } | undefined)?.fieldErrors;
+  const names = fe ? Object.keys(fe).map((k) => FIELD_NAMES[k] ?? k) : [];
+  return names.length ? names.join(', ') : null;
+}
+
 export function errorMessage(e: unknown): string {
   if (!(e instanceof ApiError)) return t.errors.generic;
   if (e.status === 0) return t.errors.network;
+  if (e.code === 'validacao') { const f = invalidFields(e.details); if (f) return t.errors.fieldInvalid(f); }
   const map: Record<string, string> = {
     nao_autenticado: t.errors.unauthorized, sem_permissao: t.errors.forbidden, duplicado: t.errors.conflict, email_existente: t.errors.emailTaken,
     validacao: t.errors.validation, dados_invalidos: t.errors.validation, demasiados_pedidos: t.errors.rateLimited,

@@ -58,7 +58,9 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     // só há 1 camião e 1 motorista: já vêm escolhidos
     if (!(await page.getByLabel('Camião').inputValue())) throw new Error('camião não pré-escolhido');
     if (!(await page.getByLabel('Motorista').inputValue())) throw new Error('motorista não pré-escolhido');
-    await page.getByRole('button', { name: 'Guardar' }).click();
+    // formulário curto: só origem, destino, camião, motorista
+    if (await page.getByText(/Partida prevista|Peso|Destinatário|Observações|Pontos de passagem/).count()) throw new Error('campos a mais no formulário');
+    await page.getByRole('button', { name: 'Só guardar' }).click();
     await page.waitForURL(/\/app\/trips\/[0-9a-f-]{36}$/, { timeout: 20000 });
     tripUrl = page.url();
     await page.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
@@ -85,9 +87,10 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     const vsel = page.getByLabel('Camião');
     if ((await vsel.locator('option:checked').innerText()) !== 'AAB 123 MC') throw new Error('novo camião não escolhido');
     if ((await page.getByLabel('Motorista').locator('option:checked').innerText()) !== 'Ana Cossa') throw new Error('novo motorista não escolhido');
-    await page.getByRole('button', { name: 'Guardar' }).last().click();
+    await page.getByRole('button', { name: 'Iniciar viagem agora' }).click();
     await page.waitForURL(/\/app\/trips\/[0-9a-f-]{36}$/, { timeout: 20000 });
     await page.getByText('AAB 123 MC').first().waitFor();
+    await page.getByText('Viagem iniciada').first().waitFor({ timeout: 10000 });
   });
   // Motorista
   const dctx = await browser.newContext({ viewport: { width: 400, height: 860 }, geolocation: { latitude: -17.8775, longitude: 36.8902 }, permissions: ['geolocation'] });

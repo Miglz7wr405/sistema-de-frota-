@@ -147,3 +147,8 @@ O proprietário não conseguia iniciar uma viagem ("Atribua um camião e um moto
 5. **Esquema do percurso**: cada cidade ao lado do seu ponto, passadas a verde com a hora, próxima a azul com "faltam X km",
    "N km feitos · passou X" no topo e o camião a deslizar entre atualizações.
 - Testes: **50** + **E2E 17/17**.
+
+## Nova viagem só com o essencial (20/11, 5.ª ronda)
+O formulário tinha "muita coisa sem interesse" e mostrou "Verifique os campos assinalados". Agora: **Origem, Destino, Camião (+ Novo),
+Motorista (+ Novo: nome e telefone)** e **"Iniciar viagem agora"** (partida = agora) ou "Só guardar". Com 1 camião/1 motorista já vêm
+escolhidos. Erros do servidor passam a dizer o campo. Os campos retirados continuam na API/BD (ADR-023). **TESTADO** (E2E 17/17, 50 testes).
