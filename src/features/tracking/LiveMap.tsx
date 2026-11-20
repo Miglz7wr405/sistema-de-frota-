@@ -1,3 +1,4 @@
+import { RouteStrip, stripFromLive, type LiveTrip } from './RouteStrip';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -10,8 +11,8 @@ import { Eta, FreshnessLine, vehicleTone } from '../shared';
 import type { LngLat } from '@/lib/map/types';
 import { cn } from '@/lib/cn';
 
-type V = { id: string; plate: string; main_status: string; freshness: string; last_position_at: string | null; last_source: string | null; speed_kmh: number | null;
-  heading: number | null; lng: number | null; lat: number | null; active_trip_id: string | null; active_trip_code: string | null; current_label: string | null;
+type V = LiveTrip & { id: string; plate: string; main_status: string; freshness: string; last_position_at: string | null; last_source: string | null; speed_kmh: number | null;
+  heading: number | null; lng: number | null; lat: number | null; active_trip_id: string | null; active_trip_code: string | null; current_label: string | null; road_name: string | null; speed_limit_kmh: number | null;
   km_left: number | null; eta_destination: string | null; eta_confidence: string | null; driver: string | null };
 
 const FILTERS = ['todos', 'em_viagem', 'disponivel', 'sem_sinal'] as const;
@@ -47,7 +48,9 @@ export default function LiveMap() {
                   <p><Link className="font-semibold text-primary" to={`/app/trips/${selected.active_trip_id}`}>{selected.active_trip_code}</Link> · {selected.driver}</p>
                   <p>{selected.current_label ?? t.common.noData}</p>
                   <p>{t.trip.remaining}: {formatKm(selected.km_left)}</p>
-                  <p>{t.trip.eta}: <Eta eta={selected.eta_destination} confidence={selected.eta_confidence} /></p></div>}
+                  <p>{t.trip.eta}: <Eta eta={selected.eta_destination} confidence={selected.eta_confidence} /></p>
+                  {selected.speed_kmh != null && <p>{t.strip.speed}: <b>{Math.round(selected.speed_kmh)} km/h</b>{selected.road_name ? ` · ${selected.road_name}` : ''} · {selected.speed_limit_kmh != null ? t.strip.limit(selected.speed_limit_kmh) : t.strip.limitUnknown}</p>}
+                  {(() => { const st = stripFromLive(selected); return st ? <div className="pt-2"><RouteStrip {...st} showEta={false} /></div> : null; })()}</div>}
               </Card>
             ) : <Card><p className="text-sm text-muted">{t.liveMap.select}</p></Card>}
             <Card className="max-h-[40vh] overflow-y-auto p-0">

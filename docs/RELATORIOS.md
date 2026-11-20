@@ -119,3 +119,17 @@ O proprietário rejeitou a demonstração com simulador e reportou que o ponteir
 6. **Esquema do percurso** com curvas e localidades reais (ex.: Beira · Inchope · Gorongosa · Caia · … · Quelimane) no detalhe da viagem
    e na página do cliente. **TESTADO** (E2E).
 - Testes: **50 a passar** (vitest, com integração em PostGIS real) + **E2E 14/14** em navegador real.
+
+## Direto ao ponto (20/11, 3.ª ronda) — após o 1.º teste real do proprietário
+**VALIDADO (real), parcialmente:** no teste do proprietário em Quelimane o GPS real chegou (precisão 1,8 m) e o ajuste à estrada do
+Valhalla **funcionou em produção** ("25 de Setembro", ajuste ligado à posição exata). Essa via não tem `maxspeed` no OSM → "limite
+desconhecido" (correto, nada inventado). Ainda não validado em movimento (só 4 posições, parado).
+Queixa: "pergunta muito" e "não vejo o mapa nem o esquema com o camião". Feito:
+1. **Teste com 1 toque**: painel → "Testar agora" → (permissão de localização só na 1.ª vez, do próprio Android) → viagem criada **já em
+   viagem**, destino automático (localidade importante mais próxima, 15–150 km, rota real), sem telefone (migração 0016), sem ecrã de
+   consentimento (frase no botão). "Mudar destino" e "Terminar teste" na app. **TESTADO** (integração + E2E).
+2. **Motoristas reais**: link → PIN (mantido) → já está; o consentimento é uma frase no ecrã do PIN. **TESTADO** (E2E).
+3. **App do motorista**: velocidade e limite no topo, depois **Percurso | Mapa**: esquema com as cidades da rota e o camião nos km
+   feitos, ou mapa com a rota feita/por fazer e o camião em cima da estrada (segue o camião). **TESTADO** (E2E).
+4. **Painel e mapa ao vivo**: esquema com o camião em cada viagem em curso; velocidade, estrada e limite no camião selecionado.
+- Testes: **50** (vitest, com PostGIS real) + **E2E 16/16**.

@@ -24,7 +24,8 @@ export async function driverApi<T>(path: string, method = 'GET', body?: unknown)
 }
 
 type GpsState = { status: 'off' | 'waiting' | 'ok' | 'denied' | 'error'; lastFixAt: number | null; lastSentAt: number | null; accuracyM: number | null };
-export type Road = { roadName: string | null; speedLimitKmh: number | null; at: number };
+export type Road = { roadName: string | null; speedLimitKmh: number | null; lat?: number; lng?: number; at: number };
+export type Pos = { lat: number; lng: number; heading: number | null; t: number };
 
 const hav = (a: [number, number], b: [number, number]) => {
   const R = 6371000, r = Math.PI / 180, dLat = (b[1] - a[1]) * r, dLng = (b[0] - a[0]) * r;
@@ -41,6 +42,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
   const [speed, setSpeed] = useState<number | null>(null);
   const [speedHist, setSpeedHist] = useState<number[]>([]);
   const [road, setRoad] = useState<Road | null>(null);
+  const [pos, setPos] = useState<Pos | null>(null);
   const prevFix = useRef<{ t: number; lng: number; lat: number; acc: number } | null>(null);
   const testMode = !!me?.testMode;
   const engine = useRef<{ model: RouteModel; state: EngineState; voice: VoiceState; key: string } | null>(null);
@@ -93,7 +95,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
             : await fetch(it.path, { method: it.method, headers: { authorization: `Bearer ${getToken()}`, 'content-type': 'application/json' }, body: JSON.stringify(it.body) });
           if (r.ok) {
             if (it.kind === 'positions') {
-              const j = await r.json().catch(() => null) as { road?: { roadName: string | null; speedLimitKmh: number | null } | null } | null;
+              const j = await r.json().catch(() => null) as { road?: { roadName: string | null; speedLimitKmh: number | null; lat: number; lng: number } | null } | null;
               if (j?.road) setRoad({ ...j.road, at: Date.now() });
             }
             return 'ok';
@@ -119,6 +121,7 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     }
     prevFix.current = { t: now, lng: pos.coords.longitude, lat: pos.coords.latitude, acc: pos.coords.accuracy };
     setSpeed(kmh);
+    setPos({ lat: pos.coords.latitude, lng: pos.coords.longitude, heading: pos.coords.heading != null && !Number.isNaN(pos.coords.heading) ? pos.coords.heading : null, t: now });
     if (kmh != null) setSpeedHist((h) => [...h.slice(-7), kmh!]);
     setGps((g) => ({ ...g, status: 'ok', lastFixAt: now, accuracyM: pos.coords.accuracy }));
     const st = me?.org.settings ?? {};
@@ -194,5 +197,5 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     await sync();
   }, [sync]);
 
-  return { gps, queued, online, snap, speed, speedHist, road, testMode, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
+  return { gps, queued, online, snap, speed, speedHist, road, pos, testMode, lastSpoken, speak, action, sync, route: engine.current?.model ?? null };
 }

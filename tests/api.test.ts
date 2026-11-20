@@ -414,9 +414,11 @@ d('testar com o meu telemóvel (dados reais)', () => {
     expect(near.json.map((p: { id: string }) => p.id)).toContain(ids.dest);
     expect((await call('GET', '/api/places/near?lat=-17.95&lng=36.88', {})).status).toBe(401);
 
-    expect((await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 900, destinationPlaceId: ids.dest, phone: '+258841110000' })).status).toBe(422);
-    const r = await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 12, destinationPlaceId: ids.dest, phone: '+258841110000' });
+    expect((await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 900 })).status).toBe(422);
+    // UM pedido: só a posição real. Sem telefone, sem destino (automático), sem consentimento extra, já em viagem.
+    const r = await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 12 });
     expect(r.status).toBe(201);
+    expect(r.json.destination).toBe('Vila Meio'); // a localidade importante (≥4) mais próxima entre 15 e 150 km
     const tok = r.json.driverToken as string;
     // a partida é exatamente a posição enviada
     const o = (await sys.query(`select ST_X(p.geom::geometry) x, ST_Y(p.geom::geometry) y, p.organization_id is not null priv
@@ -424,14 +426,23 @@ d('testar com o meu telemóvel (dados reais)', () => {
     expect([o.x, o.y, o.priv]).toEqual([36.88, -17.95, true]);
     // camião de teste não conta para o limite do plano (A já tem 5 camiões no plano experimental)
     expect((await sys.query(`select count(*)::int n from vehicles v join trips t on t.vehicle_id = v.id where t.id = $1 and v.is_test`, [r.json.tripId])).rows[0].n).toBe(1);
+    const tr = (await sys.query(`select t.status, t.actual_departure, d.phone, d.user_id from trips t join drivers d on d.id = t.driver_id where t.id = $1`, [r.json.tripId])).rows[0];
+    expect(tr.status).toBe('em_viagem');
+    expect(tr.actual_departure).not.toBeNull();
+    expect(tr.phone).toBeNull();
+    expect(tr.user_id).not.toBeNull();
+    expect((await sys.query(`select count(*)::int n from trip_events where trip_id = $1 and kind = 'partida'`, [r.json.tripId])).rows[0].n).toBe(1);
 
     const me = await call('GET', '/api/driver/me', { bearer: tok });
     expect(me.status).toBe(200);
     expect(me.json.testMode).toBe(true);
     expect(me.json.trip.id).toBe(r.json.tripId);
-    expect(me.json.consentRequired).toBe(true); // o próprio utilizador aceita o consentimento no telemóvel
-    expect((await call('POST', '/api/driver/consent', { bearer: tok }, {})).status).toBeLessThan(300);
-    expect((await call('POST', `/api/driver/trips/${r.json.tripId}/transition`, { bearer: tok }, { to: 'em_viagem' })).status).toBe(200);
+    expect(me.json.trip.status).toBe('em_viagem');
+    expect(me.json.consentRequired).toBe(false); // consentimento dado no botão "Testar agora"
+
+    // motoristas normais continuam a precisar de telefone
+    expect((await sys.query(`select count(*)::int n from drivers where phone is null and user_id is null`)).rows[0].n).toBe(0);
+    await expect(sys.query(`insert into drivers (organization_id, full_name) select organization_id, 'Sem Telefone' from drivers limit 1`)).rejects.toThrow(/drivers_phone_required/);
 
     // B não vê a viagem de teste de A
     expect((await call('GET', `/api/trips/${r.json.tripId}`, B)).status).toBe(404);
@@ -460,8 +471,10 @@ d('testar com o meu telemóvel (dados reais)', () => {
     setMatcherForTests(async () => null);
 
     // novo teste termina o anterior
-    const r2 = await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 12, destinationPlaceId: ids.dest, phone: '+258841110000' });
+    const r2 = await call('POST', '/api/selftest/start', A, { lat: -17.95, lng: 36.88, accuracy: 12, destinationPlaceId: ids.dest });
     expect(r2.status).toBe(201);
+    expect(r2.json.destination).toBe('Cidade Destino'); // "Mudar destino": o escolhido
+    expect((await call('POST', '/api/selftest/start', B, { lat: -17.95, lng: 36.88, accuracy: 12, destinationPlaceId: r.json.tripId })).status).toBe(400);
     expect((await sys.query('select status from trips where id = $1', [r.json.tripId])).rows[0].status).toBe('concluida');
     expect((await call('GET', '/api/driver/me', { bearer: tok })).status).toBe(401);
   }, 20_000);

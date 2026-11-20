@@ -83,8 +83,13 @@ route('GET', '/api/fleet/live', async (req) => {
         case when lp.matched_geom is not null and lp.matched_at >= lp.device_time - interval '1 second' then ST_X(lp.matched_geom::geometry) else s.lng end lng,
         case when lp.matched_geom is not null and lp.matched_at >= lp.device_time - interval '1 second' then ST_Y(lp.matched_geom::geometry) else s.lat end lat,
         lp.road_name, lp.speed_limit_kmh,
-        s.active_trip_id, s.active_trip_code, p.current_label, p.km_left, p.eta_destination, p.eta_confidence, d.full_name driver
+        s.active_trip_id, s.active_trip_code, p.current_label, p.km_left, p.km_done, p.eta_destination, p.eta_confidence, d.full_name driver,
+        po.name trip_origin, pd.name trip_destination, (r.base_km + r.length_m / 1000.0) route_km,
+        (select coalesce(jsonb_agg(jsonb_build_object('name', pl.name, 'km', rp.km_from_origin, 'importance', pl.importance, 'passedAt', rp.passed_at) order by rp.seq), '[]')
+           from trip_route_places rp join places pl on pl.id = rp.place_id where rp.trip_route_id = r.id and pl.importance >= 3) route_places
       from vehicle_status_v s left join vehicle_latest_positions lp on lp.vehicle_id = s.id left join trip_progress p on p.trip_id = s.active_trip_id left join trips t on t.id = s.active_trip_id left join drivers d on d.id = t.driver_id
+        left join places po on po.id = t.origin_place_id left join places pd on pd.id = t.destination_place_id
+        left join trip_routes r on r.trip_id = t.id and r.is_current
       where s.organization_id = $1 order by s.plate`, [m.orgId]),
     serverTime: new Date().toISOString(),
   })));

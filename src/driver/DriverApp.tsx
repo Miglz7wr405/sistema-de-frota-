@@ -6,6 +6,7 @@ import { speedTrend } from '@/features/tracking/RouteStrip';
 import { fileToUpload } from '@/lib/api/client';
 import { answer } from '@/lib/geo/assistant';
 import { Button, Field, Input, Modal, Select, Textarea } from '@/components/ui';
+import { DriverRoute } from './DriverRoute';
 import { TOKEN_KEY, driverApi, getToken, useDriverRuntime, type Me } from './useDriverRuntime';
 
 export function DriverApp() {
@@ -43,7 +44,12 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
     setBusy(true); setErr(null);
     try {
       const r = await fetch('/api/driver/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: linkToken, pin }) });
-      if (r.ok) { const j = await r.json(); history.replaceState(null, '', '/driver/'); onToken(j.token); return; }
+      if (r.ok) {
+        const j = await r.json();
+        // consentimento dado no próprio ecrã do PIN (frase por baixo do botão): sem ecrã extra
+        await fetch('/api/driver/consent', { method: 'POST', headers: { authorization: `Bearer ${j.token}`, 'content-type': 'application/json' }, body: '{}' }).catch(() => {});
+        history.replaceState(null, '', '/driver/'); onToken(j.token); return;
+      }
       setErr(r.status === 429 ? t.driverApp.locked : r.status === 401 ? ((await r.json()).error === 'pin_incorreto' ? t.driverApp.wrongPin : t.driverApp.invalidLink) : t.errors.generic);
     } catch { setErr(t.errors.network); } finally { setBusy(false); }
   };
@@ -55,6 +61,7 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
         <input id="pin" className="input text-center text-3xl tracking-[0.5em]" inputMode="numeric" maxLength={6} autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
         {err && <p className="mt-2 text-sm text-danger" role="alert">{err}</p>}
         <Button size="lg" className="mt-4 w-full" disabled={pin.length < 4} loading={busy} onClick={submit}>{t.driverApp.enter}</Button>
+        <p className="mt-3 text-xs text-muted">{t.driverApp.pinConsent}</p>
       </div>
     </div>
   );
@@ -127,6 +134,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
       {!trip ? <Centered>{t.driverApp.noTrip}</Centered> : (
         <main className="flex flex-1 flex-col gap-3 p-4">
           {status === 'em_viagem' || status === 'pausada' ? <>
+            <SpeedCard rt={rt} kmLeft={kmLeft} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} />
+            <DriverRoute me={me} model={rt.route} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} pos={rt.pos} road={rt.road} />
             {!moving && <div className="card flex items-center gap-4 p-4"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Navigation className="h-6 w-6" /></span>
               <div><p className="text-sm text-muted">{t.driverApp.nextPoint}</p><p className="text-xl font-bold">{next ? `${next.name} · ${formatKm((next.kmFromOrigin - (rt.snap?.kmDone ?? 0)) / scale)}` : rt.snap ? t.label(rt.snap.label) : t.common.noData}</p></div></div>}
             <div className="grid grid-cols-2 gap-3">
@@ -134,7 +143,6 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
               <div className="card p-4"><p className="text-sm text-muted">{t.driverApp.eta}</p><p className="text-3xl font-bold">{etaOk ? formatTime(rt.snap!.etaDestination!) : '—'}</p>
                 {!etaOk && <p className="text-xs text-muted">{t.trip.etaUnavailable}</p>}</div>
             </div>
-            <SpeedCard rt={rt} kmLeft={kmLeft} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} />
             {rt.lastSpoken && <div className="rounded-2xl bg-primary-soft p-4"><p className="flex items-center gap-2 text-sm font-semibold text-primary"><Volume2 className="h-4 w-4" />{t.driverApp.assistant}</p><p className="mt-1 text-lg">"{rt.lastSpoken}"</p></div>}
             <Button size="lg" className="h-16 w-full text-lg" onClick={talk} loading={listening}><Mic className="h-6 w-6" />{listening ? t.assistant.listening : t.driverApp.talk}</Button>
             {moving ? <p className="text-center text-sm text-muted">{t.driverApp.moving}</p> : <>
@@ -153,6 +161,10 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
                 <button className="w-full py-2 text-sm text-muted" onClick={() => setModal('voice')}>{t.driverApp.voiceTest}</button>
               </div>
             </>}
+            {rt.testMode && <div className="grid grid-cols-2 gap-3">
+              <Button variant="secondary" onClick={() => { location.href = '/app/self-test?escolher=1'; }}>{t.selftest.changeDestination}</Button>
+              <Button variant="danger" onClick={async () => { await transition('concluida'); location.href = '/app/dashboard'; }}>{t.selftest.endTest}</Button>
+            </div>}
             {rt.gps.status === 'denied' && <p className="rounded-lg bg-danger-soft p-3 text-sm text-danger" role="alert">{t.driverApp.gpsDeniedHelp}</p>}
             {!window.isSecureContext && <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning">{t.driverApp.gpsNeedsHttps}</p>}
             <p className="text-center text-xs text-muted">{t.driverApp.keepOpen}</p>

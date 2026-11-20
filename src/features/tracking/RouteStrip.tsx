@@ -90,3 +90,12 @@ export function speedTrend(speeds: (number | null)[] | null | undefined): 'accel
   const d = avg(s.slice(-k)) - avg(s.slice(0, k));
   return d > 4 ? 'accelerating' : d < -4 ? 'slowing' : 'steady';
 }
+
+/** Linha do /api/fleet/live → props do esquema (só quando há viagem ativa com rota). */
+export type LiveTrip = { trip_origin: string | null; trip_destination: string | null; route_km: number | null; km_done: number | null;
+  route_places: { name: string; km: number; importance: number; passedAt: string | null }[] | null };
+export function stripFromLive(v: LiveTrip) {
+  if (!v.trip_origin || !v.trip_destination || !(Number(v.route_km) > 0)) return null;
+  return { origin: v.trip_origin, destination: v.trip_destination, totalKm: Number(v.route_km), kmDone: v.km_done,
+    places: (v.route_places ?? []).map((p) => ({ name: p.name, km: Number(p.km), importance: p.importance, passedAt: p.passedAt })) };
+}

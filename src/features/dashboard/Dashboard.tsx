@@ -9,6 +9,7 @@ import { useMe, useRole } from '@/app/session';
 import { formatDate, formatDateTime, formatKm, formatTime, freshnessOf } from '@/lib/format';
 import { Eta, TripStatus, vehicleTone } from '../shared';
 import type { LngLat } from '@/lib/map/types';
+import { RouteStrip, stripFromLive, type LiveTrip } from '../tracking/RouteStrip';
 
 type Dash = {
   counts: { total: number; em_viagem: number; disponiveis: number; manutencao: number; sem_sinal: number };
@@ -20,7 +21,7 @@ type Dash = {
   recent: { kind: string; occurred_at: string; code: string; trip_id: string; payload: Record<string, string> }[];
   placesCount: number; devices: { total: number; online: number }; serverTime: string;
 };
-type Live = { vehicles: { id: string; plate: string; main_status: string; freshness: string; lng: number | null; lat: number | null; heading: number | null; speed_kmh: number | null; last_position_at: string | null }[] };
+type Live = { vehicles: (LiveTrip & { active_trip_id: string | null; active_trip_code: string | null; id: string; plate: string; main_status: string; freshness: string; lng: number | null; lat: number | null; heading: number | null; speed_kmh: number | null; last_position_at: string | null })[] };
 type TripRow = { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; driver: string | null; pct: number | null; eta_destination: string | null; eta_confidence: string | null; is_late: boolean; last_position_at: string | null };
 
 export default function Dashboard() {
@@ -67,6 +68,13 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          {(() => {
+            const act = (live.data?.vehicles ?? []).map((v) => ({ v, st: stripFromLive(v) })).filter((x) => x.st && x.v.active_trip_id).slice(0, 6);
+            return act.length > 0 && <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{act.map(({ v, st }) => (
+              <Card key={v.id} title={<Link className="hover:text-primary" to={`/app/trips/${v.active_trip_id}`}>{v.plate} · {v.active_trip_code}</Link>}
+                action={v.speed_kmh != null && freshnessOf(v.last_position_at, now) === 'atual' ? <Badge tone="success">{Math.round(v.speed_kmh)} km/h</Badge> : undefined}>
+                <RouteStrip {...st!} showEta={false} /></Card>))}</div>;
+          })()}
           <div className="mt-4 grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2" title={t.dashboard.fleetLocation} action={<Link className="text-sm font-medium text-primary" to="/app/live-map">{t.dashboard.openLiveMap} →</Link>}>
               <MapView className="h-[340px] rounded-xl" fitKey={String(located.length)} fitTo={located.map((v) => [v.lng!, v.lat!] as LngLat)}

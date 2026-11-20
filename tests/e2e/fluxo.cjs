@@ -72,8 +72,9 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await dp.goto(link.replace(/^https?:\/\/[^/]+/, B));
     await dp.getByLabel('Introduza o seu PIN').fill('4321');
     await dp.getByRole('button', { name: 'Entrar' }).click();
-    await dp.getByRole('button', { name: 'Aceito' }).click();
+    // o consentimento está no ecrã do PIN: não há ecrã "Aceito"
     await dp.getByRole('button', { name: 'Iniciar viagem' }).click();
+    if (await dp.getByRole('button', { name: 'Aceito' }).count()) throw new Error('ecrã de consentimento extra');
     await dp.getByText(/GPS a enviar|Sem sinal GPS/).first().waitFor({ timeout: 15000 });
   });
   // mover o camião ao longo do caminho
@@ -98,22 +99,27 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   tp.on('pageerror', (e) => errs.push(`[selftest pageerror] ${e.message.slice(0, 300)}`));
   const tstep = async (name, fn) => { try { await fn(); console.log('OK  ', name); } catch (e) { failures++; console.log('FAIL', name, e.message.split('\n')[0]); } await tp.screenshot({ path: SHOT + name + '.png' }); };
   await tstep('13-teste-telemovel', async () => {
-    await tp.goto(B + '/app/self-test');
-    await tp.getByRole('button', { name: 'Usar a minha localização' }).click();
-    await tp.getByText(/Localização obtida \(precisão ±9 m\)/).waitFor({ timeout: 15000 });
-    const sel = tp.getByLabel('2. Escolher o destino');
-    await sel.waitFor({ timeout: 15000 });
-    await sel.selectOption({ index: 1 });
-    await tp.locator('input[type=tel]').fill('+258841234999');
-    await tp.getByRole('button', { name: 'Criar a viagem e abrir a app do motorista' }).click();
-    await tp.waitForURL(/\/driver\/?$/, { timeout: 20000 });
-    await tp.getByRole('button', { name: 'Aceito' }).click();
-    await tp.getByRole('button', { name: 'Iniciar viagem' }).click();
+    // UM toque no painel: sem perguntas (a permissão de GPS já foi dada a este site)
+    await tp.goto(B + '/app/dashboard');
+    await tp.getByRole('button', { name: 'Testar agora' }).first().click();
+    await tp.waitForURL(/\/driver\/?$/, { timeout: 25000 });
+    await tp.getByText(/GPS a enviar/).first().waitFor({ timeout: 15000 });
+    if (await tp.getByRole('button', { name: 'Aceito' }).count()) throw new Error('pediu consentimento outra vez');
+    if (await tp.getByRole('button', { name: 'Iniciar viagem' }).count()) throw new Error('pediu "Iniciar viagem"');
     // deslocação real emulada: ~110 m a cada 6 s (≈ 66 km/h)
     for (let i = 1; i <= 5; i++) { await tctx.setGeolocation({ latitude: -17.8600 + i * 0.0007, longitude: 36.8800 - i * 0.0008, accuracy: 9 }); await tp.waitForTimeout(6000); }
     await tp.getByText(/EN-E2E \(teste\)/).waitFor({ timeout: 15000 });
     const sp = await tp.locator('p.text-5xl').first().innerText();
     if (!/^\d+/.test(sp)) throw new Error('velocidade não mostrada: ' + sp);
+    // esquema do percurso com o camião
+    await tp.getByRole('tab', { name: 'Percurso' }).waitFor();
+    if (!(await tp.locator('svg[role=img]').count())) throw new Error('sem esquema do percurso');
+  });
+  await tstep('13b-motorista-mapa', async () => {
+    await tp.getByRole('tab', { name: 'Mapa' }).click();
+    await tp.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    await tp.locator('.maplibregl-marker').first().waitFor({ timeout: 10000 });
+    await tp.waitForTimeout(2000);
   });
   await step('14-camiao-na-coordenada-certa', async () => {
     await page.goto(B + '/app/live-map');

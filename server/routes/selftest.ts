@@ -6,6 +6,7 @@ import { many, one, withSystem } from '../db.js';
 import { requireMember, asMember, WRITE, audit } from '../auth.js';
 import { planAndStoreTripRoute } from '../trip-route.js';
 import { randomToken, sha256 } from '../crypto.js';
+import { CONSENT_VERSION } from './driver.js';
 
 const TEST_PLATE = 'TESTE TELEMOVEL';
 
@@ -25,7 +26,7 @@ route('POST', '/api/selftest/start', async (req) => {
   const m = await requireMember(req, WRITE);
   const b = parse(z.object({
     lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracy: z.number().min(0).max(5000),
-    destinationPlaceId: z.string().uuid(), phone: z.string().regex(/^\+[1-9]\d{7,14}$/),
+    destinationPlaceId: z.string().uuid().optional(), phone: z.string().regex(/^\+[1-9]\d{7,14}$/).optional(),
   }), req.body);
   if (b.accuracy > 500) throw new HttpError(422, 'precisao_insuficiente');
   const token = randomToken(32);
@@ -35,9 +36,9 @@ route('POST', '/api/selftest/start', async (req) => {
     if (!v) v = await one<{ id: string }>(c, `insert into vehicles (organization_id, plate, make, model, is_test, gps_source_priority, notes)
       values ($1, $2, 'Telemóvel', 'Teste real', true, 'phone', 'Teste com o telemóvel do utilizador (posições GPS reais)') returning id`, [m.orgId, TEST_PLATE]);
     let d = await one<{ id: string }>(c, `select id from drivers where organization_id = $1 and user_id = $2 and deleted_at is null`, [m.orgId, m.userId]);
-    if (!d) d = await one<{ id: string }>(c, `select id from drivers where organization_id = $1 and phone = $2 and deleted_at is null`, [m.orgId, b.phone]);
+    if (!d && b.phone) d = await one<{ id: string }>(c, `select id from drivers where organization_id = $1 and phone = $2 and deleted_at is null`, [m.orgId, b.phone]);
     if (d) await c.query(`update drivers set user_id = $2, status = 'ativo' where id = $1`, [d.id, m.userId]);
-    else d = await one<{ id: string }>(c, `insert into drivers (organization_id, full_name, phone, user_id) values ($1, $2, $3, $4) returning id`, [m.orgId, m.fullName, b.phone, m.userId]);
+    else d = await one<{ id: string }>(c, `insert into drivers (organization_id, full_name, phone, user_id) values ($1, $2, $3, $4) returning id`, [m.orgId, m.fullName, b.phone ?? null, m.userId]);
     // termina testes anteriores ainda abertos
     await c.query(`update trips set status = 'concluida', actual_arrival = coalesce(actual_arrival, now())
       where vehicle_id = $1 and status in ('em_viagem','pausada')`, [v!.id]);
@@ -50,21 +51,40 @@ route('POST', '/api/selftest/start', async (req) => {
     const origin = await one<{ id: string }>(c, `insert into places (organization_id, name, kind, importance, geom, province_id)
       values ($1, $2, 'other', 1, ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, (select id from province_at($3, $4))) returning id`,
       [m.orgId, nearest ? `${nearest.name} (a minha posição)` : 'A minha posição', b.lng, b.lat]);
-    const dest = await one<{ id: string }>(c, `select id from places where id = $1 and deleted_at is null and (organization_id is null or organization_id = $2)`, [b.destinationPlaceId, m.orgId]);
-    if (!dest) throw new HttpError(400, 'localidade_invalida');
+    // destino: o escolhido, ou automático — cidades/vilas importantes reais mais próximas (15–150 km), com rota real
+    const candidates = b.destinationPlaceId
+      ? await many<{ id: string; name: string }>(c, `select id, name from places where id = $1 and deleted_at is null and (organization_id is null or organization_id = $2)`, [b.destinationPlaceId, m.orgId])
+      : await many<{ id: string; name: string }>(c, `select id, name from places where organization_id is null and deleted_at is null
+          and ST_DWithin(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, case when importance >= 4 then 150000 else 400000 end)
+          and not ST_DWithin(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, 15000) and importance >= 3
+          order by (importance >= 4) desc, geom <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography limit 3`, [b.lng, b.lat]);
+    if (!candidates.length) throw new HttpError(b.destinationPlaceId ? 400 : 422, b.destinationPlaceId ? 'localidade_invalida' : 'sem_destino_perto');
     const t = await one<{ id: string; code: string }>(c, `insert into trips (organization_id, vehicle_id, driver_id, origin_place_id, destination_place_id, cargo_description, notes, created_by)
       values ($1, $2, $3, $4, $5, 'Teste com o telemóvel', 'Teste real com o telemóvel do utilizador', $6) returning id, code`,
-      [m.orgId, v!.id, d!.id, origin!.id, dest.id, m.userId]);
+      [m.orgId, v!.id, d!.id, origin!.id, candidates[0]!.id, m.userId]);
     await c.query(`insert into trip_events (organization_id, trip_id, kind, actor_type, actor_id) values ($1, $2, 'criada', 'member', $3)`, [m.orgId, t!.id, m.userId]);
-    const route_ = await planAndStoreTripRoute(c, t!.id, 'plan');
+    let route_ = null; let destName = candidates[0]!.name;
+    for (const [i, cand] of candidates.entries()) {
+      if (i > 0) await c.query('update trips set destination_place_id = $2 where id = $1', [t!.id, cand.id]);
+      route_ = await planAndStoreTripRoute(c, t!.id, 'plan').catch(() => null);
+      destName = cand.name;
+      if (route_) break;
+    }
+    // ao tocar em "Testar" o próprio utilizador aceitou usar o GPS deste telemóvel durante o teste (texto no botão)
+    await c.query(`insert into driver_consents (organization_id, driver_id, consent_version, user_agent) values ($1, $2, $3, $4) on conflict do nothing`,
+      [m.orgId, d!.id, CONSENT_VERSION, 'teste com o telemóvel (consentimento no botão)']);
     // sessão de motorista para o próprio telemóvel do dono (sem link/PIN: já está autenticado como membro)
     await c.query(`update driver_access set revoked_at = now() where driver_id = $1 and revoked_at is null`, [d!.id]);
     const acc = await one<{ id: string }>(c, `insert into driver_access (organization_id, driver_id, token_hash, pin_hash, created_by)
       values ($1, $2, $3, '!sem-pin', $4) returning id`, [m.orgId, d!.id, sha256(randomToken(32)), m.userId]);
     await c.query(`insert into driver_sessions (organization_id, driver_id, access_id, token_hash, expires_at) values ($1, $2, $3, $4, now() + interval '12 hours')`,
       [m.orgId, d!.id, acc!.id, sha256(token)]);
-    return { tripId: t!.id, code: t!.code, routeKm: route_ ? route_.lengthM / 1000 : null };
+    return { tripId: t!.id, code: t!.code, destination: destName, routeKm: route_ ? route_.lengthM / 1000 : null };
   });
-  await asMember(m, (c) => audit(c, m, 'teste_telemovel.iniciar', 'trips', r.tripId));
+  // a viagem começa já (sem "Iniciar viagem"): mesma máquina de estados de sempre, como membro
+  await asMember(m, async (c) => {
+    await c.query(`select 1 from trip_transition($1, 'em_viagem')`, [r.tripId]);
+    await audit(c, m, 'teste_telemovel.iniciar', 'trips', r.tripId);
+  });
   return ok({ ...r, driverToken: token }, 201);
 });

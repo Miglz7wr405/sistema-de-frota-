@@ -1,72 +1,81 @@
-// "Testar com o meu telemóvel": tudo real. A partida é a posição GPS real do telemóvel; a rota vem do motor de rotas;
-// as posições seguintes são as do GPS real enviadas pela app do motorista (mesma porta de ingestão).
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+// "Testar com o meu telemóvel": um toque. Lê a posição GPS real, cria a viagem (destino automático, rota real) já em
+// viagem e abre a app do motorista com o GPS a enviar. O navegador só pede a permissão de localização na 1.ª vez.
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { MapPin, Smartphone } from 'lucide-react';
 import { api, errorMessage } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
-import { Button, Card, Field, Input, PageHeader, Select } from '@/components/ui';
+import { Button, Card } from '@/components/ui';
 
 type Fix = { lat: number; lng: number; accuracy: number };
 type Near = { id: string; name: string; kind: string; province: string | null };
 
+const getFix = () => new Promise<Fix>((resolve, reject) => {
+  if (!('geolocation' in navigator)) { reject(new Error(t.selftest.unsupported)); return; }
+  navigator.geolocation.getCurrentPosition(
+    (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
+    (e) => reject(new Error(e.code === e.PERMISSION_DENIED ? t.selftest.denied : t.selftest.poorAccuracy)),
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30_000 });
+});
+
 export default function SelfTest() {
+  const [sp] = useSearchParams();
+  const choosing = sp.get('escolher') === '1';
+  const [phase, setPhase] = useState<'idle' | 'locating' | 'starting'>('idle');
   const [fix, setFix] = useState<Fix | null>(null);
-  const [locErr, setLocErr] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [dest, setDest] = useState('');
-  const [phone, setPhone] = useState('+258');
   const [err, setErr] = useState<string | null>(null);
+  const auto = useRef(false);
 
-  const locate = () => {
-    setLocErr(null);
-    if (!('geolocation' in navigator)) { setLocErr(t.selftest.unsupported); return; }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (p) => { setLocating(false); setFix({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }); },
-      (e) => { setLocating(false); setLocErr(e.code === e.PERMISSION_DENIED ? t.selftest.denied : errorMessage(e)); },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 30_000 });
-  };
-
-  const near = useQuery({ queryKey: ['places-near', fix?.lat.toFixed(3), fix?.lng.toFixed(3)], enabled: !!fix,
-    queryFn: () => api<Near[]>(`/api/places/near?lat=${fix!.lat}&lng=${fix!.lng}`) });
-
-  const start = useMutation({
-    mutationFn: () => api<{ tripId: string; code: string; driverToken: string }>('/api/selftest/start',
-      { body: { lat: fix!.lat, lng: fix!.lng, accuracy: fix!.accuracy, destinationPlaceId: dest, phone: phone.replace(/\s/g, '') } }),
-    onSuccess: (r) => {
+  const start = useCallback(async (destinationPlaceId?: string) => {
+    setErr(null);
+    try {
+      setPhase('locating');
+      const f = fix && destinationPlaceId ? fix : await getFix();
+      setFix(f);
+      if (f.accuracy > 500) throw new Error(t.selftest.poorAccuracy);
+      setPhase('starting');
+      const r = await api<{ driverToken: string }>('/api/selftest/start', { body: { lat: f.lat, lng: f.lng, accuracy: f.accuracy, ...(destinationPlaceId ? { destinationPlaceId } : {}) } });
       try { localStorage.setItem('if_driver_token', r.driverToken); localStorage.removeItem('if_driver_me'); } catch { /* sem armazenamento */ }
       location.href = '/driver/';
-    },
-    onError: (e) => setErr(errorMessage(e)),
-  });
+    } catch (e) {
+      setPhase('idle');
+      setErr(e instanceof Error && !('status' in e) ? e.message : errorMessage(e));
+    }
+  }, [fix]);
 
-  const poor = fix != null && fix.accuracy > 500;
+  // Começa logo ao abrir (o toque no painel já foi o pedido): o navegador só pergunta a localização na 1.ª vez.
+  useEffect(() => {
+    if (choosing || auto.current) return;
+    auto.current = true;
+    void start();
+  }, [choosing, start]);
+
+  // escolher outro destino (opcional)
+  useEffect(() => { if (choosing && !fix) getFix().then(setFix).catch((e: Error) => setErr(e.message)); }, [choosing, fix]);
+  const near = useQuery({ queryKey: ['places-near', fix?.lat.toFixed(3), fix?.lng.toFixed(3)], enabled: choosing && !!fix,
+    queryFn: () => api<Near[]>(`/api/places/near?lat=${fix!.lat}&lng=${fix!.lng}`) });
+
+  const busy = phase !== 'idle';
   return (
-    <div className="mx-auto max-w-xl">
-      <PageHeader title={t.selftest.title} subtitle={t.selftest.intro} />
-      <div className="space-y-4">
-        <Card title={t.selftest.step1}>
-          <Button onClick={locate} loading={locating} variant={fix ? 'secondary' : 'primary'}><MapPin className="h-4 w-4" />{locating ? t.selftest.locating : t.selftest.locate}</Button>
-          {fix && <p className={`mt-3 text-sm ${poor ? 'text-warning' : 'text-success-text'}`}>{poor ? t.selftest.poorAccuracy : t.selftest.located(fix.accuracy)}</p>}
-          {fix && <p className="mt-1 font-mono text-xs text-muted">{fix.lat.toFixed(5)}, {fix.lng.toFixed(5)}</p>}
-          {locErr && <p role="alert" className="mt-3 text-sm text-danger">{locErr}</p>}
-        </Card>
-        {fix && !poor && <Card title={t.selftest.step2}>
-          {near.isLoading ? <p className="text-sm text-muted">{t.common.loading}</p> : near.data?.length ? (
-            <Select aria-label={t.selftest.step2} value={dest} onChange={(e) => setDest(e.target.value)}>
-              <option value="">—</option>
-              {near.data.map((p) => <option key={p.id} value={p.id}>{p.name}{p.province ? ` (${p.province})` : ''}</option>)}
-            </Select>) : <p className="text-sm text-warning">{near.isError ? errorMessage(near.error) : t.selftest.noPlaces}</p>}
-        </Card>}
-        {fix && !poor && dest && <Card title={t.selftest.step3}>
-          <Field label={t.driver.phone}><Input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
-          <Button className="mt-4 w-full" size="lg" disabled={!/^\+[1-9]\d{7,14}$/.test(phone.replace(/\s/g, ''))} loading={start.isPending} onClick={() => { setErr(null); start.mutate(); }}>
-            <Smartphone className="h-5 w-5" />{start.isPending ? t.selftest.starting : t.selftest.start}</Button>
-          <p className="mt-3 text-sm text-muted">{t.selftest.after}</p>
-          {err && <p role="alert" className="mt-3 text-sm text-danger">{err}</p>}
-        </Card>}
-      </div>
+    <div className="mx-auto max-w-md">
+      <Card>
+        <div className="flex flex-col items-center gap-4 py-4 text-center">
+          <span className="rounded-2xl bg-primary-soft p-4 text-primary"><Smartphone className="h-8 w-8" /></span>
+          <h1 className="text-2xl font-bold">{choosing ? t.selftest.chooseTitle : t.selftest.title}</h1>
+          {!choosing && <>
+            <p className="text-muted">{t.selftest.intro}</p>
+            <Button size="lg" className="h-16 w-full text-lg" loading={busy} onClick={() => start()}>
+              <MapPin className="h-6 w-6" />{phase === 'locating' ? t.selftest.locating : phase === 'starting' ? t.selftest.starting : t.selftest.go}</Button>
+            <p className="text-xs text-muted">{t.selftest.consent}</p>
+          </>}
+          {choosing && (near.data?.length ? <ul className="w-full space-y-2 text-left">{near.data.map((p) => (
+            <li key={p.id}><button disabled={busy} onClick={() => start(p.id)} className="w-full rounded-xl border border-border px-4 py-3 text-left hover:border-primary disabled:opacity-50">
+              <span className="font-semibold">{p.name}</span>{p.province ? <span className="text-muted"> · {p.province}</span> : null}</button></li>))}</ul>
+            : !err && <p className="text-muted">{busy ? t.selftest.starting : t.common.loading}</p>)}
+          {err && <p role="alert" className="text-sm text-danger">{err}</p>}
+        </div>
+      </Card>
     </div>
   );
 }
