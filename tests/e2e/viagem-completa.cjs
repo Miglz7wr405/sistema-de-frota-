@@ -185,9 +185,17 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     return `${passou}; ${kmTxt.trim()}`;
   });
   let clientChecked = false;
+  // escala do mapa do motorista: distância no ecrã entre Quelimane e a Beira (grande = aproximado)
+  const scale = () => pb.evaluate(([a, b]) => { const h = [...document.querySelectorAll('*')].find((x) => x.__project); if (!h) return null;
+    const p = h.__project(a), q = h.__project(b); return Math.hypot(p.x - q.x, p.y - q.y); }, [BEIRA.coords[0], BEIRA.coords[BEIRA.coords.length - 1]]);
+  let zoomInfo = '';
   await step('09-ultimos-km-ate-a-beira', pb, async () => {
+    await pb.waitForSelector('.maplibregl-canvas', { timeout: 15000 }); await pb.waitForTimeout(3000);
+    const overview = await scale(); await pb.screenshot({ path: SHOT + '09a-mapa-rota-inteira.png' });
+    let zoomed = null;
     for (let m = END_BULK + 40, i = 0; m <= BEIRA.L + 40; m += 40, i++) {
       const [lng, lat] = noisy(at(BEIRA, m), 3); await phoneB.setGeolocation({ latitude: lat, longitude: lng, accuracy: 6 }); await pb.waitForTimeout(2000);
+      if (zoomed == null && m > BEIRA.L - 2500) { const sc = await scale(); if (sc && overview && sc > overview * 3) { zoomed = sc; await pb.waitForTimeout(3000); await pb.screenshot({ path: SHOT + '09c-mapa-aproximado-na-beira.png' }); } }
       if (!clientChecked && m > END_BULK + 3000) { // a meio: o cliente abre o link
         clientChecked = true;
         await client.goto(shareLink.replace(/^https?:\/\/[^/]+/, B)); await client.getByText(/Agora:/).first().waitFor({ timeout: 15000 }); await client.getByText(/Já passou por /).first().waitFor(); await client.waitForTimeout(1500);
@@ -202,7 +210,9 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     for (let i = 0; i < 30; i++) { const s = (await db.query('select status from trips where id = $1', [tripId])).rows[0].status; if (s === 'concluida') break; await pb.waitForTimeout(1000); }
     const t = (await db.query(`select t.status, (select count(*)::int from trip_events e where e.trip_id = t.id and e.kind = 'chegada' and e.actor_type = 'system') auto from trips t where t.id = $1`, [tripId])).rows[0];
     if (t.status !== 'concluida' || t.auto !== 1) throw new Error('não concluiu sozinha: ' + JSON.stringify(t));
-    return 'chegou à Beira → "Concluída" automaticamente';
+    if (!(overview > 50 && overview < 400)) throw new Error('ao entrar o mapa não mostra a rota inteira (escala ' + overview + ')');
+    if (!zoomed) throw new Error('ao chegar à Beira o mapa não aproximou');
+    return `chegou à Beira → "Concluída" automaticamente; mapa: rota inteira (${Math.round(overview)} px) → aproximado ao chegar (${Math.round(zoomed)} px)`;
   });
   await step('10-depois-da-chegada', client, async () => {
     await client.reload(); await client.getByText(/Entregue|Concluída/).first().waitFor({ timeout: 20000 });

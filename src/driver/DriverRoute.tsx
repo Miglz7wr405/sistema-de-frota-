@@ -8,15 +8,16 @@ import type { RouteModel } from '@/lib/geo/progress';
 
 const DriverMap = lazy(() => import('./DriverMap'));
 
-export function DriverRoute({ me, model, kmDone, pos, road }: { me: Me; model: RouteModel | null; kmDone: number | null; pos: Pos | null; road: Road | null }) {
-  const [view, setView] = useState<'strip' | 'map'>(() => (localStorage.getItem('if_driver_view') === 'map' ? 'map' : 'strip'));
+export function DriverRoute({ me, model, kmDone, pos, road, arrivedPlaceId }: { me: Me; model: RouteModel | null; kmDone: number | null; pos: Pos | null; road: Road | null; arrivedPlaceId?: string | null }) {
+  // primeiro o Mapa (por omissão), depois o Percurso
+  const [view, setView] = useState<'strip' | 'map'>(() => (localStorage.getItem('if_driver_view') === 'strip' ? 'strip' : 'map'));
   if (!me.trip || !me.route) return null;
   const set = (v: 'strip' | 'map') => { setView(v); try { localStorage.setItem('if_driver_view', v); } catch { /* */ } };
   const totalKm = me.route.lengthM / 1000;
   return (
     <div className="card overflow-hidden">
       <div className="flex border-b border-border text-sm font-semibold" role="tablist">
-        {(['strip', 'map'] as const).map((v) => (
+        {(['map', 'strip'] as const).map((v) => (
           <button key={v} role="tab" aria-selected={view === v} onClick={() => set(v)}
             className={`flex-1 py-2.5 ${view === v ? 'border-b-2 border-primary text-primary' : 'text-muted'}`}>{v === 'strip' ? t.driverApp.viewStrip : t.driverApp.viewMap}</button>))}
       </div>
@@ -25,7 +26,7 @@ export function DriverRoute({ me, model, kmDone, pos, road }: { me: Me; model: R
             places={me.route.places.map((p) => ({ name: p.name, km: p.kmFromOrigin, importance: p.importance }))} /></div>
         : <Suspense fallback={<div className="flex h-[340px] items-center justify-center text-sm text-muted">{t.map.loading}</div>}>
             <DriverMap model={model} kmDoneModel={kmDone != null && model ? kmDone * (model.lengthM / 1000 / totalKm) : null} pos={pos} road={road}
-              origin={me.route.coords[0]!} destination={me.route.coords[me.route.coords.length - 1]!} fitKey={me.route.routeId} />
+              origin={me.route.coords[0]!} destination={me.route.coords[me.route.coords.length - 1]!} fitKey={me.route.routeId} arrivedPlaceId={arrivedPlaceId} />
           </Suspense>}
     </div>
   );

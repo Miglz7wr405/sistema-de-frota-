@@ -191,7 +191,18 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.getByRole('button', { name: 'Terminar teste' }).waitFor();
     if (await tp.getByRole('button', { name: 'Falar' }).count()) throw new Error('botão "Falar" ainda existe');
     // esquema do percurso com o camião
-    await tp.getByRole('tab', { name: 'Percurso' }).waitFor();
+    // primeiro o Mapa (por omissão), depois o Percurso
+    const tabs = await tp.getByRole('tab').allInnerTexts();
+    if (tabs[0] !== 'Mapa' || tabs[1] !== 'Percurso') throw new Error('ordem das abas: ' + tabs.join(','));
+    await tp.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    // mapa fixo: arrastar não muda nada
+    await tp.waitForTimeout(3000);
+    const proj = () => tp.evaluate(() => { const h = [...document.querySelectorAll('*')].find((x) => x.__project); return h.__project([36.88, -17.86]); });
+    const before = await proj(); const bx = await tp.locator('.maplibregl-canvas').boundingBox();
+    await tp.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2); await tp.mouse.down(); await tp.mouse.move(bx.x + 40, bx.y + 40, { steps: 6 }); await tp.mouse.up();
+    const after = await proj();
+    if (Math.abs(after.x - before.x) > 1 || Math.abs(after.y - before.y) > 1) throw new Error('o mapa do motorista mexeu');
+    await tp.getByRole('tab', { name: 'Percurso' }).click();
     if (!(await tp.locator('svg[role=img]').count())) throw new Error('sem esquema do percurso');
   });
   await tstep('13b-motorista-mapa', async () => {

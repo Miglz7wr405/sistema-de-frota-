@@ -8,8 +8,8 @@ let provider: MapProvider = maplibreProvider;
 export const setMapProvider = (p: MapProvider) => { provider = p; };
 
 /** Mapa declarativo. `fitKey` muda → volta a enquadrar `fitTo`. */
-export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleClick, interactive = true, controls = true }: {
-  state: MapState; fitTo?: LngLat[]; fitKey?: string; className?: string; onClick?: (p: LngLat) => void; onVehicleClick?: (id: string) => void; interactive?: boolean; controls?: boolean;
+export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleClick, interactive = true, controls = true, fitDurationMs = 0 }: {
+  state: MapState; fitTo?: LngLat[]; fitKey?: string; className?: string; onClick?: (p: LngLat) => void; onVehicleClick?: (id: string) => void; interactive?: boolean; controls?: boolean; fitDurationMs?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [h, setH] = useState<MapHandle | null>(null);
@@ -42,9 +42,10 @@ export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleCli
   useEffect(() => {
     if (!h || !fitTo?.length) return;
     if (lastFit.current === fitKey && fitKey !== undefined) return;
+    const first = lastFit.current === undefined;
     lastFit.current = fitKey;
     h.resize();
-    h.fit(fitTo);
+    h.fit(fitTo, undefined, first ? 0 : fitDurationMs);
   }, [h, fitTo, fitKey]);
 
   return (

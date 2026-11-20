@@ -125,7 +125,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
               {(trip.recipient_name || trip.recipient_phone) && <p className="mt-1"><span className="text-muted">{t.trip.cargoOwner}:</span> <b>{trip.recipient_name ?? ''}</b>
                 {trip.recipient_phone && <> · <a className="text-primary" href={`tel:${trip.recipient_phone}`}>{trip.recipient_phone}</a></>}</p>}
             </div>}
-            <DriverRoute me={me} model={rt.route} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} pos={rt.pos} road={rt.road} />
+            <DriverRoute me={me} model={rt.route} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} pos={rt.pos} road={rt.road}
+              arrivedPlaceId={rt.snap?.places.find((p) => p.state === 'atual' && p.importance >= 3 && p.kmFromOrigin > 1)?.placeId ?? null} />
             {!moving && <div className="card flex items-center gap-4 p-4"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Navigation className="h-6 w-6" /></span>
               <div><p className="text-sm text-muted">{t.driverApp.nextPoint}</p><p className="text-xl font-bold">{next ? `${next.name} · ${formatKm((next.kmFromOrigin - (rt.snap?.kmDone ?? 0)) / scale)}` : rt.snap ? t.label(rt.snap.label) : t.common.noData}</p></div></div>}
             <div className="grid grid-cols-2 gap-3">

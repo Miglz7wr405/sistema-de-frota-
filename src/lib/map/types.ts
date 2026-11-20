@@ -11,7 +11,7 @@ export type MapState = {
 };
 export interface MapHandle {
   update(state: MapState): void;
-  fit(coords: LngLat[], padding?: number): void;
+  fit(coords: LngLat[], padding?: number, durationMs?: number): void;
   onClick(cb: (p: LngLat) => void): void;
   onVehicleClick(cb: (id: string) => void): void;
   resize(): void;

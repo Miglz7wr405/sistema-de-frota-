@@ -127,12 +127,13 @@ export const maplibreProvider: MapProvider = {
           for (const p of s.points) pMarkers.set(p.id, new maplibregl.Marker({ element: pointEl(p), anchor: 'center' }).setLngLat([p.lng, p.lat]).addTo(map));
         }
       },
-      fit(coords, padding = 60) {
+      fit(coords, padding = 60, durationMs = 0) {
         if (!coords.length) return;
-        if (coords.length === 1) { map.easeTo({ center: coords[0], zoom: 11, duration: 0 }); return; }
+        if (coords.length === 1) { map.easeTo({ center: coords[0], zoom: 11, duration: durationMs }); return; }
         const b = new maplibregl.LngLatBounds(coords[0], coords[0]);
         for (const c of coords) b.extend(c);
-        map.fitBounds(b, { padding, duration: 0, maxZoom: 13 });
+        // com duração: animação suave de aproximar/afastar (a única animação além do movimento do camião)
+        map.fitBounds(b, { padding, duration: durationMs, maxZoom: 13, essential: true });
       },
       onClick(cb) { map.on('click', (e) => cb([e.lngLat.lng, e.lngLat.lat])); },
       onVehicleClick(cb) { vehicleClick = cb; },
