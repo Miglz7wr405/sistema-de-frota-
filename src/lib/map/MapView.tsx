@@ -8,8 +8,8 @@ let provider: MapProvider = maplibreProvider;
 export const setMapProvider = (p: MapProvider) => { provider = p; };
 
 /** Mapa declarativo. `fitKey` muda → volta a enquadrar `fitTo`. */
-export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleClick, interactive = true }: {
-  state: MapState; fitTo?: LngLat[]; fitKey?: string; className?: string; onClick?: (p: LngLat) => void; onVehicleClick?: (id: string) => void; interactive?: boolean;
+export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleClick, interactive = true, controls = true }: {
+  state: MapState; fitTo?: LngLat[]; fitKey?: string; className?: string; onClick?: (p: LngLat) => void; onVehicleClick?: (id: string) => void; interactive?: boolean; controls?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [h, setH] = useState<MapHandle | null>(null);
@@ -20,13 +20,15 @@ export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleCli
   useEffect(() => {
     let handle: MapHandle | null = null;
     let dead = false;
-    provider.create(ref.current!, { interactive }).then((m) => {
+    provider.create(ref.current!, { interactive, controls }).then((m) => {
       if (dead) { m.destroy(); return; }
       handle = m;
+      m.resize(); // o contentor pode ter mudado de tamanho enquanto o mapa carregava
+      requestAnimationFrame(() => m.resize());
       m.onClick((p) => cbs.current.onClick?.(p));
       m.onVehicleClick((id) => cbs.current.onVehicleClick?.(id));
       setH(m);
-    }).catch(() => setFailed(true));
+    }).catch((e) => { console.warn('[mapa]', e?.message ?? e); setFailed(true); });
     const ro = new ResizeObserver(() => handle?.resize());
     ro.observe(ref.current!);
     return () => { dead = true; ro.disconnect(); handle?.destroy(); };
@@ -38,12 +40,14 @@ export function MapView({ state, fitTo, fitKey, className, onClick, onVehicleCli
     if (!h || !fitTo?.length) return;
     if (lastFit.current === fitKey && fitKey !== undefined) return;
     lastFit.current = fitKey;
+    h.resize();
     h.fit(fitTo);
   }, [h, fitTo, fitKey]);
 
   return (
-    <div className={className} style={{ position: 'relative' }}>
-      <div ref={ref} className="absolute inset-0 overflow-hidden rounded-[inherit]" />
+    <div className={className} style={/\b(absolute|fixed)\b/.test(className ?? '') ? undefined : { position: 'relative' }}>
+      {/* posição em estilo direto: o CSS do MapLibre (.maplibregl-map { position: relative }) anularia a classe e o mapa ficaria com ~34 px */}
+      <div ref={ref} className="overflow-hidden rounded-[inherit]" style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} />
       {!h && !failed && <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-sm text-muted">{t.map.loading}</div>}
       {failed && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-100 text-sm text-muted"><MapPinOff className="h-6 w-6" />{t.map.unavailable}</div>}
     </div>

@@ -53,12 +53,20 @@ export function mapError(e: unknown): Res {
 }
 
 export async function dispatch(req: Req): Promise<Res> {
-  // Proteção CSRF: pedidos que alteram dados com cookie têm de vir da mesma origem.
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.cookie && req.headers.origin) {
-    const host = req.headers['x-forwarded-host'] ?? req.headers.host;
-    try {
-      if (new URL(req.headers.origin).host !== host) return { status: 403, json: { error: 'origem_invalida' } };
-    } catch { return { status: 403, json: { error: 'origem_invalida' } }; }
+  // Proteção CSRF (pedidos que alteram dados com cookie). O cookie já é SameSite=Lax; além disso:
+  // 1) se o navegador indicar Sec-Fetch-Site, só se recusa 'cross-site';
+  // 2) sem esse cabeçalho, a Origin tem de coincidir com um dos anfitriões conhecidos (x-forwarded-host, host, PUBLIC_BASE_URL).
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers.cookie) {
+    const site = req.headers['sec-fetch-site'];
+    if (site) {
+      if (site === 'cross-site') return { status: 403, json: { error: 'origem_invalida' } };
+    } else if (req.headers.origin) {
+      const allowed = new Set([req.headers['x-forwarded-host'], req.headers.host,
+        process.env.PUBLIC_BASE_URL ? new URL(process.env.PUBLIC_BASE_URL).host : undefined].filter(Boolean) as string[]);
+      let originHost = '';
+      try { originHost = new URL(req.headers.origin).host; } catch { /* inválida */ }
+      if (!allowed.has(originHost)) return { status: 403, json: { error: 'origem_invalida' } };
+    }
   }
   for (const r of routes) {
     if (r.method !== req.method) continue;

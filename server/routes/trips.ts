@@ -73,6 +73,8 @@ route('POST', '/api/trips', async (req) => {
 route('GET', '/api/trips/:id', async (req, p) => {
   const m = await requireMember(req);
   const id = assertUuid(p.id);
+  const { advanceDemo } = await import('../demo.js');
+  await advanceDemo(m.orgId).catch(() => {});
   return ok(await asMember(m, async (c) => {
     const trip = await one(c, `select t.*, po.name origin, ST_X(po.geom::geometry) origin_lng, ST_Y(po.geom::geometry) origin_lat,
         pd.name destination, ST_X(pd.geom::geometry) dest_lng, ST_Y(pd.geom::geometry) dest_lat,

@@ -98,3 +98,56 @@ export async function importPlaces(c: pg.ClientBase) {
   await c.query(`update places p set province_id = a.id from admin_areas a where a.level = 1 and ST_Covers(a.geom, p.geom) and p.province_id is distinct from a.id`);
   return { places: n, by_kind: rows.reduce((m: Record<string, number>, r) => ({ ...m, [r.kind]: (m[r.kind] ?? 0) + 1 }), {}) };
 }
+
+// ── Províncias completas a partir do geoBoundaries (ADM1, simplificado) ─────────────────────────────────
+// ⚠️ DEPENDÊNCIA EXTERNA: geoboundaries.org / GitHub (gratuito). Licença CC BY 4.0; origem OCHA COD-AB.
+// Um único GeoJSON pequeno: evita os pedidos pesados ao Overpass que eram recusados.
+const GB_API = 'https://www.geoboundaries.org/api/current/gbOpen/MOZ/ADM1/';
+const GB_RAW = 'https://github.com/wmgeolab/geoBoundaries/raw/main/releaseData/gbOpen/MOZ/ADM1/geoBoundaries-MOZ-ADM1_simplified.geojson';
+// Nomes em português de Moçambique para os nomes ingleses/sem acento do geoBoundaries.
+const PT_NAMES: Record<string, string> = { 'maputo city': 'Cidade de Maputo', 'cidade de maputo': 'Cidade de Maputo', 'maputo cidade': 'Cidade de Maputo',
+  zambezia: 'Zambézia', 'zambézia': 'Zambézia' };
+const ptName = (n: string) => PT_NAMES[n.trim().toLowerCase()] ?? n.trim();
+const norm = (n: string) => n.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '');
+
+async function fetchJson(url: string) {
+  const r = await fetch(url, { headers: { 'user-agent': 'insightFrota/0.1' }, signal: AbortSignal.timeout(40_000), redirect: 'follow' });
+  if (!r.ok) throw new Error(`geoboundaries_${r.status}`);
+  return r.json() as Promise<any>;
+}
+
+export async function importProvincesGeoBoundaries(c: pg.ClientBase, override?: { features: any[] }) {
+  let fc: { features: any[] } | null = override ?? null;
+  let source = 'override';
+  if (!fc) {
+    try {
+      const meta = await fetchJson(GB_API);
+      source = meta.simplifiedGeometryGeoJSON;
+      fc = await fetchJson(source);
+    } catch {
+      source = GB_RAW;
+      fc = await fetchJson(GB_RAW);
+    }
+  }
+  const ds = (await c.query(`insert into geo_datasets (name, source_url, license, retrieved_at, version) values ($1, $2, 'CC BY 4.0 (geoBoundaries / OCHA COD-AB)', now(), 'ADM1 simplificado') returning id`,
+    ['geoBoundaries — províncias de Moçambique (ADM1)', source])).rows[0].id;
+  const existing = (await c.query(`select id, name, code from admin_areas where level = 1`)).rows as { id: string; name: string; code: string }[];
+  let n = 0;
+  for (const f of fc!.features) {
+    const raw = String(f.properties?.shapeName ?? f.properties?.name ?? '').trim();
+    if (!raw || !f.geometry) continue;
+    const name = ptName(raw);
+    const match = existing.find((e) => norm(e.name) === norm(name));
+    const code = match?.code ?? String(f.properties?.shapeISO || f.properties?.shapeID || `gb-${norm(name)}`);
+    await c.query(`insert into admin_areas (level, name, code, geom, dataset_id)
+      values (1, $1, $2, ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)), 3))::geography, $4)
+      on conflict (level, code) do update set name = excluded.name, geom = excluded.geom, dataset_id = excluded.dataset_id, updated_at = now()`,
+      [match?.name ?? name, code, JSON.stringify(f.geometry), ds]);
+    n++;
+  }
+  // Liga cada localidade à província que a contém; no litoral (polígono simplificado) usa a província mais próxima até 10 km.
+  await c.query(`update places p set province_id = a.id from admin_areas a where a.level = 1 and ST_Covers(a.geom, p.geom) and p.province_id is distinct from a.id`);
+  await c.query(`update places p set province_id = (select a.id from admin_areas a where a.level = 1 and ST_DWithin(a.geom, p.geom, 10000) order by ST_Distance(a.geom, p.geom) limit 1)
+    where p.province_id is null`);
+  return { provinces: n, source };
+}

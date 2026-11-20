@@ -18,5 +18,5 @@ export interface MapHandle {
   destroy(): void;
 }
 export interface MapProvider {
-  create(container: HTMLElement, opts: { center?: LngLat; zoom?: number; interactive?: boolean }): Promise<MapHandle>;
+  create(container: HTMLElement, opts: { center?: LngLat; zoom?: number; interactive?: boolean; controls?: boolean }): Promise<MapHandle>;
 }

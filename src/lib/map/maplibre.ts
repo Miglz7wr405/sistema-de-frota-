@@ -3,6 +3,15 @@
 import type { MapHandle, MapProvider, MapState, LngLat, VehicleMarker, PointMarker } from './types';
 
 const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL ?? 'https://tiles.openfreemap.org/styles/liberty';
+// Mapa de reserva se o principal não carregar (rede bloqueada, serviço em baixo): tiles raster OpenStreetMap.
+// ⚠️ DEPENDÊNCIA EXTERNA: tile.openstreetmap.org — gratuito, uso moderado, atribuição obrigatória, sem SLA.
+const FALLBACK_STYLE = {
+  version: 8 as const,
+  sources: { osm: { type: 'raster' as const, tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' } },
+  layers: [{ id: 'osm', type: 'raster' as const, source: 'osm' }],
+};
+const LOAD_TIMEOUT_MS = 10_000;
 const COLORS = { primary: '#1769E8', success: '#16A36A', muted: '#94A3B8', danger: '#C62828' };
 
 const truckSvg = (color: string) => `<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="16" fill="${color}" fill-opacity="0.18"/>
@@ -11,12 +20,26 @@ const truckSvg = (color: string) => `<svg width="34" height="34" viewBox="0 0 34
 export const maplibreProvider: MapProvider = {
   async create(container, opts) {
     const [{ default: maplibregl }] = await Promise.all([import('maplibre-gl'), import('maplibre-gl/dist/maplibre-gl.css')]);
-    const map = new maplibregl.Map({
-      container, style: STYLE_URL, center: opts.center ?? [35.5, -18.7], zoom: opts.zoom ?? 5.2, interactive: opts.interactive ?? true,
-      attributionControl: { compact: true },
+    const make = (style: string | typeof FALLBACK_STYLE) => new maplibregl.Map({
+      container, style: style as maplibregl.StyleSpecification | string, center: opts.center ?? [35.5, -18.7], zoom: opts.zoom ?? 5.2,
+      interactive: opts.interactive ?? true, attributionControl: { compact: true },
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-    await new Promise<void>((r) => (map.loaded() ? r() : map.once('load', () => r())));
+    // Espera pelo estilo com tempo limite; se falhar, tenta o mapa de reserva (nunca fica "a carregar" para sempre).
+    const waitLoad = (m: maplibregl.Map) => new Promise<void>((resolve, reject) => {
+      if (m.loaded()) return resolve();
+      const t = setTimeout(() => reject(new Error('tempo_esgotado')), LOAD_TIMEOUT_MS);
+      m.once('load', () => { clearTimeout(t); resolve(); });
+      m.on('error', (e) => { if (!m.isStyleLoaded()) { clearTimeout(t); reject(e.error ?? new Error('erro_estilo')); } });
+    });
+    let map = make(STYLE_URL);
+    try { await waitLoad(map); }
+    catch (e) {
+      console.warn('[mapa] estilo principal falhou, a usar o mapa de reserva:', (e as Error)?.message);
+      map.remove();
+      map = make(FALLBACK_STYLE);
+      await waitLoad(map);
+    }
+    if (opts.controls !== false) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     const lineSrc = (id: string, color: string, dashed: boolean, width: number, opacity = 1) => {
       map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });

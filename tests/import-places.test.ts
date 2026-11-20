@@ -59,3 +59,18 @@ d('importação de localidades (OSM)', () => {
     expect(ds.every((x) => x.license.includes('ODbL'))).toBe(true);
   });
 });
+
+d('províncias do geoBoundaries', () => {
+  it('importa, traduz nomes, reutiliza o código existente e liga localidades (inclui as do litoral)', async () => {
+    const { importProvincesGeoBoundaries } = await import('../tools/import-places/core');
+    const sq = (x0: number, y0: number, x1: number, y1: number) => ({ type: 'Polygon', coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] });
+    const r = await importProvincesGeoBoundaries(c, { features: [
+      { properties: { shapeName: 'Província Norte Teste', shapeISO: 'MZ-XX' }, geometry: sq(36, -18, 37, -17) },
+      { properties: { shapeName: 'Zambezia', shapeISO: 'MZ-Q' }, geometry: sq(37, -18, 38, -17) },
+    ] });
+    expect(r.provinces).toBe(2);
+    const names = (await c.query(`select name, code from admin_areas order by name`)).rows;
+    expect(names.map((x) => x.name)).toEqual(['Província Norte Teste', 'Província Sul Teste', 'Zambézia']);
+    expect(names.find((x) => x.name === 'Província Norte Teste').code).toBe('MZ-T1'); // reutiliza o código já existente
+  });
+});

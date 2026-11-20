@@ -151,6 +151,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
                 <button className="w-full py-2 text-sm text-muted" onClick={() => setModal('voice')}>{t.driverApp.voiceTest}</button>
               </div>
             </>}
+            {rt.gps.status === 'denied' && <p className="rounded-lg bg-danger-soft p-3 text-sm text-danger" role="alert">{t.driverApp.gpsDeniedHelp}</p>}
+            {!window.isSecureContext && <p className="rounded-lg bg-warning-soft p-3 text-sm text-warning">{t.driverApp.gpsNeedsHttps}</p>}
             <p className="text-center text-xs text-muted">{t.driverApp.keepOpen}</p>
           </> : (
             <div className="flex flex-1 flex-col gap-3">

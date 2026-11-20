@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Edit3, KeyRound, MessageCircle, Trash2 } from 'lucide-react';
@@ -20,6 +21,8 @@ export default function DriverDetail() {
   const [pinOpen, setPinOpen] = useState(false);
   const [pin, setPin] = useState('');
   const [link, setLink] = useState<string | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
+  useEffect(() => { if (link) QRCode.toDataURL(link, { width: 260, margin: 1 }).then(setQr); else setQr(null); }, [link]);
   const q = useQuery({ queryKey: ['driver', id], queryFn: () => api<any>(`/api/drivers/${id}`) });
   const issue = useMutation({ mutationFn: () => api<{ link: string }>(`/api/drivers/${id}/access`, { body: { pin } }), onSuccess: (r) => { setLink(r.link); setPin(''); qc.invalidateQueries({ queryKey: ['driver', id] }); } });
   const revoke = useMutation({ mutationFn: () => api(`/api/drivers/${id}/access`, { method: 'DELETE' }), onSuccess: () => qc.invalidateQueries({ queryKey: ['driver', id] }) });
@@ -52,6 +55,7 @@ export default function DriverDetail() {
             <div className="space-y-3">
               <p className="text-sm text-muted">{t.driver.accessLinkHelp}</p>
               <div className="flex gap-2"><Input readOnly value={link} /><Button variant="secondary" onClick={() => navigator.clipboard.writeText(link)} aria-label={t.common.copy}><Copy className="h-4 w-4" /></Button></div>
+              {qr && <div className="text-center"><p className="mb-1 text-sm text-muted">{t.driver.accessQr}</p><img src={qr} alt="QR" className="mx-auto w-52" /></div>}
               <a href={`https://wa.me/${d.driver.phone.replace('+', '')}?text=${encodeURIComponent(t.driver.accessWhatsapp(d.driver.full_name, link))}`} target="_blank" rel="noreferrer">
                 <Button variant="success" className="w-full"><MessageCircle className="h-4 w-4" />{t.share.whatsapp}</Button></a>
             </div>

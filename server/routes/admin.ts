@@ -34,18 +34,15 @@ import { withSystem } from '../db.js';
 import { hit } from '../auth.js';
 import { sendPushForAlerts } from '../push.js';
 
-/** Completa a base de províncias aos poucos (o Overpass gratuito recusa pedidos pesados): 1 tentativa por 30 min. */
+/** Completa a base de províncias (11) a partir do geoBoundaries, se faltar alguma. No máximo 1 tentativa a cada 30 min. */
 async function completeProvinces() {
   try {
-    const have = await withSystem((c) => c.query('select code from admin_areas where level = 1'));
-    if ((have.rowCount ?? 0) >= 11 || !(await hit('jobs:provinces', 1800, 1))) return null;
-    process.env.OVERPASS_MIRROR_INDEX = '2';
-    const { listProvinces, importProvince } = await import('../../tools/import-places/core.js');
-    const list = await listProvinces();
-    const done = await withSystem((c) => c.query('select name from admin_areas where level = 1'));
-    const names = new Set(done.rows.map((r) => r.name));
-    const next = list.find((p) => !names.has(p.name));
-    return next ? await withSystem((c) => importProvince(c, next.id)) : null;
+    const have = await withSystem((c) => c.query('select count(*)::int n from admin_areas where level = 1'));
+    if (have.rows[0].n >= 11 || !(await hit('jobs:provinces', 1800, 1))) return null;
+    const { importProvincesGeoBoundaries } = await import('../../tools/import-places/core.js');
+    const r = await withSystem((c) => importProvincesGeoBoundaries(c));
+    console.log('[provincias]', JSON.stringify(r));
+    return r;
   } catch (e) { console.warn('[provincias]', (e as Error).message); return null; }
 }
 

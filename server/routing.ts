@@ -55,8 +55,20 @@ const ors: RoutingProvider = async (points) => {
 let override: RoutingProvider | null = null;
 export const setRoutingProviderForTests = (p: RoutingProvider | null) => { override = p; };
 
+/** SÓ PARA TESTES LOCAIS (E2E sem acesso à internet): linha sintética entre os pontos. Nunca ativa na Vercel. */
+const e2eStub: RoutingProvider = async (points) => {
+  const coords: LngLat[] = [];
+  for (let k = 0; k < points.length - 1; k++) {
+    const [a, b] = [points[k]!, points[k + 1]!];
+    for (let i = k ? 1 : 0; i <= 120; i++) { const f = i / 120; coords.push([a[0] + (b[0] - a[0]) * f + Math.sin(f * Math.PI) * 0.05, a[1] + (b[1] - a[1]) * f]); }
+  }
+  const cum = cumulative(coords);
+  return { provider: 'teste-local', coords, cum, lengthM: cum[cum.length - 1]!, durationS: (cum[cum.length - 1]! / 1000 / 55) * 3600, roads: [], validatedForTruck: false };
+};
+
 async function callProviders(points: LngLat[], truck: TruckProfile): Promise<PlannedRoute> {
   if (override) return override(points, truck);
+  if (process.env.E2E_ROUTING_STUB === '1' && !process.env.VERCEL) return e2eStub(points, truck);
   const chain: RoutingProvider[] = process.env.ORS_API_KEY ? [ors, valhalla] : [valhalla];
   let last: unknown;
   for (const p of chain) {

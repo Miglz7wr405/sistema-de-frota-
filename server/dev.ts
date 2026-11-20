@@ -10,5 +10,9 @@ for (const f of ['.env.local', '.env']) {
 }
 const { handle } = await import('./node-adapter.js');
 const port = Number(process.env.API_PORT ?? 3001);
-createServer((req, res) => { handle(req, res).catch((e) => { console.error(e); res.writeHead(500); res.end(); }); })
+// E2E local: estilo de mapa mínimo (o contentor de testes não chega aos tiles reais).
+const testStyle = JSON.stringify({ version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#e8eef3' } }] });
+createServer((req, res) => {
+  if (process.env.E2E_ROUTING_STUB === '1' && req.url === '/__test/style.json') { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' }); res.end(testStyle); return; }
+  handle(req, res).catch((e) => { console.error(e); res.writeHead(500); res.end(); }); })
   .listen(port, () => console.log(`API em http://localhost:${port}`));

@@ -78,6 +78,7 @@ route('POST', '/api/routes/plan', async (req) => {
 
 route('GET', '/api/fleet/live', async (req) => {
   const m = await requireMember(req);
+  await tickDemo(m.orgId);
   return ok(await asMember(m, async (c) => ({
     vehicles: await many(c, `select s.id, s.plate, s.main_status, s.freshness, s.last_position_at, s.last_source, s.speed_kmh, s.heading, s.lng, s.lat,
         s.active_trip_id, s.active_trip_code, p.current_label, p.km_left, p.eta_destination, p.eta_confidence, d.full_name driver
@@ -90,6 +91,7 @@ route('GET', '/api/fleet/live', async (req) => {
 route('GET', '/api/dashboard', async (req) => {
   const m = await requireMember(req);
   await maybeRunJobs();
+  await tickDemo(m.orgId);
   return ok(await asMember(m, async (c) => {
     const counts = await one(c, `select count(*)::int total,
         count(*) filter (where main_status = 'em_viagem')::int em_viagem, count(*) filter (where main_status = 'disponivel')::int disponiveis,
@@ -128,3 +130,20 @@ route('GET', '/api/geo/provinces', async () => {
   const { withSystem } = await import('../db.js');
   return ok(await withSystem((c) => many(c, 'select id, name from admin_areas where level = 1 order by name')));
 });
+
+// ── Demonstração (simulador) ──
+import { advanceDemo, demoStatus, startDemo, stopDemo } from '../demo.js';
+route('GET', '/api/demo', async (req) => {
+  const m = await requireMember(req);
+  return ok({ demo: await demoStatus(m.orgId) });
+});
+route('POST', '/api/demo/start', async (req) => {
+  const m = await requireMember(req, WRITE);
+  return ok({ demo: await startDemo(m.orgId, m.userId) }, 201);
+});
+route('POST', '/api/demo/stop', async (req) => {
+  const m = await requireMember(req, WRITE);
+  await stopDemo(m.orgId);
+  return ok({ ok: true });
+});
+export const tickDemo = (org: string) => advanceDemo(org).catch((e) => console.warn('[demo]', (e as Error).message));
