@@ -174,9 +174,15 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
   const pb = await phoneB.newPage(); watch(pb, 'telemóvel-2');
   const client = await (await browser.newContext({ viewport: { width: 400, height: 860 } })).newPage(); watch(client, 'cliente');
   await step('08-volta-a-abrir-gps-sozinho', pb, async () => {
-    await pb.goto(`${B}/app/trips/${tripId}`); // posição antiga → abre sozinho o ecrã do motorista
+    await pb.goto(`${B}/app/dashboard`); // entrar na app: com a viagem em curso, abre sozinho o ecrã do motorista e liga o GPS
     await pb.waitForURL(/\/driver\/?$/, { timeout: 25000 });
     await pb.getByText(/GPS a enviar/).first().waitFor({ timeout: 20000 });
+    // logo ao entrar: onde está e o que já passou (do servidor, antes de andar)
+    await pb.getByText(/Agora: /).first().waitFor({ timeout: 15000 });
+    const passou = await pb.getByText(/Já passou por /).first().innerText();
+    const kmTxt = await pb.getByText(/km feitos/).first().innerText();
+    if (!/6[45]\d/.test(kmTxt.replace(/\s/g, ''))) throw new Error('não retomou no km certo: ' + kmTxt);
+    return `${passou}; ${kmTxt.trim()}`;
   });
   let clientChecked = false;
   await step('09-ultimos-km-ate-a-beira', pb, async () => {
@@ -184,7 +190,7 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
       const [lng, lat] = noisy(at(BEIRA, m), 3); await phoneB.setGeolocation({ latitude: lat, longitude: lng, accuracy: 6 }); await pb.waitForTimeout(2000);
       if (!clientChecked && m > END_BULK + 3000) { // a meio: o cliente abre o link
         clientChecked = true;
-        await client.goto(shareLink.replace(/^https?:\/\/[^/]+/, B)); await client.getByText(/Agora:/).first().waitFor({ timeout: 15000 }); await client.waitForTimeout(1500);
+        await client.goto(shareLink.replace(/^https?:\/\/[^/]+/, B)); await client.getByText(/Agora:/).first().waitFor({ timeout: 15000 }); await client.getByText(/Já passou por /).first().waitFor(); await client.waitForTimeout(1500);
         await client.screenshot({ path: SHOT + '09b-cliente-a-meio.png', fullPage: true });
         const proj = () => client.evaluate(() => { const h = [...document.querySelectorAll('*')].find((x) => x.__project); return h.__project([34.84, -19.8]); });
         const before = await proj(); const bx = await client.locator('.maplibregl-canvas').boundingBox();

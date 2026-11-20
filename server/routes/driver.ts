@@ -48,7 +48,10 @@ route('GET', '/api/driver/me', async (req) => {
         route_ = { routeId: model.routeId, version: model.routeVersion, baseKm: model.baseKm, coords, lengthM: model.lengthM, plannedDurationS: model.plannedDurationS, places: model.places };
       }
       stops = await many(c, `select s.id, s.seq, s.kind, s.arrived_at, p.name place_name, s.recipient_name from trip_stops s join places p on p.id = s.place_id where s.trip_id = $1 order by s.seq`, [trip.id]);
-      progress = await one(c, 'select km_done, km_left, pct, current_label, eta_destination, eta_confidence, engine_state from trip_progress where trip_id = $1', [trip.id]);
+      progress = await one(c, `select pr.km_done, pr.km_left, pr.pct, pr.current_label, pr.eta_destination, pr.eta_confidence, pr.engine_state,
+          (select pl.name from trip_route_places rp join places pl on pl.id = rp.place_id where rp.trip_route_id = pr.trip_route_id and rp.passed_at is not null
+             and rp.km_from_origin > 0 order by rp.km_from_origin desc limit 1) last_passed
+        from trip_progress pr where pr.trip_id = $1`, [trip.id]);
     }
     // ownDriver: o motorista é o próprio utilizador (envio a cada 5 s, "Voltar ao painel"); testMode: viagem de teste do telemóvel
     const ownDriver = !!(await one(c, 'select 1 from drivers where id = $1 and user_id is not null', [d.driverId]));

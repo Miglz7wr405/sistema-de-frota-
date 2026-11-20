@@ -16,7 +16,7 @@ export type Me = {
   trip: { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; cargo_description: string | null; recipient_name?: string | null; recipient_phone?: string | null; planned_arrival: string | null } | null;
   route: { routeId: string; version: number; baseKm: number; coords: LngLat[]; lengthM: number; plannedDurationS: number; places: RouteModel['places'] } | null;
   stops: { id: string; seq: number; kind: string; arrived_at: string | null; place_name: string }[]; serverTime: string;
-  progress?: { km_done: number | null } | null;
+  progress?: { km_done: number | null; current_label?: string | null; last_passed?: string | null } | null;
 };
 
 export async function driverApi<T>(path: string, method = 'GET', body?: unknown): Promise<T> {

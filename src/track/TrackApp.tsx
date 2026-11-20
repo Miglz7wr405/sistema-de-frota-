@@ -99,6 +99,8 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
   const etaOk = active && p?.eta && p.eta_confidence !== 'indisponivel';
   const badge = dto.status === 'concluida' ? ['bg-primary text-white', t.trip.statuses.concluida] : dto.status === 'cancelada' ? ['bg-danger text-white', t.track.cancelled]
     : dto.status === 'pausada' ? ['bg-warning text-white', t.track.paused] : dto.status === 'em_viagem' ? ['bg-success text-white', t.trip.statuses.em_viagem] : ['bg-slate-200 text-navy', t.trip.statuses[dto.status]];
+  // última localidade já passada (real: hora em que o camião passou)
+  const lastPassed = [...dto.places].reverse().find((x) => x.state === 'passada' && x.km > 0 && x.passed_at) ?? null;
   const totalKm = p ? p.km_done + p.km_left : Math.max(0, ...dto.places.map((x) => x.km));
   return (
     // Telemóvel: cabeçalho, mapa FIXO (rota inteira enquadrada, não se arrasta) e por baixo a informação. Sem sobreposições.
@@ -112,7 +114,10 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
           <div><p className="text-sm text-muted">{t.track.trip}</p><p className="font-mono text-2xl font-bold tracking-wide">{dto.code}</p></div>
           <span className={`rounded-full px-3 py-1.5 text-sm font-semibold ${badge[0]}`}>{badge[1]}</span>
         </div>
-        {active && p?.current_label && fresh !== 'sem_sinal' && <p className="mt-3 rounded-2xl bg-primary-soft px-4 py-3 text-lg font-semibold text-navy">🚚 {t.track.nowAt(p.current_label)}</p>}
+        {active && (p?.current_label || lastPassed) && <div className="mt-3 rounded-2xl bg-primary-soft px-4 py-3">
+          {p?.current_label && <p className="text-lg font-semibold text-navy">🚚 {fresh === 'sem_sinal' ? t.track.lastSeenAt(p.current_label) : t.track.nowAt(p.current_label)}</p>}
+          {lastPassed && <p className="text-sm text-muted">{t.driverApp.passedPlace(lastPassed.name)}{lastPassed.passed_at ? ` · ${formatTime(lastPassed.passed_at)}` : ''}</p>}
+        </div>}
         {dto.status === 'concluida' && dto.delivered_at && <p className="mt-3 text-lg font-semibold text-success-text">{t.track.delivered(formatTime(dto.delivered_at))}</p>}
         {(dto.status === 'planeada' || dto.status === 'aguardando_partida') && <p className="mt-3 text-muted">{t.track.notStarted}</p>}
         <div className="mt-3 flex items-center justify-between text-sm"><span className="font-semibold">{active && p ? t.track.pctDone(p.pct) : ''}</span><span className="text-muted">{dto.origin} → {dto.destination}</span></div>

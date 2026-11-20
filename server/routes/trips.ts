@@ -211,6 +211,13 @@ route('POST', '/api/trips/:id/transition', async (req, p) => {
   return ok(t);
 });
 
+// Viagem em curso em que o motorista é o próprio utilizador (para ligar o GPS sozinho ao entrar na app, no telemóvel).
+route('GET', '/api/own-active-trip', async (req) => {
+  const m = await requireMember(req);
+  return ok(await asMember(m, (c) => one(c, `select t.id from trips t join drivers d on d.id = t.driver_id
+    where d.user_id = $1 and t.status in ('em_viagem','pausada') and t.deleted_at is null order by t.actual_departure desc limit 1`, [m.userId])) ?? null);
+});
+
 // "Usar o GPS deste telemóvel": só quando o motorista da viagem é o próprio utilizador (motorista ligado à conta).
 route('POST', '/api/trips/:id/my-driver-session', async (req, p) => {
   const m = await requireMember(req, WRITE);

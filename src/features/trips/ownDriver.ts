@@ -9,3 +9,6 @@ export async function openOwnDriverApp(tripId: string) {
 
 /** É um telemóvel (o aparelho que pode fazer de "camião")? No computador o dono acompanha; nunca abre o ecrã do motorista. */
 export const isPhone = () => window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 768;
+
+/** O utilizador tocou em "Voltar ao painel" nesta sessão: não o mandar de volta para o ecrã do motorista. */
+export const stayOnPanel = () => { try { return sessionStorage.getItem('if_painel') === '1'; } catch { return false; } };

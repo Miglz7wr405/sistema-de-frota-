@@ -590,3 +590,17 @@ d('chegada ao destino', () => {
   }, 30_000);
 });
 
+d('viagens entre quaisquer províncias', () => {
+  it('aceita uma viagem entre províncias diferentes e a viagem própria em curso é encontrada', async () => {
+    // localidades de teste em províncias diferentes (Norte e Sul de teste)
+    const pv = (await sys.query(`select p.id, a.name prov from places p join admin_areas a on a.id = p.province_id where p.id = any($1)`, [[ids.origin, ids.dest]])).rows;
+    expect(new Set(pv.map((x: { prov: string }) => x.prov)).size).toBe(2);
+    const r = await call('POST', '/api/trips', A, { origin_place_id: ids.dest, destination_place_id: ids.origin, cargo_description: 'Milho' });
+    expect(r.status).toBe(201);
+    expect(r.json.route.lengthKm).toBeGreaterThan(100);
+    const mine = await call('GET', '/api/own-active-trip', A);
+    expect(mine.status).toBe(200);
+    expect((await call('GET', '/api/own-active-trip', {})).status).toBe(401);
+  });
+});
+

@@ -14,7 +14,7 @@ import { ShareCard, type Share } from './ShareCard';
 import { RouteStrip, speedTrend } from '../tracking/RouteStrip';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
 import { useStartWithReplace } from './BusyTripDialog';
-import { isPhone, openOwnDriverApp } from './ownDriver';
+import { isPhone, openOwnDriverApp, stayOnPanel } from './ownDriver';
 
 type Detail = {
   trip: Record<string, any>; stops: any[]; events: { id: string; kind: string; occurred_at: string; payload: Record<string, any>; actor_name: string | null }[];
@@ -214,7 +214,7 @@ export default function TripDetail() {
               </div>
               {/* GPS parou e o motorista é o próprio utilizador (teste com o telemóvel): religar aqui mesmo */}
               {/* o motorista é o próprio utilizador e a posição não está atual: o GPS deste telemóvel liga-se sozinho */}
-              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && isPhone() && <AutoOwnGps tripId={id!} />}
+              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && isPhone() && !stayOnPanel() && <AutoOwnGps tripId={id!} />}
               {/* motorista real noutro telemóvel e a posição não está atual */}
               {active && fresh !== 'atual' && (!tr.driver_user_id || tr.driver_user_id !== me.data?.user?.id) && tr.driver_id && (
                 <div className="rounded-2xl border border-warning/40 bg-warning-soft p-4 text-sm text-navy">

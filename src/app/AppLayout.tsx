@@ -1,4 +1,5 @@
-import { Suspense, useState } from 'react';
+import { isPhone, openOwnDriverApp } from '@/features/trips/ownDriver';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, BarChart3, Cpu, Home, LogOut, Map, MapPin, Menu, Route as RouteIcon, Settings, Truck, Users, Wrench, X, Shield, Ruler } from 'lucide-react';
@@ -29,6 +30,14 @@ export function AppLayout({ platform }: { platform?: boolean }) {
   const nav = useNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  // Entrar na app no telemóvel com uma viagem em curso em que o motorista é o próprio → o GPS liga-se sozinho (ecrã do motorista).
+  // "Voltar ao painel" (?painel=1) deixa ficar no painel até fechar a app.
+  useEffect(() => {
+    if (new URLSearchParams(loc.search).get('painel') === '1') { try { sessionStorage.setItem('if_painel', '1'); } catch { /* */ } return; }
+    let stay = false; try { stay = sessionStorage.getItem('if_painel') === '1'; } catch { /* */ }
+    if (stay || !me.data?.activeOrgId || !isPhone()) return;
+    api<{ id: string } | null>('/api/own-active-trip').then((t) => { if (t?.id) void openOwnDriverApp(t.id); }).catch(() => {});
+  }, [me.data?.activeOrgId]);
   const notif = useQuery({ queryKey: ['notifications'], queryFn: () => api<{ unread: number }>('/api/notifications'), refetchInterval: 30_000, enabled: !!me.data?.activeOrgId });
 
   if (me.isLoading) return <Spinner />;

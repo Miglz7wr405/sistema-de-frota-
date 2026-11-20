@@ -105,7 +105,7 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
     <div className="flex min-h-[100dvh] flex-col bg-background">
       <header className="bg-navy px-5 pb-4 pt-5 text-white">
         {/* o dono (teste com o telemóvel) volta ao painel; motoristas reais só têm esta app */}
-        {rt.ownDriver && <a href="/app/dashboard" className="mb-2 inline-block text-sm font-semibold text-[#6EA8FF]">← {t.driverApp.backToPanel}</a>}
+        {rt.ownDriver && <a href="/app/dashboard?painel=1" className="mb-2 inline-block text-sm font-semibold text-[#6EA8FF]">← {t.driverApp.backToPanel}</a>}
         <p className="text-sm text-slate-300">{t.driverApp.hello(me.driver.fullName)}</p>
         <div className="flex items-center justify-between gap-2"><h1 className="text-2xl font-bold text-white">{trip ? `${trip.origin} → ${trip.destination}` : '—'}</h1>
           {trip && <span className="rounded-full bg-success-soft px-3 py-1 text-sm font-semibold text-success-text">{t.trip.statuses[trip.status]}</span>}</div>
@@ -116,6 +116,7 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
       {!trip ? <Centered>{t.driverApp.noTrip}</Centered> : (
         <main className="flex flex-1 flex-col gap-3 p-4">
           {status === 'em_viagem' || status === 'pausada' ? <>
+            <WhereNow rt={rt} me={me} />
             {/* sem botão: o GPS religa-se sozinho; só se o telemóvel bloquear a localização é preciso agir */}
             {rt.gps.status === 'denied' && <p className="rounded-2xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger" role="alert">{t.driverApp.gpsDeniedHelp}</p>}
             <SpeedCard rt={rt} kmLeft={kmLeft} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} />
@@ -298,6 +299,20 @@ function SpeedCard({ rt, kmLeft, kmDone }: { rt: ReturnType<typeof useDriverRunt
       <p className="mt-2 text-sm"><span className="text-muted">{t.strip.road}: </span><span className="font-semibold">{road?.roadName ?? t.strip.noRoad}</span></p>
       <p className="mt-1 text-sm text-muted">{kmDone != null ? `${t.strip.done(formatKm(kmDone))} · ` : ''}{t.strip.pace}: {paceS != null ? formatDuration(paceS) : '—'}
         {rt.gps.accuracyM != null ? ` · ${t.strip.accuracy(Math.round(rt.gps.accuracyM))}` : ''}</p>
+    </div>
+  );
+}
+
+// Onde estou: "Agora: Em Y · passou X" — do cálculo local; antes da 1.ª posição, do servidor (ao reabrir a app).
+function WhereNow({ rt, me }: { rt: ReturnType<typeof useDriverRuntime>; me: Me }) {
+  const label = rt.snap?.label ? t.label(rt.snap.label) : me.progress?.current_label ?? null;
+  const passed = rt.snap ? [...rt.snap.places].reverse().find((p) => p.state === 'passada' && p.kmFromOrigin > 0) : null;
+  const lastPassed = passed?.name ?? me.progress?.last_passed ?? null;
+  if (!label && !lastPassed) return null;
+  return (
+    <div className="card p-4">
+      {label && <p className="text-lg font-bold">📍 {t.driverApp.nowAt(label)}</p>}
+      {lastPassed && <p className="text-sm text-muted">{t.driverApp.passedPlace(lastPassed)}</p>}
     </div>
   );
 }
