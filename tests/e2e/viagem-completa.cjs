@@ -127,9 +127,9 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     }
     if (t > Date.now() - 120_000) throw new Error('simulação passou do presente');
     let accepted = 0;
-    for (let i = 0; i < pts.length; i += 60) {
+    for (let i = 0; i < pts.length; i += 50) {
       const r = await dp.evaluate(async ([tk, body]) => { const x = await fetch('/api/ingest', { method: 'POST', headers: { authorization: `Bearer ${tk}`, 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { s: x.status, j: await x.json() }; },
-        [tok, { sent_at: new Date().toISOString(), positions: pts.slice(i, i + 60) }]);
+        [tok, { sent_at: new Date().toISOString(), positions: pts.slice(i, i + 50) }]);
       if (r.s !== 200) throw new Error('ingestão ' + r.s + ' ' + JSON.stringify(r.j));
       accepted += r.j.accepted;
     }
@@ -224,9 +224,9 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     const pts = []; let t = Date.now() - H + 120_000, m = 0;
     while (m < NAMPULA.L) { const v = (60 + rnd() * 30) / 3.6; m = Math.min(NAMPULA.L + 30, m + v * 60); t += 60_000; const [lng, lat] = noisy(at(NAMPULA, m), 6);
       pts.push({ lat, lng, device_time: new Date(t).toISOString(), speed_kmh: Math.round(v * 3.6), accuracy_m: 8 }); }
-    for (let i = 0; i < pts.length; i += 60) {
+    for (let i = 0; i < pts.length; i += 50) {
       const r = await dp.evaluate(async ([tk2, body]) => (await fetch('/api/ingest', { method: 'POST', headers: { authorization: `Bearer ${tk2}`, 'content-type': 'application/json' }, body: JSON.stringify(body) })).status,
-        [tk, { sent_at: new Date().toISOString(), positions: pts.slice(i, i + 60) }]);
+        [tk, { sent_at: new Date().toISOString(), positions: pts.slice(i, i + 50) }]);
       if (r !== 200) throw new Error('ingestão ' + r);
     }
     const s = (await db.query('select status from trips where id = $1', [trip2])).rows[0].status;
