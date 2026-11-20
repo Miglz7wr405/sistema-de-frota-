@@ -1,7 +1,7 @@
 // Mapa do motorista: FIXO (o motorista não arrasta nem faz zoom). Por omissão mostra a rota inteira (origem → destino).
 // O sistema aproxima sozinho, com animação suave, para a zona onde o camião está:
 //   - ao chegar a uma cidade/vila (localidade importante da rota): durante 5 minutos;
-//   - de 30 em 30 segundos: durante 12 segundos (o mapa "respira": rota inteira ↔ zona do camião), para não ficar parado.
+//   - sempre: 15 s com a rota inteira → aproxima (animação) → 30 s aproximado → volta, sucessivamente (o mapa não fica parado).
 // Depois volta à rota inteira.
 import { useEffect, useMemo, useState } from 'react';
 import { MapView } from '@/lib/map/MapView';
@@ -10,8 +10,8 @@ import type { RouteModel } from '@/lib/geo/progress';
 import type { Pos, Road } from './useDriverRuntime';
 
 const ARRIVAL_MS = 5 * 60_000;
-const CYCLE_MS = 30_000;
-const PEEK_MS = 12_000;
+const CYCLE_MS = 45_000; // 15 s com a rota inteira + 30 s aproximado
+const PEEK_MS = 30_000;
 const ZOOM_ANIM_MS = 3500;
 
 export default function DriverMap({ model, kmDoneModel, pos, road, origin, destination, fitKey, arrivedPlaceId }: {

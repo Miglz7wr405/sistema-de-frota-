@@ -83,7 +83,8 @@ export const maplibreProvider: MapProvider = {
     };
 
     const renderVehicle = (el: HTMLDivElement, v: VehicleMarker) => {
-      el.innerHTML = `<div style="transform: rotate(${v.heading ?? 0}deg); width:34px; height:34px">${truckSvg(COLORS[v.tone])}</div>` +
+      // camião sempre direito (não roda com o rumo do GPS; o rumo continua guardado nos dados)
+      el.innerHTML = `<div style="width:34px; height:34px">${truckSvg(COLORS[v.tone])}</div>` +
         (v.label ? `<div style="position:absolute; left:38px; top:2px; background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:3px 8px; white-space:nowrap; font: 600 12px Inter,system-ui; color:#10243D; box-shadow:0 1px 2px rgba(16,36,61,.08)">${esc(v.label)}${v.sublabel ? `<div style="font-weight:500; color:${v.tone === 'danger' ? COLORS.danger : v.tone === 'success' ? '#0F7A4F' : '#64748B'}">${esc(v.sublabel)}</div>` : ''}</div>` : '');
     };
     const pointEl = (p: PointMarker) => {

@@ -212,7 +212,11 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     // o mapa não fica parado: de 30 em 30 s aproxima sozinho (animação) e volta à rota inteira
     const span = () => tp.evaluate(() => { const h = [...document.querySelectorAll('*')].find((x) => x.__project); const a = h.__project([36.88, -17.86]), b = h.__project([36.81, -17.6]); return Math.hypot(a.x - b.x, a.y - b.y); });
     const s0 = await span(); let maxS = s0, minS = s0;
-    for (let i = 0; i < 40; i++) { await tp.waitForTimeout(1000); const v = await span(); maxS = Math.max(maxS, v); minS = Math.min(minS, v); if (maxS > minS * 2.5 && i > 15) break; }
+    // ciclo: 15 s com a rota inteira + 30 s aproximado
+    for (let i = 0; i < 55; i++) { await tp.waitForTimeout(1000); const v = await span(); maxS = Math.max(maxS, v); minS = Math.min(minS, v); if (maxS > minS * 2.5 && i > 20) break; }
+    // camião sempre direito: o ícone não tem rotação
+    const rot = await tp.evaluate(() => [...document.querySelectorAll('.maplibregl-marker div')].some((d) => /rotate/.test(d.getAttribute('style') ?? '')));
+    if (rot) throw new Error('o ícone do camião está a rodar');
     if (!(maxS > minS * 2.5)) throw new Error(`o mapa não aproximou/afastou sozinho (${minS.toFixed(0)}–${maxS.toFixed(0)} px)`);
     return `zoom automático: ${minS.toFixed(0)} px ↔ ${maxS.toFixed(0)} px`;
   });

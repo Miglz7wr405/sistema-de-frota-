@@ -49,7 +49,6 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
   const frac = kmDone != null ? Math.min(1, Math.max(0, kmDone / totalKm)) : null;
   const truckY = frac != null ? TOP + frac * (H - TOP * 2) : null;
   const truckX = frac != null ? curveX(frac) : null;
-  const ang = frac != null ? (Math.atan2((H - TOP * 2) / N, curveX(Math.min(1, frac + 1 / N)) - curveX(frac)) * 180) / Math.PI + 90 : 0;
 
   // onde está agora (localidades REAIS da rota): última passada e próxima
   const lastPassed = kmDone != null ? [...places].filter((p) => p.km > 0.5 && p.km <= kmDone).sort((a, b) => b.km - a.km)[0] ?? null : null;
@@ -81,7 +80,7 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
       })}
       {truckX != null && truckY != null && (
         // movimento suave entre atualizações (a única animação obrigatória)
-        <g style={{ transform: `translate(${truckX}px, ${truckY}px) rotate(${ang}deg)`, transition: 'transform 1.5s ease-in-out' }}>
+        <g style={{ transform: `translate(${truckX}px, ${truckY}px)`, transition: 'transform 1.5s ease-in-out' }}>
           <circle r="15" fill="#1769E8" fillOpacity="0.16" />
           <rect x="-5.5" y="-4" width="11" height="15" rx="2" fill="#fff" stroke="#1769E8" strokeWidth="1.6" />
           <rect x="-5" y="-12" width="10" height="8" rx="2.5" fill="#1769E8" stroke="#fff" strokeWidth="1.2" />
