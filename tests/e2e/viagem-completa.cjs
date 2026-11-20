@@ -101,14 +101,14 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
   const storage = await phoneA.storageState();
   await phoneA.close(); // o senhor fecha a app (sai sem querer)
 
-  // ── 2. Comprimir o tempo (SÓ nesta cópia local de teste): a viagem passa a ter partido há 9 h; as posições já
+  // ── 2. Comprimir o tempo (SÓ nesta cópia local de teste): a viagem passa a ter partido há 11 h; as posições já
   //       recebidas recuam o mesmo. Depois, ~640 km de GPS ao longo da estrada real com as horas da viagem.
-  const H = 9 * 3600e3;
-  await db.query(`update trips set actual_departure = actual_departure - interval '9 hours' where id = $1`, [tripId]);
-  await db.query(`update vehicle_positions set device_time = device_time - interval '9 hours', received_at = received_at - interval '9 hours' where trip_id = $1`, [tripId]);
-  await db.query(`update vehicle_latest_positions set device_time = device_time - interval '9 hours' where trip_id = $1`, [tripId]);
+  const H = 11 * 3600e3;
+  await db.query(`update trips set actual_departure = actual_departure - interval '11 hours' where id = $1`, [tripId]);
+  await db.query(`update vehicle_positions set device_time = device_time - interval '11 hours', received_at = received_at - interval '11 hours' where trip_id = $1`, [tripId]);
+  await db.query(`update vehicle_latest_positions set device_time = device_time - interval '11 hours' where trip_id = $1`, [tripId]);
   await db.query(`update trip_progress set engine_state = '{}'::jsonb, last_position_at = null where trip_id = $1`, [tripId]);
-  await db.query(`update trip_events set occurred_at = occurred_at - interval '9 hours' where trip_id = $1`, [tripId]);
+  await db.query(`update trip_events set occurred_at = occurred_at - interval '11 hours' where trip_id = $1`, [tripId]);
 
   const desk = await browser.newContext({ viewport: { width: 1280, height: 860 }, storageState: storage });
   const dp = await desk.newPage(); watch(dp, 'computador');
@@ -216,9 +216,9 @@ const NAMPULA = line(decode(fx.rotas[1].polyline));
     trip2 = (await db.query(`select t.id from trips t join places d on d.id = t.destination_place_id where d.name = 'Nampula' and t.status = 'em_viagem' order by t.created_at desc limit 1`)).rows[0]?.id;
     if (!trip2) throw new Error('viagem Nampula não iniciou');
     await phoneB.close();
-    await db.query(`update trips set actual_departure = actual_departure - interval '9 hours' where id = $1`, [trip2]);
-    await db.query(`update vehicle_positions set device_time = device_time - interval '9 hours', received_at = received_at - interval '9 hours' where trip_id = $1`, [trip2]);
-    await db.query(`update vehicle_latest_positions set device_time = device_time - interval '9 hours' where trip_id = $1`, [trip2]);
+    await db.query(`update trips set actual_departure = actual_departure - interval '11 hours' where id = $1`, [trip2]);
+    await db.query(`update vehicle_positions set device_time = device_time - interval '11 hours', received_at = received_at - interval '11 hours' where trip_id = $1`, [trip2]);
+    await db.query(`update vehicle_latest_positions set device_time = device_time - interval '11 hours' where trip_id = $1`, [trip2]);
     await db.query(`update trip_progress set engine_state = '{}'::jsonb, last_position_at = null where trip_id = $1`, [trip2]);
     const tk = await dp.evaluate(async (id) => (await (await fetch(`/api/trips/${id}/my-driver-session`, { method: 'POST' })).json()).driverToken, trip2);
     const pts = []; let t = Date.now() - H + 120_000, m = 0;
