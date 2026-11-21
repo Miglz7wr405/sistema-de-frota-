@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Clock, FileText, PlayCircle, Plus, Search, Truck, UserRound, Wrench } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, FileText, PlayCircle, Plus, Search, Truck, Wrench } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
 import { Button, Card, Modal, ProgressBar, QueryState, Badge } from '@/components/ui';
@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { VehicleForm } from '../vehicles/VehicleForm';
 import { DriverForm } from '../drivers/DriverForm';
+import { DriverIcon, TruckIcon } from '@/components/ui/icons';
 import { MapView } from '@/lib/map/MapView';
 import { useMe, useRole } from '@/app/session';
 import { formatDate, formatDateTime, formatKm, formatTime, freshnessOf } from '@/lib/format';
@@ -51,22 +52,24 @@ export default function Dashboard() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h1 className="text-3xl font-bold">{t.dashboard.hello(me.data?.user?.fullName ?? '')}</h1><p className="text-muted">{t.dashboard.subtitle}</p></div>
         <div className="flex gap-2">
-          {canWrite && <Link to="/app/trips/new" className="flex-1 sm:flex-none"><Button size="lg" className="w-full"><Plus className="h-5 w-5" />{t.dashboard.newTrip}</Button></Link>}
+          {canWrite && <Link to="/app/trips/new" className="flex-1 sm:flex-none"><Button size="lg" className="w-full whitespace-nowrap px-3"><Plus className="h-5 w-5" />{t.dashboard.newTrip}</Button></Link>}
           {/* página de acompanhamento por código (a mesma que o cliente usa) */}
-          <a href="/track" className="flex-1 sm:flex-none"><Button size="lg" variant="secondary" className="w-full"><Search className="h-5 w-5" />{t.dashboard.trackTrip}</Button></a>
+          <a href="/track" className="flex-1 sm:flex-none"><Button size="lg" variant="secondary" className="w-full whitespace-nowrap px-3"><Search className="h-5 w-5" />{t.dashboard.trackTrip}</Button></a>
         </div>
       </div>
       <QueryState q={q}>{(d) => (
         <>
           {ownTrip.data?.id && isPhone() && <div className="mb-4"><OpenDriverCard tripId={ownTrip.data.id} /></div>}
           {/* atalhos: registar camião / registar motorista (abrem o formulário aqui mesmo) */}
-          {canWrite && <div className="mb-4 grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => setAdd('vehicle')} className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-5 text-center shadow-sm transition-colors hover:border-primary active:bg-primary-soft">
-              <span className="rounded-2xl bg-primary-soft p-4 text-primary"><Truck className="h-9 w-9" /></span>
-              <span className="text-base font-semibold text-navy">{t.dashboard.addVehicle}</span></button>
-            <button type="button" onClick={() => setAdd('driver')} className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-5 text-center shadow-sm transition-colors hover:border-success active:bg-success-soft">
-              <span className="rounded-2xl bg-success-soft p-4 text-success-text"><UserRound className="h-9 w-9" /></span>
-              <span className="text-base font-semibold text-navy">{t.dashboard.addDriver}</span></button>
+          {canWrite && <div className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {([['vehicle', TruckIcon, t.dashboard.addVehicle, t.dashboard.addVehicleHint, 'bg-primary text-white'],
+               ['driver', DriverIcon, t.dashboard.addDriver, t.dashboard.addDriverHint, 'bg-success text-white']] as const).map(([k, Icon, title, hint, tone]) => (
+              <button key={k} type="button" onClick={() => setAdd(k)}
+                className="group flex items-center gap-3 rounded-2xl border border-border bg-white p-3 text-left shadow-sm transition-colors hover:border-primary/40 active:bg-background">
+                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-7 w-7" /></span>
+                <span className="min-w-0 flex-1"><span className="block font-semibold text-navy">{title}</span><span className="block truncate text-sm text-muted">{hint}</span></span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-background text-primary transition-colors group-hover:bg-primary-soft"><Plus className="h-4 w-4" /></span>
+              </button>))}
           </div>}
           {d.placesCount === 0 && <p className="mb-4 rounded-lg bg-warning-soft px-4 py-3 text-sm text-warning">{t.dashboard.noPlaces}</p>}
           {d.counts.total === 0 && (

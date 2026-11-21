@@ -21,3 +21,14 @@
 /* aviso por cima do mapa do motorista: entra a deslizar suavemente */
 .map-banner { animation: map-banner-in .5s ease-out; }
 @keyframes map-banner-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* cartão "viagem em curso": fotografia a deslizar devagar + camiões a andar na estrada desenhada */
+.hero-trip-photo { background-position: 50% 30%; animation: hero-pan 24s ease-in-out infinite alternate; }
+@keyframes hero-pan { from { background-position: 50% 20%; transform: scale(1.05); } to { background-position: 50% 75%; transform: scale(1.15); } }
+.hero-truck { left: -40px; animation: hero-drive 9s linear infinite; }
+.hero-truck-2 { animation-delay: -4.5s; }
+@keyframes hero-drive { from { left: -40px; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .hero-trip-photo, .hero-truck { animation: none; }
+  .hero-truck { left: 62%; } .hero-truck-2 { display: none; }
+}

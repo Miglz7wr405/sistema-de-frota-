@@ -281,6 +281,15 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     const w = await tp.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
     if (over || w[0] > w[1] + 1) throw new Error('conteúdo mais largo que o ecrã: ' + JSON.stringify({ over, w }));
   });
+  await tstep('13f-painel-viagem-em-curso', async () => {
+    // painel no telemóvel com viagem própria: cartão com fotografia e camiões a andar; atalhos de registo
+    await tp.goto(B + '/app/dashboard');
+    await tp.getByRole('button', { name: 'Abrir o ecrã do motorista' }).waitFor({ timeout: 15000 });
+    await tp.getByRole('button', { name: 'Registar motorista' }).waitFor();
+    const img = await tp.evaluate(() => fetch('/img/camiao-fundo.webp').then((r) => [r.status, r.headers.get('content-type')]));
+    if (img[0] !== 200) throw new Error('fotografia de fundo não carrega: ' + img.join(' '));
+    await tp.waitForTimeout(2500);
+  });
   await step('14-camiao-na-coordenada-certa', async () => {
     await page.goto(B + '/app/live-map');
     await page.getByText('TESTE TELEMOVEL').first().waitFor({ timeout: 15000 });

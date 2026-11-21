@@ -83,7 +83,9 @@ export const t = {
     onboarding: 'Comece aqui', ob1: 'Adicionar o primeiro camião', ob2: 'Adicionar um motorista', ob3: 'Criar a primeira viagem',
     ob4: 'Partilhar a viagem com o cliente',
     addVehicle: 'Registar camião',
+    addVehicleHint: 'Matrícula, marca e modelo',
     addDriver: 'Registar motorista',
+    addDriverHint: 'Nome e telefone',
     selfTestTitle: 'Testar com o meu telemóvel',
     selfTestText: 'Um toque: o seu telemóvel faz de camião, a viagem começa na sua localização real e o GPS do telemóvel é usado durante o teste.',
     selfTestOpen: 'Testar agora',
@@ -186,7 +188,7 @@ export const t = {
   ownGps: {
     hint: 'O motorista desta viagem é o senhor. O GPS só é enviado pelo ecrã do motorista: abra-o neste telemóvel.',
     button: 'Usar o GPS deste telemóvel', opening: 'A ligar o GPS deste telemóvel…',
-    inProgress: 'Tem uma viagem em curso (o motorista é o senhor).', openDriver: 'Abrir o ecrã do motorista',
+    inProgress: 'Tem uma viagem em curso (o motorista é o senhor).', openDriver: 'Abrir o ecrã do motorista', openDriverShort: 'Abrir', heroTitle: 'A sua viagem está em curso', heroSub: 'O senhor é o motorista', liveBadge: 'Em viagem',
     consent: 'Ao tocar, aceita que a localização deste telemóvel seja enviada durante esta viagem.',
     otherPhone: 'A localização não está atual: o telemóvel do motorista não está a enviar. Peça-lhe para abrir a app do motorista.',
     sendLink: 'Enviar o link ao motorista',

@@ -222,3 +222,9 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 - **O que NÃO foi apagado:** a API (`POST/PATCH /api/trips`) e a base de dados mantêm todos esses campos; viagens antigas não perdem
   dados e uma integração futura pode continuar a enviá-los.
 - Erros de validação do servidor passam a dizer o campo ("Verifique: Origem.") em vez de "Verifique os campos assinalados".
+
+## ADR-024 — Painel: fotografia e camiões animados no cartão "viagem em curso" (2026-11-21)
+- **Pedido do proprietário:** fotografia de camião ao fundo do cartão "viagem em curso", com animação de camiões a andar; atalhos "Registar camião" / "Registar motorista" no lugar do cartão de teste.
+- **Exceção à regra "sem animações gratuitas":** a fotografia desliza devagar e dois ícones de camião andam numa estrada desenhada. Com `prefers-reduced-motion`, fica tudo parado.
+- **Fotografia:** fornecida pelo proprietário, convertida para WebP (640 px, ~80 KB) em `public/img/camiao-fundo.webp`. Só a área administrativa a carrega; a página pública `/track` não muda.
+- ⚠️ DEPENDÊNCIA EXTERNA: confirmar que a fotografia pode ser usada comercialmente (direitos de imagem).
