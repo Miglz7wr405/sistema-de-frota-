@@ -175,8 +175,15 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   const tstep = async (name, fn) => { try { const info = await fn(); console.log('OK  ', name, info ?? ''); } catch (e) { failures++; console.log('FAIL', name, e.message.split('\n')[0]); } await tp.screenshot({ path: SHOT + name + '.png' }); };
   await tstep('13-teste-telemovel', async () => {
     // UM toque no painel: sem perguntas (a permissão de GPS já foi dada a este site)
+    // o cartão de teste saiu do painel; no lugar estão "Registar camião" e "Registar motorista"
     await tp.goto(B + '/app/dashboard');
-    await tp.getByRole('button', { name: 'Testar agora' }).first().click();
+    await tp.getByRole('button', { name: 'Registar camião' }).waitFor(); await tp.waitForTimeout(800);
+    await tp.screenshot({ path: SHOT + '13-painel-atalhos.png' });
+    await tp.getByRole('button', { name: 'Registar motorista' }).click();
+    await tp.getByRole('dialog').getByText(/Nome/).first().waitFor(); await tp.keyboard.press('Escape');
+    if (await tp.getByRole('button', { name: 'Testar agora' }).count()) throw new Error('o cartão de teste ainda aparece');
+    // o teste continua disponível pelo endereço direto
+    await tp.goto(B + '/app/self-test');
     await tp.waitForURL(/\/driver\/?$/, { timeout: 25000 });
     await tp.getByText(/GPS a enviar/).first().waitFor({ timeout: 15000 });
     if (await tp.getByRole('button', { name: 'Aceito' }).count()) throw new Error('pediu consentimento outra vez');

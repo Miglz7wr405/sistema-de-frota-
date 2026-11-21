@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Clock, FileText, PlayCircle, Plus, Search, Smartphone, Truck, Wrench } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, FileText, PlayCircle, Plus, Search, Truck, UserRound, Wrench } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
-import { Button, Card, ProgressBar, QueryState, Badge } from '@/components/ui';
+import { Button, Card, Modal, ProgressBar, QueryState, Badge } from '@/components/ui';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { VehicleForm } from '../vehicles/VehicleForm';
+import { DriverForm } from '../drivers/DriverForm';
 import { MapView } from '@/lib/map/MapView';
 import { useMe, useRole } from '@/app/session';
 import { formatDate, formatDateTime, formatKm, formatTime, freshnessOf } from '@/lib/format';
@@ -35,10 +39,15 @@ export default function Dashboard() {
   const live = useQuery({ queryKey: ['fleet-live'], queryFn: () => api<Live>('/api/fleet/live'), refetchInterval: 10_000 });
   const trips = useQuery({ queryKey: ['trips', 'active'], queryFn: () => api<TripRow[]>('/api/trips?status=em_viagem,pausada'), refetchInterval: 15_000 });
   const now = Date.now();
+  const qc = useQueryClient();
+  const [add, setAdd] = useState<'vehicle' | 'driver' | null>(null);
+  const added = (k: string) => { setAdd(null); void qc.invalidateQueries({ queryKey: [k] }); void qc.invalidateQueries({ queryKey: ['dashboard'] }); };
   const located = (live.data?.vehicles ?? []).filter((v) => v.lng != null && v.lat != null);
 
   return (
     <div>
+      <Modal open={add === 'vehicle'} onClose={() => setAdd(null)} title={t.vehicle.add} wide><VehicleForm onDone={() => added('vehicles')} /></Modal>
+      <Modal open={add === 'driver'} onClose={() => setAdd(null)} title={t.driver.add}><DriverForm onDone={() => added('drivers')} /></Modal>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h1 className="text-3xl font-bold">{t.dashboard.hello(me.data?.user?.fullName ?? '')}</h1><p className="text-muted">{t.dashboard.subtitle}</p></div>
         <div className="flex gap-2">
@@ -50,10 +59,15 @@ export default function Dashboard() {
       <QueryState q={q}>{(d) => (
         <>
           {ownTrip.data?.id && isPhone() && <div className="mb-4"><OpenDriverCard tripId={ownTrip.data.id} /></div>}
-          {canWrite && <Card className="mb-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Smartphone className="h-6 w-6" /></span>
-              <div><p className="font-semibold">{t.dashboard.selfTestTitle}</p><p className="text-sm text-muted">{t.dashboard.selfTestText}</p></div></div>
-            <Link to="/app/self-test" className="shrink-0"><Button>{t.dashboard.selfTestOpen}</Button></Link></div></Card>}
+          {/* atalhos: registar camião / registar motorista (abrem o formulário aqui mesmo) */}
+          {canWrite && <div className="mb-4 grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => setAdd('vehicle')} className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-5 text-center shadow-sm transition-colors hover:border-primary active:bg-primary-soft">
+              <span className="rounded-2xl bg-primary-soft p-4 text-primary"><Truck className="h-9 w-9" /></span>
+              <span className="text-base font-semibold text-navy">{t.dashboard.addVehicle}</span></button>
+            <button type="button" onClick={() => setAdd('driver')} className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-5 text-center shadow-sm transition-colors hover:border-success active:bg-success-soft">
+              <span className="rounded-2xl bg-success-soft p-4 text-success-text"><UserRound className="h-9 w-9" /></span>
+              <span className="text-base font-semibold text-navy">{t.dashboard.addDriver}</span></button>
+          </div>}
           {d.placesCount === 0 && <p className="mb-4 rounded-lg bg-warning-soft px-4 py-3 text-sm text-warning">{t.dashboard.noPlaces}</p>}
           {d.counts.total === 0 && (
             <Card title={t.dashboard.onboarding} className="mb-4">

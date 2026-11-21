@@ -82,6 +82,8 @@ export const t = {
     upcoming: 'Próximas viagens', expiringDocs: 'Documentos a expirar', maintenanceDue: 'Manutenções próximas',
     onboarding: 'Comece aqui', ob1: 'Adicionar o primeiro camião', ob2: 'Adicionar um motorista', ob3: 'Criar a primeira viagem',
     ob4: 'Partilhar a viagem com o cliente',
+    addVehicle: 'Registar camião',
+    addDriver: 'Registar motorista',
     selfTestTitle: 'Testar com o meu telemóvel',
     selfTestText: 'Um toque: o seu telemóvel faz de camião, a viagem começa na sua localização real e o GPS do telemóvel é usado durante o teste.',
     selfTestOpen: 'Testar agora',
