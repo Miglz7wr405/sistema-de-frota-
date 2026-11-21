@@ -225,6 +225,6 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 
 ## ADR-024 — Painel: fotografia e camiões animados no cartão "viagem em curso" (2026-11-21)
 - **Pedido do proprietário:** fotografia de camião ao fundo do cartão "viagem em curso", com animação de camiões a andar; atalhos "Registar camião" / "Registar motorista" no lugar do cartão de teste.
-- **Exceção à regra "sem animações gratuitas":** a fotografia desliza devagar e dois ícones de camião andam numa estrada desenhada. Com `prefers-reduced-motion`, fica tudo parado.
+- **Exceção à regra "sem animações gratuitas":** a fotografia desliza devagar e dois ícones de camião andam numa estrada desenhada. Os camiões andam SEMPRE, mesmo com `prefers-reduced-motion` (pedido expresso do proprietário, cujo telemóvel tem essa opção ligada); só a fotografia para.
 - **Fotografia:** fornecida pelo proprietário, convertida para WebP (640 px, ~80 KB) em `public/img/camiao-fundo.webp`. Só a área administrativa a carrega; a página pública `/track` não muda.
 - ⚠️ DEPENDÊNCIA EXTERNA: confirmar que a fotografia pode ser usada comercialmente (direitos de imagem).

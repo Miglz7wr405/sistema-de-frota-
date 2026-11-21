@@ -1,12 +1,12 @@
 // Cartão para abrir o ecrã do motorista quando o utilizador quiser (viagem própria em curso), sem o prender lá.
 // Fotografia de um camião na estrada ao fundo (a deslizar devagar) e camiões a andar numa estrada desenhada.
-// Com "reduzir movimento" ativo no telemóvel, fica tudo parado.
+// Os camiões andam SEMPRE (pedido do proprietário), mesmo com "reduzir movimento" no telemóvel.
 import { ChevronRight } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
 import { TruckIcon } from '@/components/ui/icons';
 import { openOwnDriverApp } from './ownDriver';
 
-export function OpenDriverCard({ tripId }: { tripId: string }) {
+export function OpenDriverCard({ tripId, origin, destination }: { tripId: string; origin?: string | null; destination?: string | null }) {
   return (
     <button type="button" onClick={() => openOwnDriverApp(tripId)}
       aria-label={t.ownGps.openDriver} className="hero-trip group relative block h-40 w-full overflow-hidden rounded-2xl bg-navy text-left shadow-sm">
@@ -22,7 +22,7 @@ export function OpenDriverCard({ tripId }: { tripId: string }) {
         <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-success px-2.5 py-0.5 text-xs font-semibold text-white">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />{t.ownGps.liveBadge}</span>
         <div className="flex items-end justify-between gap-3">
-          <span className="min-w-0"><span className="block text-lg font-bold leading-tight text-white">{t.ownGps.heroTitle}</span><span className="block text-sm text-white/80">{t.ownGps.heroSub}</span></span>
+          <span className="min-w-0"><span className="block text-lg font-bold leading-tight text-white">{origin && destination ? t.ownGps.heroTrip(origin, destination) : t.ownGps.heroTitle}</span><span className="block text-sm text-white/80">{t.ownGps.heroSub}</span></span>
           <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-primary shadow-sm transition-transform group-active:scale-95">
             {t.ownGps.openDriverShort}<ChevronRight className="h-4 w-4" /></span>
         </div>

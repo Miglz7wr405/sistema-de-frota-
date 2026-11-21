@@ -25,10 +25,12 @@
 /* cartão "viagem em curso": fotografia a deslizar devagar + camiões a andar na estrada desenhada */
 .hero-trip-photo { background-position: 50% 30%; animation: hero-pan 24s ease-in-out infinite alternate; }
 @keyframes hero-pan { from { background-position: 50% 20%; transform: scale(1.05); } to { background-position: 50% 75%; transform: scale(1.15); } }
-.hero-truck { left: -40px; animation: hero-drive 9s linear infinite; }
-.hero-truck-2 { animation-delay: -4.5s; }
+/* os camiões andam SEMPRE (pedido do proprietário: nunca param, mesmo com "reduzir movimento") */
+.hero-truck { left: -40px; animation: hero-drive 7s linear infinite, hero-bump .35s ease-in-out infinite alternate; }
+.hero-truck-2 { animation-delay: -3.5s, -.17s; }
 @keyframes hero-drive { from { left: -40px; } to { left: 100%; } }
+@keyframes hero-bump { from { transform: translateY(0); } to { transform: translateY(-1.5px); } }
 @media (prefers-reduced-motion: reduce) {
-  .hero-trip-photo, .hero-truck { animation: none; }
-  .hero-truck { left: 62%; } .hero-truck-2 { display: none; }
+  .hero-trip-photo { animation: none; }
+  .hero-truck { animation-duration: 7s, .35s !important; animation-iteration-count: infinite !important; }
 }

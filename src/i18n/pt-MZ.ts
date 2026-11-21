@@ -188,7 +188,7 @@ export const t = {
   ownGps: {
     hint: 'O motorista desta viagem é o senhor. O GPS só é enviado pelo ecrã do motorista: abra-o neste telemóvel.',
     button: 'Usar o GPS deste telemóvel', opening: 'A ligar o GPS deste telemóvel…',
-    inProgress: 'Tem uma viagem em curso (o motorista é o senhor).', openDriver: 'Abrir o ecrã do motorista', openDriverShort: 'Abrir', heroTitle: 'A sua viagem está em curso', heroSub: 'O senhor é o motorista', liveBadge: 'Em viagem',
+    inProgress: 'Tem uma viagem em curso (o motorista é o senhor).', openDriver: 'Abrir o ecrã do motorista', openDriverShort: 'Abrir', heroTitle: 'Tem uma viagem em curso', heroTrip: (o: string, d: string) => `Tem uma viagem de ${o} até ${d}`, heroSub: 'Entre para ver o GPS', liveBadge: 'Em viagem',
     consent: 'Ao tocar, aceita que a localização deste telemóvel seja enviada durante esta viagem.',
     otherPhone: 'A localização não está atual: o telemóvel do motorista não está a enviar. Peça-lhe para abrir a app do motorista.',
     sendLink: 'Enviar o link ao motorista',

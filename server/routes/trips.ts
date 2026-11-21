@@ -214,7 +214,8 @@ route('POST', '/api/trips/:id/transition', async (req, p) => {
 // Viagem em curso em que o motorista é o próprio utilizador (para ligar o GPS sozinho ao entrar na app, no telemóvel).
 route('GET', '/api/own-active-trip', async (req) => {
   const m = await requireMember(req);
-  return ok(await asMember(m, (c) => one(c, `select t.id from trips t join drivers d on d.id = t.driver_id
+  return ok(await asMember(m, (c) => one(c, `select t.id, po.name origin, pd.name destination from trips t join drivers d on d.id = t.driver_id
+      join places po on po.id = t.origin_place_id join places pd on pd.id = t.destination_place_id
     where d.user_id = $1 and t.status in ('em_viagem','pausada') and t.deleted_at is null order by t.actual_departure desc limit 1`, [m.userId])) ?? null);
 });
 

@@ -36,7 +36,7 @@ export default function Dashboard() {
   const me = useMe();
   const { canWrite } = useRole();
   const q = useQuery({ queryKey: ['dashboard'], queryFn: () => api<Dash>('/api/dashboard'), refetchInterval: 15_000 });
-  const ownTrip = useQuery({ queryKey: ['own-active-trip'], queryFn: () => api<{ id: string } | null>('/api/own-active-trip'), refetchInterval: 30_000 });
+  const ownTrip = useQuery({ queryKey: ['own-active-trip'], queryFn: () => api<{ id: string; origin: string; destination: string } | null>('/api/own-active-trip'), refetchInterval: 30_000 });
   const live = useQuery({ queryKey: ['fleet-live'], queryFn: () => api<Live>('/api/fleet/live'), refetchInterval: 10_000 });
   const trips = useQuery({ queryKey: ['trips', 'active'], queryFn: () => api<TripRow[]>('/api/trips?status=em_viagem,pausada'), refetchInterval: 15_000 });
   const now = Date.now();
@@ -59,7 +59,7 @@ export default function Dashboard() {
       </div>
       <QueryState q={q}>{(d) => (
         <>
-          {ownTrip.data?.id && isPhone() && <div className="mb-4"><OpenDriverCard tripId={ownTrip.data.id} /></div>}
+          {ownTrip.data?.id && isPhone() && <div className="mb-4"><OpenDriverCard tripId={ownTrip.data.id} origin={ownTrip.data.origin} destination={ownTrip.data.destination} /></div>}
           {/* atalhos: registar camião / registar motorista (abrem o formulário aqui mesmo) */}
           {canWrite && <div className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {([['vehicle', TruckIcon, t.dashboard.addVehicle, t.dashboard.addVehicleHint, 'bg-primary text-white'],

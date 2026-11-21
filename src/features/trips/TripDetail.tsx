@@ -110,11 +110,11 @@ function AssignCard({ tripId, vehicleId, driverId, onDone }: { tripId: string; v
 }
 
 // Abre sozinho o ecrã do motorista (que envia o GPS) — sem botão. Só para a viagem em que o motorista é o próprio utilizador.
-function AutoOwnGps({ tripId }: { tripId: string }) {
+function AutoOwnGps({ tripId, origin, destination }: { tripId: string; origin?: string; destination?: string }) {
   const [opened] = useState(() => autoOpenOnce(tripId));
   // já abriu nesta sessão e o utilizador voltou: não o prende — fica um botão para abrir quando quiser
   if (opened) return <p className="rounded-2xl bg-primary-soft p-4 text-sm text-navy">{t.ownGps.opening}</p>;
-  return <OpenDriverCard tripId={tripId} />;
+  return <OpenDriverCard tripId={tripId} origin={origin} destination={destination} />;
 }
 
 
@@ -217,7 +217,7 @@ export default function TripDetail() {
               </div>
               {/* GPS parou e o motorista é o próprio utilizador (teste com o telemóvel): religar aqui mesmo */}
               {/* o motorista é o próprio utilizador e a posição não está atual: o GPS deste telemóvel liga-se sozinho */}
-              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && isPhone() && <AutoOwnGps tripId={id!} />}
+              {active && fresh !== 'atual' && tr.driver_user_id && tr.driver_user_id === me.data?.user?.id && isPhone() && <AutoOwnGps tripId={id!} origin={tr.origin} destination={tr.destination} />}
               {/* motorista real noutro telemóvel e a posição não está atual */}
               {active && fresh !== 'atual' && (!tr.driver_user_id || tr.driver_user_id !== me.data?.user?.id) && tr.driver_id && (
                 <div className="rounded-2xl border border-warning/40 bg-warning-soft p-4 text-sm text-navy">

@@ -288,6 +288,14 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.getByRole('button', { name: 'Registar motorista' }).waitFor();
     const img = await tp.evaluate(() => fetch('/img/camiao-fundo.webp').then((r) => [r.status, r.headers.get('content-type')]));
     if (img[0] !== 200) throw new Error('fotografia de fundo não carrega: ' + img.join(' '));
+    // frase com a viagem: "Tem uma viagem de X até Y"
+    if (!(await tp.getByText(/Tem uma viagem de .+ até .+/).count())) throw new Error('o cartão não diz de onde até onde');
+    // os camiões andam sempre, mesmo com "reduzir movimento" ligado no telemóvel
+    await tp.emulateMedia({ reducedMotion: 'reduce' });
+    const x = () => tp.evaluate(() => document.querySelector('.hero-truck').getBoundingClientRect().left);
+    const a = await x(); await tp.waitForTimeout(1200); const b = await x();
+    if (Math.abs(b - a) < 5) throw new Error('o camião está parado: ' + JSON.stringify({ a, b }));
+    await tp.emulateMedia({ reducedMotion: 'no-preference' });
     await tp.waitForTimeout(2500);
   });
   await step('14-camiao-na-coordenada-certa', async () => {
