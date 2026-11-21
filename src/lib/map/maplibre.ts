@@ -27,6 +27,19 @@ const truckSvg = (color: string) => `<svg width="${TRUCK_W}" height="${TRUCK_H}"
 <circle cx="28" cy="24.5" r="2.7" fill="${color}" stroke="#fff" stroke-width="1.6"/>
 </svg>`;
 
+// Aproximado (zoom alto): camião pequeno, sem círculo, em cima da estrada — não tapa os nomes das localidades.
+// Afastado: o alfinete grande (vê-se bem no país inteiro).
+const MINI_ZOOM = 8;
+const miniTruckSvg = (color: string) => `<svg width="26" height="17" viewBox="0 0 26 17" aria-hidden="true" style="display:block; filter:drop-shadow(0 1px 1.5px rgba(16,36,61,.45))">
+<rect x="1" y="2" width="14" height="10" rx="1.5" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+<path d="M15.5 5h4.3c.45 0 .87.2 1.15.55l2.7 3.4c.22.27.35.6.35.95v2.1H15.5z" fill="${color}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+<path d="M17.3 6.4h2.2l1.8 2.4h-4z" fill="#fff" fill-opacity=".9"/>
+<circle cx="5.5" cy="13.6" r="2.1" fill="#10243D" stroke="#fff" stroke-width="1.2"/><circle cx="19.5" cy="13.6" r="2.1" fill="#10243D" stroke="#fff" stroke-width="1.2"/>
+</svg>`;
+const TRUCK_CSS = `.if-truck-mini{display:none;position:absolute;left:50%;bottom:0;transform:translate(-50%,50%)}
+.if-trucks-small .if-truck-pin{display:none}.if-trucks-small .if-truck-mini{display:block}
+.if-trucks-small .if-truck-label{top:auto!important;bottom:-10px;left:${TRUCK_W / 2 + 16}px!important}`;
+
 export const maplibreProvider: MapProvider = {
   async create(container, opts) {
     const [{ default: maplibregl }] = await Promise.all([import('maplibre-gl'), import('maplibre-gl/dist/maplibre-gl.css')]);
@@ -50,6 +63,11 @@ export const maplibreProvider: MapProvider = {
       await waitLoad(map);
     }
     // projeção ecrã↔coordenadas acessível ao teste E2E (verifica que o camião é desenhado na coordenada certa)
+    // camião pequeno quando o mapa está aproximado (não tapa os nomes); alfinete quando afastado
+    if (!document.getElementById('if-truck-css')) { const st = document.createElement('style'); st.id = 'if-truck-css'; st.textContent = TRUCK_CSS; document.head.appendChild(st); }
+    const sizeTrucks = () => (container as HTMLElement).classList.toggle('if-trucks-small', map.getZoom() >= MINI_ZOOM);
+    map.on('zoom', sizeTrucks); map.on('load', sizeTrucks); sizeTrucks();
+    (container as HTMLElement & { __zoom?: () => number }).__zoom = () => map.getZoom();
     (container as HTMLElement & { __project?: (ll: LngLat) => { x: number; y: number } }).__project = (ll) => map.project(ll);
     // créditos do mapa (obrigatórios pela licença do OpenStreetMap) só no botão "i", fechado: o mapa fica limpo
     const closeAttrib = () => container.querySelectorAll('.maplibregl-ctrl-attrib').forEach((el) => { el.classList.remove('maplibregl-compact-show'); el.removeAttribute('open'); });
@@ -87,8 +105,8 @@ export const maplibreProvider: MapProvider = {
 
     const renderVehicle = (el: HTMLDivElement, v: VehicleMarker) => {
       // camião sempre direito (não roda com o rumo do GPS; o rumo continua guardado nos dados)
-      el.innerHTML = truckSvg(COLORS[v.tone]) +
-        (v.label ? `<div style="position:absolute; left:${TRUCK_W + 4}px; top:4px; background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:3px 8px; white-space:nowrap; font: 600 12px Inter,system-ui; color:#10243D; box-shadow:0 1px 2px rgba(16,36,61,.08)">${esc(v.label)}${v.sublabel ? `<div style="font-weight:500; color:${v.tone === 'danger' ? COLORS.danger : v.tone === 'success' ? '#0F7A4F' : '#64748B'}">${esc(v.sublabel)}</div>` : ''}</div>` : '');
+      el.innerHTML = `<div class="if-truck-pin">${truckSvg(COLORS[v.tone])}</div><div class="if-truck-mini">${miniTruckSvg(COLORS[v.tone])}</div>` +
+        (v.label ? `<div class="if-truck-label" style="position:absolute; left:${TRUCK_W + 4}px; top:4px; background:#fff; border:1px solid #E2E8F0; border-radius:10px; padding:3px 8px; white-space:nowrap; font: 600 12px Inter,system-ui; color:#10243D; box-shadow:0 1px 2px rgba(16,36,61,.08)">${esc(v.label)}${v.sublabel ? `<div style="font-weight:500; color:${v.tone === 'danger' ? COLORS.danger : v.tone === 'success' ? '#0F7A4F' : '#64748B'}">${esc(v.sublabel)}</div>` : ''}</div>` : '');
     };
     const pointEl = (p: PointMarker) => {
       const el = document.createElement('div');
