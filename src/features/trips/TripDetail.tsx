@@ -6,6 +6,8 @@ import { api, errorMessage } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
 import { Badge, Button, Card, Modal, ProgressBar, QueryState, Stat, Textarea } from '@/components/ui';
 import { MapView } from '@/lib/map/MapView';
+import type { MapState } from '@/lib/map/types';
+import { useRouteCamera, ZOOM_ANIM_MS, type CameraPlace } from '@/lib/map/useRouteCamera';
 import { cumulative, sliceLine, type LngLat } from '@/lib/geo/geometry';
 import { formatAgo, formatDate, formatDateTime, formatDuration, formatKm, formatMoney, formatTime, freshnessOf } from '@/lib/format';
 import { useMe, useRole } from '@/app/session';
@@ -167,7 +169,7 @@ export default function TripDetail() {
     // km feitos ao longo da rota ATUAL (descontando os km antes de um recálculo), na escala da geometria simplificada
     const along = d.progress?.km_done != null ? Math.max(0, d.progress.km_done - (d.route.base_km ?? 0)) * 1000 * (total / d.route.length_m) : null;
     const doneM = along != null ? Math.min(total, along) : null;
-    return { coords, done: doneM != null && doneM > 0 ? sliceLine(coords, cum, 0, doneM) : null, left: doneM != null ? sliceLine(coords, cum, doneM, total) : coords };
+    return { coords, cum, lengthM: total, doneM, done: doneM != null && doneM > 0 ? sliceLine(coords, cum, 0, doneM) : null, left: doneM != null ? sliceLine(coords, cum, doneM, total) : coords };
   }, [q.data]);
 
   return (
@@ -202,7 +204,10 @@ export default function TripDetail() {
               {canWrite && ['planeada', 'aguardando_partida'].includes(tr.status) && (!tr.vehicle_id || !tr.driver_id) &&
                 <AssignCard tripId={id!} vehicleId={tr.vehicle_id} driverId={tr.driver_id} onDone={() => { qc.invalidateQueries({ queryKey: ['trip', id] }); qc.invalidateQueries({ queryKey: ['trips'] }); }} />}
               <div className="relative">
-                <MapView className="h-[420px] rounded-2xl border border-border" fitKey={d.route?.id ?? 'no-route'} fitTo={fit} interactive={false} controls={false}
+                <TripCameraMap view={active && !noSig ? view : null} fit={fit} baseKey={d.route?.id ?? 'no-route'}
+                  here={active && d.position ? drawnPos(d.position) : null}
+                  arrived={active && !noSig ? (() => { const p = d.places.find((x) => x.state === 'atual' && x.importance >= 2 && x.km_from_origin > 1);
+                    return p ? { placeId: p.place_id, name: p.name, kmFromOrigin: p.km_from_origin } : null; })() : null}
                   state={{
                     routeDone: view?.done ?? null, routeLeft: view?.left ?? null, extraLine: replay,
                     vehicles: active && d.position ? [{ id: 'v', ...drawnPos(d.position), heading: d.position.heading, tone: noSig ? 'danger' : 'primary',
@@ -283,5 +288,21 @@ export default function TripDetail() {
         </div>
       );
     }}</QueryState>
+  );
+}
+
+// Mapa da viagem no painel: fixo, com a mesma câmara automática do ecrã do motorista (rota inteira ↔ aproximado ao camião,
+// "Agora em X" ao chegar a uma localidade). Sem posição atual, fica na rota inteira.
+function TripCameraMap({ view, fit, baseKey, here, arrived, state }: {
+  view: { coords: LngLat[]; cum: number[]; lengthM: number; doneM: number | null } | null; fit: LngLat[]; baseKey: string;
+  here: { lng: number; lat: number } | null; arrived: CameraPlace | null; state: MapState;
+}) {
+  const cam = useRouteCamera({ route: view, doneM: view?.doneM ?? null, here, arrived, ends: [fit[0]!, fit[1]!], baseKey });
+  return (
+    <>
+      <MapView className="h-[420px] rounded-2xl border border-border" fitKey={view ? cam.fitKey : baseKey} fitTo={view ? cam.fitTo : fit}
+        fitDurationMs={ZOOM_ANIM_MS} interactive={false} controls={false} state={state} />
+      {cam.banner && <div key={cam.banner} className="map-banner pointer-events-none absolute left-1/2 top-14 -translate-x-1/2 rounded-2xl bg-white/95 px-4 py-2 text-base font-bold text-navy shadow">{cam.banner}</div>}
+    </>
   );
 }

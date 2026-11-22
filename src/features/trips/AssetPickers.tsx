@@ -8,8 +8,8 @@ import { Button, Field, Modal, Select } from '@/components/ui';
 import { VehicleForm } from '../vehicles/VehicleForm';
 import { DriverForm } from '../drivers/DriverForm';
 
-type Veh = { id: string; plate: string; main_status: string; is_test?: boolean };
-type Drv = { id: string; full_name: string; status: string; user_id?: string | null };
+export type Veh = { id: string; plate: string; main_status: string; is_test?: boolean };
+export type Drv = { id: string; full_name: string; status: string; user_id?: string | null; id_number?: string | null };
 
 export const useAssets = () => ({
   vehicles: useQuery({ queryKey: ['vehicles'], queryFn: () => api<Veh[]>('/api/vehicles') }),

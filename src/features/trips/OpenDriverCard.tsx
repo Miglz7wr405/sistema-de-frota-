@@ -4,11 +4,15 @@
 import { ChevronRight } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
 import { TruckIcon } from '@/components/ui/icons';
-import { openOwnDriverApp } from './ownDriver';
+import { useNavigate } from 'react-router-dom';
+import { isPhone, openOwnDriverApp } from './ownDriver';
 
 export function OpenDriverCard({ tripId, origin, destination }: { tripId: string; origin?: string | null; destination?: string | null }) {
+  const nav = useNavigate();
+  // telemóvel: ecrã do motorista (GPS a enviar); computador: página da viagem (mapa com o GPS)
+  const open = () => (isPhone() ? openOwnDriverApp(tripId) : nav(`/app/trips/${tripId}`));
   return (
-    <button type="button" onClick={() => openOwnDriverApp(tripId)}
+    <button type="button" onClick={open}
       aria-label={t.ownGps.openDriver} className="hero-trip group relative block h-40 w-full overflow-hidden rounded-2xl bg-navy text-left shadow-sm">
       <div className="hero-trip-photo absolute inset-0 bg-cover" style={{ backgroundImage: 'url(/img/camiao-fundo.webp)' }} aria-hidden="true" />
       <div className="absolute inset-0 bg-gradient-to-r from-navy/95 via-navy/70 to-navy/10" aria-hidden="true" />

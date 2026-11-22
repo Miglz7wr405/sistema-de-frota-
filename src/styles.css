@@ -34,3 +34,7 @@
   .hero-trip-photo { animation: none; }
   .hero-truck { animation-duration: 7s, .35s !important; animation-iteration-count: infinite !important; }
 }
+
+/* troca automática Mapa ↔ Percurso no ecrã do motorista */
+.tab-fade { animation: tab-fade .3s ease-out; }
+@keyframes tab-fade { from { opacity: 0; } to { opacity: 1; } }

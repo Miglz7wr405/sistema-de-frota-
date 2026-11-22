@@ -119,6 +119,24 @@ d('frota e isolamento A ↔ B', () => {
     const dup = await call('POST', '/api/vehicles', A, { plate: 'adf 512 mp' });
     expect(dup.status).toBe(409); // matrícula única por organização (normalizada)
   });
+  it('BI do motorista: formato de Moçambique, único por organização, B pode ter o mesmo BI sem ver o de A', async () => {
+    const ok1 = await call('POST', '/api/drivers', A, { full_name: 'Ana Bilhete Teste', phone: '+258841230001', id_number: '1101 0012 3456 a' });
+    expect(ok1.status).toBe(201);
+    const list = (await call('GET', '/api/drivers', A)).json as { id: string; id_number: string | null }[];
+    expect(list.find((x) => x.id === ok1.json.id)?.id_number).toBe('110100123456A'); // sem espaços, maiúsculas
+    expect((await call('POST', '/api/drivers', A, { full_name: 'Errado', phone: '+258841230002', id_number: '12345' })).status).toBe(400);
+    expect((await call('POST', '/api/drivers', A, { full_name: 'Errado', phone: '+258841230002', id_number: 'A10100123456A' })).status).toBe(400);
+    const dup = await call('POST', '/api/drivers', A, { full_name: 'Ana Repetida', phone: '+258841230003', id_number: '110100123456A' });
+    expect(dup.status).toBe(409); expect(dup.json.error).toBe('bi_duplicado');
+    // outra organização: o mesmo BI é aceite (registo dela) e não vê o motorista de A
+    const b = await call('POST', '/api/drivers', B, { full_name: 'Ana noutra empresa', phone: '+258841230004', id_number: '110100123456A' });
+    expect(b.status).toBe(201);
+    const bl = (await call('GET', '/api/drivers', B)).json as { id: string }[];
+    expect(bl.some((x) => x.id === ok1.json.id)).toBe(false);
+    expect((await call('PATCH', `/api/drivers/${ok1.json.id}`, B, { id_number: '999999999999Z' })).status).toBe(404);
+    for (const id of [ok1.json.id]) await call('DELETE', `/api/drivers/${id}`, A);
+    await call('DELETE', `/api/drivers/${b.json.id}`, B);
+  });
   it('B não lê, não altera e não apaga dados de A (API)', async () => {
     expect((await call('GET', '/api/vehicles', B)).json).toEqual([]);
     expect((await call('GET', `/api/vehicles/${ids.vehicle}`, B)).status).toBe(404);

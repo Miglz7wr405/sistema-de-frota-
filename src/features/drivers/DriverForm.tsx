@@ -7,18 +7,21 @@ import { t } from '@/i18n/pt-MZ';
 import { Button, Field, Input, Select } from '@/components/ui';
 import { toE164 } from '@/lib/format';
 
-const Schema = z.object({ full_name: z.string().trim().min(2, t.validation.name), phone: z.string().refine((v) => !!toE164(v), t.validation.phone),
+const BI = /^\d{12}[A-Z]$/;
+const normBi = (v: string) => v.replace(/\s+/g, '').toUpperCase();
+const Schema = z.object({ full_name: z.string().trim().min(2, t.validation.name),
+  id_number: z.string().refine((v) => BI.test(normBi(v)), t.validation.idNumber), phone: z.string().refine((v) => !!toE164(v), t.validation.phone),
   license_number: z.string().optional(), license_category: z.string().optional(), status: z.string() });
 
 export function DriverForm({ initial, onDone }: { initial?: Record<string, any>; onDone: (id?: string) => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
-  const f = useForm<z.infer<typeof Schema>>({ resolver: zodResolver(Schema), defaultValues: { full_name: initial?.full_name ?? '', phone: initial?.phone ?? '',
+  const f = useForm<z.infer<typeof Schema>>({ resolver: zodResolver(Schema), defaultValues: { full_name: initial?.full_name ?? '', id_number: initial?.id_number ?? '', phone: initial?.phone ?? '',
     license_number: initial?.license_number ?? '', license_category: initial?.license_category ?? '', status: initial?.status ?? 'ativo' } });
   const submit = f.handleSubmit(async (v) => {
     try {
       const photo_file_id = photo ? (await api<{ id: string }>('/api/files', { body: { kind: 'driver_photo', ...(await fileToUpload(photo)) } })).id : undefined;
-      const body = { full_name: v.full_name, phone: toE164(v.phone), license_number: v.license_number || null, license_category: v.license_category || null, status: v.status, ...(photo_file_id ? { photo_file_id } : {}) };
+      const body = { full_name: v.full_name.trim(), id_number: normBi(v.id_number), phone: toE164(v.phone), license_number: v.license_number || null, license_category: v.license_category || null, status: v.status, ...(photo_file_id ? { photo_file_id } : {}) };
       if (initial) { await api(`/api/drivers/${initial.id}`, { method: 'PATCH', body }); onDone(initial.id); }
       else onDone((await api<{ id: string }>('/api/drivers', { body })).id);
     } catch (e) { setErr(errorMessage(e)); }
@@ -27,7 +30,9 @@ export function DriverForm({ initial, onDone }: { initial?: Record<string, any>;
   return (
     <form onSubmit={submit} className="space-y-3" noValidate>
       {err && <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>}
-      <Field label={t.driver.fullName} error={e.full_name?.message}><Input {...f.register('full_name')} /></Field>
+      <Field label={t.driver.fullNameBi} error={e.full_name?.message}><Input autoComplete="name" {...f.register('full_name')} /></Field>
+      <Field label={t.driver.idNumber} error={e.id_number?.message} hint={t.driver.idNumberHint}>
+        <Input placeholder={t.driver.idNumberPh} autoCapitalize="characters" maxLength={16} className="font-mono uppercase tracking-wider" {...f.register('id_number')} /></Field>
       <Field label={t.driver.phone} error={e.phone?.message}><Input type="tel" placeholder="+258 84 123 4567" {...f.register('phone')} /></Field>
       <details className="rounded-xl border border-border px-3 py-2">
         <summary className="cursor-pointer text-sm font-medium text-primary">{t.common.moreDetails}</summary>

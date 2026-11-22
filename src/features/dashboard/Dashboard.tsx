@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { VehicleForm } from '../vehicles/VehicleForm';
 import { DriverForm } from '../drivers/DriverForm';
 import { DriverIcon, TruckIcon } from '@/components/ui/icons';
+import { useAssets } from '../trips/AssetPickers';
 import { MapView } from '@/lib/map/MapView';
 import { useMe, useRole } from '@/app/session';
 import { formatDate, formatDateTime, formatKm, formatTime, freshnessOf } from '@/lib/format';
@@ -17,7 +18,6 @@ import type { LngLat } from '@/lib/map/types';
 import { RouteStrip, stripFromLive, type LiveTrip } from '../tracking/RouteStrip';
 import { OpenDriverCard } from '../trips/OpenDriverCard';
 import { TripLink } from '../trips/TripLink';
-import { isPhone } from '../trips/ownDriver';
 
 type Dash = {
   counts: { total: number; em_viagem: number; disponiveis: number; manutencao: number; sem_sinal: number };
@@ -41,6 +41,7 @@ export default function Dashboard() {
   const trips = useQuery({ queryKey: ['trips', 'active'], queryFn: () => api<TripRow[]>('/api/trips?status=em_viagem,pausada'), refetchInterval: 15_000 });
   const now = Date.now();
   const qc = useQueryClient();
+  const assets = useAssets();
   const [add, setAdd] = useState<'vehicle' | 'driver' | null>(null);
   const added = (k: string) => { setAdd(null); void qc.invalidateQueries({ queryKey: [k] }); void qc.invalidateQueries({ queryKey: ['dashboard'] }); };
   const located = (live.data?.vehicles ?? []).filter((v) => v.lng != null && v.lat != null);
@@ -59,17 +60,13 @@ export default function Dashboard() {
       </div>
       <QueryState q={q}>{(d) => (
         <>
-          {ownTrip.data?.id && isPhone() && <div className="mb-4"><OpenDriverCard tripId={ownTrip.data.id} origin={ownTrip.data.origin} destination={ownTrip.data.destination} /></div>}
-          {/* atalhos: registar camião / registar motorista (abrem o formulário aqui mesmo) */}
+          {ownTrip.data?.id && <div className="mb-4"><OpenDriverCard tripId={ownTrip.data.id} origin={ownTrip.data.origin} destination={ownTrip.data.destination} /></div>}
+          {/* atalhos: registar camião / registar motorista (abrem o formulário aqui mesmo); mostram o que já está registado */}
           {canWrite && <div className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {([['vehicle', TruckIcon, t.dashboard.addVehicle, t.dashboard.addVehicleHint, 'bg-primary text-white'],
-               ['driver', DriverIcon, t.dashboard.addDriver, t.dashboard.addDriverHint, 'bg-success text-white']] as const).map(([k, Icon, title, hint, tone]) => (
-              <button key={k} type="button" onClick={() => setAdd(k)}
-                className="group flex items-center gap-3 rounded-2xl border border-border bg-white p-3 text-left shadow-sm transition-colors hover:border-primary/40 active:bg-background">
-                <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-7 w-7" /></span>
-                <span className="min-w-0 flex-1"><span className="block font-semibold text-navy">{title}</span><span className="block truncate text-sm text-muted">{hint}</span></span>
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-background text-primary transition-colors group-hover:bg-primary-soft"><Plus className="h-4 w-4" /></span>
-              </button>))}
+            <RegisterTile kind="vehicle" Icon={TruckIcon} tone="bg-primary text-white" onAdd={() => setAdd('vehicle')} to="/app/vehicles"
+              items={(assets.vehicles.data ?? []).filter((v) => !v.is_test && v.main_status !== 'inativo').map((v) => ({ id: v.id, text: v.plate, href: `/app/vehicles/${v.id}` }))} />
+            <RegisterTile kind="driver" Icon={DriverIcon} tone="bg-success text-white" onAdd={() => setAdd('driver')} to="/app/drivers"
+              items={(assets.drivers.data ?? []).filter((x) => x.status === 'ativo').map((x) => ({ id: x.id, text: x.full_name.split(' ')[0]!, href: `/app/drivers/${x.id}`, warn: !x.id_number }))} />
           </div>}
           {d.placesCount === 0 && <p className="mb-4 rounded-lg bg-warning-soft px-4 py-3 text-sm text-warning">{t.dashboard.noPlaces}</p>}
           {d.counts.total === 0 && (
@@ -152,4 +149,38 @@ export default function Dashboard() {
       )}</QueryState>
     </div>
   );
+}
+
+// Cartão "Registar camião / motorista": sem registos, o cartão inteiro abre o formulário; com registos, mostra quantos e
+// quais (até 3, depois "+N"), com "Ver todos" — o "+" continua a abrir o formulário para juntar outro.
+function RegisterTile({ kind, Icon, tone, items, onAdd, to }: {
+  kind: 'vehicle' | 'driver'; Icon: (p: { className?: string }) => JSX.Element; tone: string; to: string; onAdd: () => void;
+  items: { id: string; text: string; href: string; warn?: boolean }[];
+}) {
+  const title = kind === 'vehicle' ? t.dashboard.addVehicle : t.dashboard.addDriver;
+  const plus = <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-soft text-primary transition-colors group-hover:bg-primary group-hover:text-white"><Plus className="h-4 w-4" /></span>;
+  const icon = <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${tone}`}><Icon className="h-7 w-7" /></span>;
+  if (!items.length) return (
+    <button type="button" onClick={onAdd} className="group flex items-center gap-3 rounded-2xl border border-border bg-white p-3 text-left shadow-sm transition-colors hover:border-primary/40 active:bg-background">
+      {icon}<span className="min-w-0 flex-1"><span className="block font-semibold text-navy">{title}</span>
+        <span className="block truncate text-sm text-muted">{kind === 'vehicle' ? t.dashboard.addVehicleHint : t.dashboard.addDriverHint}</span></span>{plus}
+    </button>);
+  const missing = items.filter((i) => i.warn).length;
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border border-border bg-white p-3 shadow-sm" data-testid={`registo-${kind}`}>
+      {icon}
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-navy">{kind === 'vehicle' ? t.dashboard.vehiclesCount(items.length) : t.dashboard.driversCount(items.length)}</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {items.slice(0, 3).map((i) => (
+            <Link key={i.id} to={i.href} title={i.warn ? t.driver.missingBi : undefined}
+              className={`inline-flex max-w-[9rem] items-center gap-1 truncate rounded-md border px-2 py-0.5 text-xs font-semibold ${i.warn ? 'border-warning/40 bg-warning-soft text-warning' : 'border-border bg-background text-navy'} ${kind === 'vehicle' ? 'font-mono tracking-wide' : ''}`}>
+              {i.warn && <AlertTriangle className="h-3 w-3 shrink-0" />}{i.text}</Link>))}
+          {items.length > 3 && <span className="rounded-md bg-background px-2 py-0.5 text-xs font-semibold text-muted">+{items.length - 3}</span>}
+        </div>
+        <p className="mt-1.5 text-xs"><Link to={to} className="font-medium text-primary">{t.dashboard.seeAll}</Link>
+          {missing > 0 && <span className="text-warning"> · {t.dashboard.missingBi(missing)}</span>}</p>
+      </div>
+      <button type="button" onClick={onAdd} aria-label={title} title={title} className="group">{plus}</button>
+    </div>);
 }

@@ -228,3 +228,10 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 - **Exceção à regra "sem animações gratuitas":** a fotografia desliza devagar e dois ícones de camião andam numa estrada desenhada. Os camiões andam SEMPRE, mesmo com `prefers-reduced-motion` (pedido expresso do proprietário, cujo telemóvel tem essa opção ligada); só a fotografia para.
 - **Fotografia:** fornecida pelo proprietário, convertida para WebP (640 px, ~80 KB) em `public/img/camiao-fundo.webp`. Só a área administrativa a carrega; a página pública `/track` não muda.
 - ⚠️ DEPENDÊNCIA EXTERNA: confirmar que a fotografia pode ser usada comercialmente (direitos de imagem).
+
+## ADR-025 — Câmara automática partilhada, Percurso automático, BI do motorista (2026-11-22)
+- **Câmara do mapa:** a câmara automática (15 s rota inteira / 30 s aproximado, 15 s ao chegar a uma localidade, aviso "Agora em X") passou de `DriverMap` para `src/lib/map/useRouteCamera.ts`. É usada no ecrã do motorista, na página da viagem no painel e na página pública, para o computador ficar igual ao telemóvel. Só aproxima com posição real; sem sinal, mostra a rota inteira.
+- **Separadores do ecrã do motorista:** alternam sozinhos, 105 s no Mapa e 15 s no Percurso. O mapa fica montado, por isso não recarrega.
+- **Cartão "Tem uma viagem de X até Y":** aparece também no computador. Ao tocar, no telemóvel abre o ecrã do motorista; no computador abre a página da viagem.
+- **BI do motorista (migração 0017):** `drivers.id_number` no formato de Moçambique, 12 algarismos + 1 letra, único por organização. É obrigatório no formulário e opcional na BD, porque os motoristas antigos e "Eu próprio" continuam válidos e o painel assinala "sem BI". O BI não é verificado numa base oficial (não há acesso); o formulário pede o nome "como no BI".
+- **Ecrã do motorista:** o botão "Despesa" foi substituído pelo quadro "Feitos" (km feitos pelo motor de percurso). A API de despesas continua (Custos).

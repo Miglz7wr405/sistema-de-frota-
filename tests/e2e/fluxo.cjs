@@ -42,6 +42,10 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await page.getByRole('button', { name: 'Adicionar motorista' }).first().click();
     await page.getByLabel('Nome').first().fill('João Matsinhe');
     await page.getByLabel('Telefone').fill('841234567');
+    // o BI é obrigatório (12 números + 1 letra)
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await page.getByText(/BI inválido/).first().waitFor({ timeout: 5000 });
+    await page.getByLabel('N.º do BI').fill('110100123456a');
     await page.getByRole('button', { name: 'Guardar' }).click();
     await page.getByText('João Matsinhe').first().click();
     await page.getByRole('button', { name: 'Gerar link e PIN' }).click();
@@ -80,8 +84,9 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await dlg.getByRole('button', { name: 'Guardar' }).click();
     await dlg.waitFor({ state: 'detached' });
     await page.getByRole('button', { name: '+ Novo' }).nth(1).click();
-    await page.getByRole('dialog').getByLabel('Nome').fill('Ana Cossa');
+    await page.getByRole('dialog').getByLabel('Nome completo (como no BI)').fill('Ana Cossa');
     await page.getByRole('dialog').getByLabel('Telefone').fill('847654321');
+    await page.getByRole('dialog').getByLabel('N.º do BI').fill('110200765432B');
     await page.getByRole('dialog').getByRole('button', { name: 'Guardar' }).click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
     if (!page.url().endsWith('/app/trips/new')) throw new Error('saiu do formulário');
@@ -197,6 +202,7 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.getByText('Voltar ao painel').waitFor();
     await tp.getByRole('button', { name: 'Terminar teste' }).waitFor();
     if (await tp.getByRole('button', { name: 'Falar' }).count()) throw new Error('botão "Falar" ainda existe');
+    if (await tp.getByRole('button', { name: 'Despesa' }).count()) throw new Error('botão "Despesa" ainda existe');
     // esquema do percurso com o camião
     // primeiro o Mapa (por omissão), depois o Percurso
     const tabs = await tp.getByRole('tab').allInnerTexts();
@@ -240,6 +246,20 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     if (rot) throw new Error('o ícone do camião está a rodar');
     if (!(maxS > minS * 2.5)) throw new Error(`o mapa não aproximou/afastou sozinho (${minS.toFixed(0)}–${maxS.toFixed(0)} px)`);
     return `zoom automático: ${minS.toFixed(0)} px ↔ ${maxS.toFixed(0)} px`;
+  });
+  await tstep('13g-percurso-automatico', async () => {
+    // o ecrã do motorista passa sozinho para o Percurso e volta ao Mapa (ciclo encurtado só neste teste)
+    await tp.evaluate(() => localStorage.setItem('if_tab_cycle', '5000,3000'));
+    await tp.reload(); await tp.waitForSelector('.maplibregl-canvas', { timeout: 15000 });
+    const sel = () => tp.getByRole('tab', { selected: true }).innerText();
+    if ((await sel()) !== 'Mapa') throw new Error('não começou no Mapa');
+    await tp.getByRole('tab', { name: 'Percurso', selected: true }).waitFor({ timeout: 9000 });
+    await tp.getByText(/km feitos/).first().waitFor();
+    await tp.getByRole('tab', { name: 'Mapa', selected: true }).waitFor({ timeout: 6000 });
+    await tp.evaluate(() => localStorage.removeItem('if_tab_cycle'));
+    // parado: no lugar do antigo "Despesa" aparece o quadro com os km feitos
+    await tp.getByTestId('km-feitos').getByText(/Feitos/).waitFor({ timeout: 20000 });
+    if (await tp.getByRole('button', { name: 'Despesa' }).count()) throw new Error('botão "Despesa" ainda existe');
   });
   await tstep('13c-viagem-real-motorista-sou-eu', async () => {
     // viagem REAL com o motorista = o próprio utilizador → "Iniciar viagem agora" abre logo o ecrã do motorista com o GPS.
@@ -323,6 +343,26 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     }, [v.lng, v.lat, 'TESTE TELEMOVEL']);
     console.log('     desvio do marcador (px):', JSON.stringify(res));
     if (Math.abs(res.dx) > 3 || Math.abs(res.dy) > 3) throw new Error('camião desenhado fora da coordenada: ' + JSON.stringify(res));
+  });
+  await step('15-computador-igual-ao-telemovel', async () => {
+    // painel no computador: cartão "Tem uma viagem de X até Y" e registos existentes; clicar abre a página da viagem
+    await page.goto(B + '/app/dashboard');
+    await page.getByText(/Tem uma viagem de .+ até .+/).first().waitFor({ timeout: 15000 });
+    await page.getByTestId('registo-vehicle').getByText(/camiões? registados?/).waitFor();
+    await page.getByTestId('registo-driver').getByText(/motoristas? registados?/).waitFor();
+    await page.screenshot({ path: SHOT + '15-painel-computador.png' });
+    await page.getByRole('button', { name: 'Abrir o ecrã do motorista' }).click();
+    await page.waitForURL(/\/app\/trips\/[0-9a-f-]+$/, { timeout: 10000 });
+    // zoom automático numa viagem com GPS a chegar agora (motorista João, telemóvel dele a continuar o caminho)
+    for (let i = 7; i <= 9; i++) { await dctx.setGeolocation({ latitude: -17.8775 + i * 0.0012, longitude: 36.8902 - i * 0.0016, accuracy: 10 }); await dp.waitForTimeout(16000); }
+    await page.goto(tripUrl); await page.waitForSelector('.maplibregl-canvas');
+    // o mapa da viagem aproxima sozinho (mesma câmara do telemóvel)
+    const z = () => page.evaluate(() => [...document.querySelectorAll('*')].find((x) => x.__zoom)?.__zoom());
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < 50 && !(hi - lo > 1.5); i++) { await page.waitForTimeout(1000); const v = await z(); if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+    if (!(hi - lo > 1.5)) throw new Error('o mapa da viagem no computador não aproximou: ' + JSON.stringify({ lo, hi, pill: await page.locator('span.rounded-full.bg-white').first().innerText().catch(() => '?') }));
+    await page.screenshot({ path: SHOT + '15-viagem-computador.png' });
+    return `zoom ${lo.toFixed(1)} ↔ ${hi.toFixed(1)}`;
   });
   const real = [...new Set(errs)].filter((e) => !/Future Flag|GL Driver|GPU stall/.test(e));
   console.log('--- erros da consola/rede ---\n' + (real.join('\n') || '(nenhum)'));

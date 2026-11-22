@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Navigation, Pause, Play, Volume2, VolumeX, Receipt, MapPin } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Navigation, Pause, Play, Volume2, VolumeX, Route, MapPin } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
 import { formatAgo, formatDuration, formatKm, formatTime } from '@/lib/format';
 import { speedTrend } from '@/features/tracking/RouteStrip';
 import { fileToUpload } from '@/lib/api/client';
-import { Button, Field, Input, Modal, Select, Textarea } from '@/components/ui';
+import { Button, Field, Input, Modal, Textarea } from '@/components/ui';
 import { DriverRoute } from './DriverRoute';
 import { TOKEN_KEY, driverApi, getToken, useDriverRuntime, type Me } from './useDriverRuntime';
 
@@ -79,7 +79,7 @@ function Consent({ onAccept }: { onAccept: () => void }) {
 function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; reload: () => void }) {
   const [muted, setMuted] = useState(localStorage.getItem('if_driver_muted') === '1');
   const rt = useDriverRuntime(me, muted);
-  const [modal, setModal] = useState<'incident' | 'delivery' | 'expense' | 'voice' | null>(null);
+  const [modal, setModal] = useState<'incident' | 'delivery' | 'voice' | null>(null);
   const trip = me.trip;
   const status = trip?.status;
   const moving = (rt.speed ?? 0) > 10; // em movimento: interface reduzida (segurança rodoviária)
@@ -142,7 +142,10 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
                 {status === 'em_viagem' ? <Button variant="secondary" size="lg" className="h-16" onClick={() => transition('pausada')}><Pause className="h-5 w-5" />{t.driverApp.pause}</Button>
                   : <Button variant="secondary" size="lg" className="h-16" onClick={() => transition('em_viagem')}><Play className="h-5 w-5" />{t.driverApp.resume}</Button>}
                 <Button size="lg" className="h-16 border border-warning/40 bg-warning-soft text-warning hover:bg-warning-soft" onClick={() => setModal('incident')}><AlertTriangle className="h-5 w-5" />{t.driverApp.incident}</Button>
-                <Button variant="secondary" size="lg" className="h-14" onClick={() => setModal('expense')}><Receipt className="h-5 w-5" />{t.driverApp.expense}</Button>
+                {/* km feitos (motor de percurso, ao longo da estrada) — no lugar do antigo botão "Despesa" */}
+                <div className="flex h-14 items-center justify-center gap-2 rounded-xl border border-border bg-white px-3" data-testid="km-feitos">
+                  <Route className="h-5 w-5 text-success" /><span className="text-sm text-muted">{t.driverApp.kmDoneLabel}</span>
+                  <span className="text-lg font-bold text-navy">{rt.snap?.kmDone != null ? formatKm(rt.snap.kmDone / scale) : '—'}</span></div>
                 <Button variant="secondary" size="lg" className="h-14" onClick={() => { const nv = !muted; setMuted(nv); localStorage.setItem('if_driver_muted', nv ? '1' : '0'); }}>
                   {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}{muted ? t.driverApp.unmute : t.driverApp.mute}</Button>
               </div>
@@ -173,7 +176,6 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
       )}
       {trip && <>
         <IncidentModal open={modal === 'incident'} onClose={() => setModal(null)} onSubmit={async (b) => { await rt.action('POST', `/api/driver/trips/${trip.id}/incidents`, b); setModal(null); }} />
-        <ExpenseModal open={modal === 'expense'} onClose={() => setModal(null)} onSubmit={async (b) => { await rt.action('POST', `/api/driver/trips/${trip.id}/expenses`, b); setModal(null); }} />
         <DeliveryModal open={modal === 'delivery'} onClose={() => setModal(null)} onSubmit={async (b) => {
           await rt.action('POST', `/api/driver/trips/${trip.id}/delivery`, b);
           await transition('concluida');
@@ -209,25 +211,6 @@ function IncidentModal({ open, onClose, onSubmit }: { open: boolean; onClose: ()
     </Modal>
   );
 }
-
-function ExpenseModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (b: unknown) => Promise<void> }) {
-  const [category, setCategory] = useState('portagem');
-  const [amount, setAmount] = useState('');
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  return (
-    <Modal open={open} onClose={onClose} title={t.driverApp.expense}>
-      <div className="space-y-3">
-        <Field label={t.costs.category}><Select value={category} onChange={(e) => setCategory(e.target.value)}>{Object.entries(t.costs.categories).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
-        <Field label={`${t.costs.amount} (MZN)`}><Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
-        <Field label={`${t.costs.receipt} (${t.common.optional})`}><Input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} /></Field>
-        <Button size="lg" className="w-full" disabled={!amount} loading={busy} onClick={async () => { setBusy(true); const receipt_file_id = photo ? await uploadFile(photo, 'receipt') : null;
-          await onSubmit({ category, amount: Number(amount.replace(',', '.')), receipt_file_id, spent_at: new Date().toISOString() }); setBusy(false); setAmount(''); }}>{t.driverApp.send}</Button>
-      </div>
-    </Modal>
-  );
-}
-
 function DeliveryModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (b: unknown) => Promise<void> }) {
   const [name, setName] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
