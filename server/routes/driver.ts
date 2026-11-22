@@ -4,7 +4,7 @@ import { route, ok, parse, HttpError, assertUuid } from '../http.js';
 import { many, one, withSystem } from '../db.js';
 import { requireDriver, asDriver, limitOr429 } from '../auth.js';
 import { checkPassword, randomToken, sha256, ipHash, dummyHash } from '../crypto.js';
-import { loadRouteModel } from '../trip-route.js';
+import { loadRouteModel, routeDistricts } from '../trip-route.js';
 import { simplify } from '../../src/lib/geo/geometry.js';
 import { afterTripClosed } from './trips.js';
 
@@ -45,7 +45,9 @@ route('GET', '/api/driver/me', async (req) => {
       // Geometria simplificada (~10 m) para descarregar e calcular offline com poucos dados móveis (lacuna L6).
       if (model) {
         const coords = simplify(model.coords, 10);
-        route_ = { routeId: model.routeId, version: model.routeVersion, baseKm: model.baseKm, coords, lengthM: model.lengthM, plannedDurationS: model.plannedDurationS, places: model.places };
+        route_ = { routeId: model.routeId, version: model.routeVersion, baseKm: model.baseKm, coords, lengthM: model.lengthM, plannedDurationS: model.plannedDurationS, places: model.places,
+          // distritos atravessados (para a voz: "Chegou ao distrito de X", "Falta pouco para chegar a Y")
+          districts: await routeDistricts(c, model.routeId) };
       }
       stops = await many(c, `select s.id, s.seq, s.kind, s.arrived_at, p.name place_name, s.recipient_name from trip_stops s join places p on p.id = s.place_id where s.trip_id = $1 order by s.seq`, [trip.id]);
       progress = await one(c, `select pr.km_done, pr.km_left, pr.pct, pr.current_label, pr.eta_destination, pr.eta_confidence, pr.engine_state,

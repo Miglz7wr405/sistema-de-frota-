@@ -5,6 +5,7 @@ import { cumulative, type LngLat } from '@/lib/geo/geometry';
 import { initialState, step, type EngineState, type RouteModel, type Snapshot } from '@/lib/geo/progress';
 import { DEFAULT_VOICE, evaluate, initialVoiceState, type VoiceState } from '@/lib/geo/voice';
 import { t, voiceTexts } from '@/i18n/pt-MZ';
+import { createDistrictPlayer, districtEvents, seedSaid, type RouteDistrict } from './districtVoice';
 import { pickVoice } from './voicePick';
 
 export const TOKEN_KEY = 'if_driver_token';
@@ -14,7 +15,7 @@ export type Me = {
   testMode?: boolean; ownDriver?: boolean;
   driver: { id: string; fullName: string }; org: { name: string; settings: Record<string, number> }; consentRequired: boolean;
   trip: { id: string; code: string; status: string; origin: string; destination: string; plate: string | null; cargo_description: string | null; recipient_name?: string | null; recipient_phone?: string | null; planned_arrival: string | null } | null;
-  route: { routeId: string; version: number; baseKm: number; coords: LngLat[]; lengthM: number; plannedDurationS: number; places: RouteModel['places'] } | null;
+  route: { routeId: string; version: number; baseKm: number; coords: LngLat[]; lengthM: number; plannedDurationS: number; places: RouteModel['places']; districts?: RouteDistrict[] } | null;
   stops: { id: string; seq: number; kind: string; arrived_at: string | null; place_name: string }[]; serverTime: string;
   progress?: { km_done: number | null; current_label?: string | null; last_passed?: string | null } | null;
 };
@@ -79,6 +80,11 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
     return true;
   }, []);
 
+  // Voz dos distritos (gravações do ElevenLabs; sem gravação, a voz do telemóvel)
+  const player = useRef<ReturnType<typeof createDistrictPlayer> | null>(null);
+  if (!player.current) player.current = createDistrictPlayer((txt) => speak(txt), () => mutedRef.current);
+  const districts = useRef<{ key: string; entries: RouteDistrict[]; said: Set<string> } | null>(null);
+
   // Modelo da rota: guardado localmente para funcionar sem rede (lacuna L6).
   useEffect(() => {
     if (!me?.trip || !me.route) { engine.current = null; return; }
@@ -104,6 +110,12 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
       e.state = { ...initialState(), doneM: serverM, lastAlongM: serverM, lastAlongT: now, lastFixT: now,
         passed: Object.fromEntries(behind.map((p) => [p.placeId, now])), entered: Object.fromEntries(behind.map((p) => [p.placeId, now])) };
       e.voice = { ...initialVoiceState(), said: Object.fromEntries(behind.map((p) => [`entra:${p.placeId}`, now])) };
+    }
+    // distritos da rota na mesma medida do motor local; os que ficaram para trás não se anunciam
+    if (districts.current?.key !== e.key) {
+      const entries = (me.route.districts ?? []).map((d) => ({ ...d, km: d.km * e.scale }));
+      districts.current = { key: e.key, entries, said: seedSaid(entries, e.state.doneM != null ? e.state.doneM / 1000 : null) };
+      void player.current?.prefetch(entries);
     }
   }, [me?.trip?.id, me?.route?.routeId, Math.round(me?.progress?.km_done ?? 0)]);
 
@@ -169,7 +181,12 @@ export function useDriverRuntime(me: Me | null, muted: boolean) {
       const v = evaluate(e.voice, r.snapshot, r.events, now, voiceTexts, { ...DEFAULT_VOICE, minImportance: st.voice_min_importance ?? 2 });
       e.state = r.state; e.voice = v.state;
       setSnap(r.snapshot);
-      if (v.speak) {
+      const dv = districts.current ? districtEvents(districts.current.entries, r.snapshot.kmDone, districts.current.said) : [];
+      if (dv.length) {
+        setLastSpoken(dv.map((x) => x.text).join(' '));
+        player.current?.play(dv);
+        for (const x of dv) voiceLog.current.push({ key: `distrito:${x.key}:${x.district.code}`, kind: `distrito_${x.kind}`, text: x.text, at: new Date(now).toISOString(), km: r.snapshot.kmDone, played: !mutedRef.current, clip: !!x.clip });
+      } else if (v.speak) {
         const played = speak(v.speak.text);
         voiceLog.current.push({ key: v.speak.key, kind: v.speak.kind, text: v.speak.text, at: new Date(now).toISOString(), km: r.snapshot.kmDone, played });
       }

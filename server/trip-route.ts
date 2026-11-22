@@ -103,3 +103,29 @@ export async function loadRouteModel(c: Tx, tripId: string): Promise<(RouteModel
     places: places.map((p) => ({ placeId: p.place_id, name: p.name, kind: p.kind, importance: p.importance, provinceId: p.province_id, provinceName: p.province_name, kmFromOrigin: p.km_from_origin - r.base_km })),
   };
 }
+
+/** Distritos atravessados pela rota, por ordem, com o km (desde o início da geometria da rota) em que se entra em cada um.
+ * Amostra a rota a cada 400 m e vê em que distrito (ADM2) cai cada ponto; só regista as mudanças. Sem distritos importados: []. */
+export async function routeDistricts(c: Tx, routeId: string) {
+  // em savepoint: se falhar, a transação do pedido continua válida (a voz dos distritos é um extra)
+  await c.query('savepoint route_districts');
+  try {
+    const rows = await districtsQuery(c, routeId);
+    await c.query('release savepoint route_districts');
+    return rows;
+  } catch (e) {
+    await c.query('rollback to savepoint route_districts');
+    console.warn('[distritos da rota]', (e as Error).message);
+    return [];
+  }
+}
+function districtsQuery(c: Tx, routeId: string) {
+  return many<{ code: string; name: string; province: string | null; km: number }>(c, `
+    with r as (select geom::geometry g, length_m from trip_routes where id = $1),
+    pts as (select ST_LineLocatePoint(r.g, d.geom) f, d.geom p from r, ST_DumpPoints(ST_Segmentize(r.g::geography, 400)::geometry) d),
+    lab as (select f, (select a.id from admin_areas a where a.level = 2 and ST_Covers(a.geom, p::geography) order by ST_Area(a.geom) limit 1) aid from pts),
+    runs as (select f, aid, lag(aid) over (order by f) prev from lab where aid is not null)
+    select a.code, a.name, pv.name province, round((runs.f * (select length_m from r) / 1000)::numeric, 3)::float8 km
+    from runs join admin_areas a on a.id = runs.aid left join admin_areas pv on pv.id = a.parent_id
+    where runs.aid is distinct from runs.prev order by runs.f`, [routeId]);
+}

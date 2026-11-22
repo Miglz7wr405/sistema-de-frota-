@@ -292,6 +292,8 @@ export const t = {
     honesty: 'Atenção: com o ecrã bloqueado ou a app em segundo plano, o envio da localização pode parar.',
   },
   voice: {
+    arrivedDistrict: (n: string) => `Chegou ao distrito de ${n}.`, nearDistrict: (n: string) => `Falta pouco para chegar ao distrito de ${n}.`,
+    arrivedCity: (n: string) => `Chegou à ${n}.`, nearCity: (n: string) => `Falta pouco para chegar à ${n}.`,
     tripStarted: 'Viagem iniciada.', signalLost: 'A localização deixou de ser atualizada.', noInfo: 'Não tenho essa informação neste momento.',
   },
   assistant: {

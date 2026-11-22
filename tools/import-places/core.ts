@@ -153,3 +153,45 @@ export async function importProvincesGeoBoundaries(c: pg.ClientBase, override?: 
     where p.province_id is null`);
   return { provinces: n, source };
 }
+
+// ── Distritos (ADM2) a partir do geoBoundaries ─────────────────────────────────────────────────────────
+// ⚠️ DEPENDÊNCIA EXTERNA: geoBoundaries (gratuito, CC BY 4.0; origem OCHA COD-AB). O ficheiro ADM2 está no GitHub LFS
+// (media.githubusercontent.com). Cada distrito fica ligado à província que contém o seu ponto interior.
+const GB2_API = 'https://www.geoboundaries.org/api/current/gbOpen/MOZ/ADM2/';
+const GB2_RAW = 'https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/main/releaseData/gbOpen/MOZ/ADM2/geoBoundaries-MOZ-ADM2_simplified.geojson';
+// Nomes com a grafia portuguesa (o geoBoundaries vem sem acentos e com "De"/"Da" em maiúscula).
+const PT_DISTRICTS: Record<string, string> = {
+  altomolocue: 'Alto Molócuè', gile: 'Gilé', gurue: 'Gurúè', namarroi: 'Namarrói', chokwe: 'Chókwè', homoine: 'Homoíne',
+  barue: 'Báruè', chiure: 'Chiúre', erati: 'Eráti', mecuburi: 'Mecubúri', mecufi: 'Mecúfi', ribaue: 'Ribáuè', guija: 'Guijá',
+  maringue: 'Maríngue', angonia: 'Angónia', mocimbodapraia: 'Mocímboa da Praia', mocimboadapraia: 'Mocímboa da Praia',
+  cidadedexaixai: 'Cidade de Xai-Xai', manhica: 'Manhiça', liupo: 'Liúpo', mossurize: 'Mossurize',
+};
+export function districtPtName(raw: string) {
+  const fixed = PT_DISTRICTS[norm(raw)];
+  if (fixed) return fixed;
+  return raw.trim().replace(/\s+(De|Da|Do|Dos|Das|E|A)(?=\s)/g, (m) => m.toLowerCase());
+}
+
+export async function importDistrictsGeoBoundaries(c: pg.ClientBase, override?: { features: any[] }) {
+  let fc: { features: any[] } | null = override ?? null;
+  let source = 'override';
+  if (!fc) {
+    try { const meta = await fetchJson(GB2_API); source = meta.simplifiedGeometryGeoJSON; fc = await fetchJson(source); }
+    catch { source = GB2_RAW; fc = await fetchJson(GB2_RAW); }
+  }
+  const ds = (await c.query(`insert into geo_datasets (name, source_url, license, retrieved_at, version) values ($1, $2, 'CC BY 4.0 (geoBoundaries / OCHA COD-AB)', now(), 'ADM2 simplificado') returning id`,
+    ['geoBoundaries — distritos de Moçambique (ADM2)', source])).rows[0].id;
+  let n = 0;
+  for (const f of fc!.features) {
+    const raw = String(f.properties?.shapeName ?? '').trim();
+    if (!raw || !f.geometry || /^(lago niassa|ilha licom|ilha risunodo)$/i.test(raw)) continue; // lago e ilhas sem estrada
+    const code = String(f.properties?.shapeID || `gb2-${norm(raw)}`);
+    await c.query(`insert into admin_areas (level, name, code, geom, dataset_id, parent_id)
+      select 2, $1, $2, g, $4, (select a.id from admin_areas a where a.level = 1 and ST_Covers(a.geom, ST_PointOnSurface(g::geometry)::geography) order by ST_Area(a.geom) limit 1)
+      from (select ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)), 3))::geography g) x
+      on conflict (level, code) do update set name = excluded.name, geom = excluded.geom, dataset_id = excluded.dataset_id, parent_id = excluded.parent_id, updated_at = now()`,
+      [districtPtName(raw), code, JSON.stringify(f.geometry), ds]);
+    n++;
+  }
+  return { districts: n, source };
+}

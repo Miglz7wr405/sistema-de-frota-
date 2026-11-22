@@ -46,8 +46,20 @@ async function completeProvinces() {
   } catch (e) { console.warn('[provincias]', (e as Error).message); return null; }
 }
 
+/** Distritos (ADM2) a partir do geoBoundaries, se faltarem (depois das províncias). No máximo 1 tentativa a cada 30 min. */
+async function completeDistricts() {
+  try {
+    const have = await withSystem((c) => c.query('select (select count(*) from admin_areas where level = 1)::int p, (select count(*) from admin_areas where level = 2)::int d'));
+    if (have.rows[0].p < 11 || have.rows[0].d >= 140 || !(await hit('jobs:districts', 1800, 1))) return null;
+    const { importDistrictsGeoBoundaries } = await import('../../tools/import-places/core.js');
+    const r = await withSystem((c) => importDistrictsGeoBoundaries(c));
+    console.log('[distritos]', JSON.stringify(r));
+    return r;
+  } catch (e) { console.warn('[distritos]', (e as Error).message); return null; }
+}
+
 export async function runJobs(kind: 'periodic' | 'daily') {
-  if (kind === 'periodic') await completeProvinces();
+  if (kind === 'periodic') { await completeProvinces(); await completeDistricts(); }
   return withSystem(async (c) => {
     const since = new Date();
     const r = (await c.query(kind === 'daily' ? 'select run_daily_jobs() j' : 'select run_periodic_jobs() j')).rows[0].j;

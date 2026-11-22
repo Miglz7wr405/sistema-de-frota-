@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // Testes de integração: BD Postgres+PostGIS real (local), migrações reais, papel app_api com RLS, API real (dispatch).
 // Requer: TEST_DATABASE_ADMIN_URL (ex.: postgres://postgres:postgres@localhost/postgres). Sem ela, os testes são ignorados.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -619,6 +620,29 @@ d('viagens entre quaisquer províncias', () => {
     const mine = await call('GET', '/api/own-active-trip', A);
     expect(mine.status).toBe(200);
     expect((await call('GET', '/api/own-active-trip', {})).status).toBe(401);
+  });
+
+  it('distritos (ADM2 geoBoundaries) atravessados pela rota: por ordem, km a subir', async () => {
+    const { importDistrictsGeoBoundaries } = await import('../tools/import-places/core');
+    const { routeDistricts } = await import('../server/trip-route');
+    const fc = JSON.parse(readFileSync('tests/e2e/fixtures/distritos-teste.geojson', 'utf8'));
+    const c = await sys.connect();
+    try {
+      const imp = await importDistrictsGeoBoundaries(c, fc);
+      expect(imp.districts).toBeGreaterThan(50);
+      const nm = (await c.query(`select name from admin_areas where level = 2 and name in ('Alto Molócuè','Gurúè','Cidade da Beira','Maganja da Costa')`)).rows.map((r) => r.name).sort();
+      expect(nm).toEqual(['Alto Molócuè', 'Cidade da Beira', 'Gurúè', 'Maganja da Costa']); // grafia portuguesa
+      const t = await call('POST', '/api/trips', A, { origin_place_id: ids.origin, destination_place_id: ids.dest });
+      expect(t.status).toBe(201);
+      const r = (await c.query('select id, length_m from trip_routes where trip_id = $1 and is_current', [t.json.id])).rows[0];
+      await c.query('begin');
+      const ds = await routeDistricts(c, r.id);
+      await c.query('commit');
+      expect(ds.length).toBeGreaterThan(2);
+      for (let i = 1; i < ds.length; i++) { expect(ds[i]!.km).toBeGreaterThan(ds[i - 1]!.km); expect(ds[i]!.code).not.toBe(ds[i - 1]!.code); }
+      expect(ds[0]!.km).toBeLessThan(1);
+      expect(ds.at(-1)!.km).toBeLessThanOrEqual(r.length_m / 1000 + 0.01);
+    } finally { c.release(); }
   });
 });
 
