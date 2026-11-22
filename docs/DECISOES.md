@@ -235,3 +235,11 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 - **Cartão "Tem uma viagem de X até Y":** aparece também no computador. Ao tocar, no telemóvel abre o ecrã do motorista; no computador abre a página da viagem.
 - **BI do motorista (migração 0017):** `drivers.id_number` no formato de Moçambique, 12 algarismos + 1 letra, único por organização. É obrigatório no formulário e opcional na BD, porque os motoristas antigos e "Eu próprio" continuam válidos e o painel assinala "sem BI". O BI não é verificado numa base oficial (não há acesso); o formulário pede o nome "como no BI".
 - **Ecrã do motorista:** o botão "Despesa" foi substituído pelo quadro "Feitos" (km feitos pelo motor de percurso). A API de despesas continua (Custos).
+
+## ADR-026 — Voz dos distritos: gravações estáticas ElevenLabs + voz do telemóvel (2026-11-22)
+- **Frases:** "Chegou ao distrito de X." ao entrar num distrito e "Falta pouco para chegar ao distrito de Y." 5 km antes; nas cidades capitais, "Chegou à cidade de X." / "Falta pouco para chegar à cidade de X.". Cada aviso é dito uma só vez; ao reabrir a app não repete os distritos que ficaram para trás.
+- **Distritos:** limites ADM2 do geoBoundaries (CC BY 4.0, origem OCHA COD-AB), importados pela tarefa periódica (`completeDistricts`). A produção tem 156. Os km de entrada em cada distrito calculam-se sobre a rota rodoviária real (`routeDistricts`).
+- **Áudio:** gravado antes no ElevenLabs (voz "Dinis", pt-PT, `eleven_multilingual_v2`) e guardado em `public/voz/*.mp3` (mono 48 kbps, ~10 KB cada). Não há chave de API nem pedidos ao ElevenLabs durante a viagem. As gravações da rota são descarregadas quando a viagem abre, por isso tocam sem rede.
+- **Distritos sem gravação:** a mesma frase é dita pela voz do telemóvel.
+- **Estado:** 16 frases gravadas (Cidade de Quelimane, Nicoadala, Namacurra, Mocuba, Alto Molócuè, Chinde, Derre, Gilé). A quota mensal gratuita do ElevenLabs (10 000 créditos) esgotou-se.
+- ⚠️ DEPENDÊNCIA EXTERNA: o resto (14 distritos da Zambézia e 10 capitais, ~2 000 créditos) fica para quando a quota renovar ou com um plano pago. O uso comercial do áudio depende dos termos do plano ElevenLabs.

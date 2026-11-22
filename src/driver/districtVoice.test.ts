@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { districtEvents, phrase, seedSaid, slugify, type RouteDistrict } from './districtVoice';
+import { existsSync } from 'node:fs';
+import { clipFor, districtEvents, phrase, seedSaid, slugify, type RouteDistrict } from './districtVoice';
+import manifest from './voz-manifest.json';
 
 const R: RouteDistrict[] = [
   { code: 'q', name: 'Cidade de Quelimane', province: 'Zambézia', km: 0 },
@@ -33,4 +35,10 @@ describe('voz dos distritos', () => {
     expect(districtEvents(R, 60.1, said).map((e) => e.district.name)).toEqual(['Namacurra']);
   });
   it('sem km (sem GPS) não diz nada', () => { expect(districtEvents(R, null, seedSaid(R, null))).toEqual([]); });
+  it('gravações ElevenLabs: o manifesto só lista ficheiros que existem; sem gravação usa a voz do telemóvel', () => {
+    expect(clipFor('chegou', 'Nicoadala')).toBe('/voz/nicoadala-chegou.mp3');
+    expect(clipFor('falta', 'Cidade de Quelimane')).toBe('/voz/cidade-de-quelimane-falta.mp3');
+    expect(clipFor('chegou', 'Distrito Sem Gravação')).toBeNull();
+    for (const c of manifest.clips) expect(existsSync(`public/voz/${c}.mp3`)).toBe(true);
+  });
 });

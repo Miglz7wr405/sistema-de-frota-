@@ -1,1 +1,21 @@
-{ "voice": "ElevenLabs — Dinis Voz (pt-PT), eleven_multilingual_v2", "clips": [] }
+{
+ "voice": "ElevenLabs — Dinis Voz (pt-PT), eleven_multilingual_v2",
+ "clips": [
+  "alto-molocue-chegou",
+  "alto-molocue-falta",
+  "chinde-chegou",
+  "chinde-falta",
+  "cidade-de-quelimane-chegou",
+  "cidade-de-quelimane-falta",
+  "derre-chegou",
+  "derre-falta",
+  "gile-chegou",
+  "gile-falta",
+  "mocuba-chegou",
+  "mocuba-falta",
+  "namacurra-chegou",
+  "namacurra-falta",
+  "nicoadala-chegou",
+  "nicoadala-falta"
+ ]
+}
