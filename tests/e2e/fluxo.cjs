@@ -414,20 +414,26 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
       await page.getByLabel('Motorista').selectOption({ label: 'Paulo Pagamento' });
       await page.getByRole('button', { name: 'Iniciar viagem agora' }).click();
       const ck = page.getByTestId('checkout'); await ck.waitFor({ timeout: 15000 });
-      await ck.getByText('250,00 MT').first().waitFor();
+      await page.getByRole('dialog', { name: 'Ativar rastreio GPS' }).waitFor();
       await page.screenshot({ path: SHOT + '16-checkout.png' });
+      await page.setViewportSize({ width: 400, height: 860 }); await page.waitForTimeout(500);
+      await page.screenshot({ path: SHOT + '16-checkout-telemovel.png' });
       await page.getByTestId('checkout-foto').setInputFiles(require('path').join(__dirname, '../../public/img/landing-cliente.webp'));
       await page.getByTestId('checkout-codigo').waitFor({ timeout: 60000 });
       await page.getByTestId('checkout-codigo').fill('E2E45H7GT2');
       await page.getByTestId('checkout-pagador').fill('849990000');
-      await page.getByRole('button', { name: 'Enviar comprovativo' }).click();
+      await page.waitForTimeout(400); await page.screenshot({ path: SHOT + '16-checkout-telemovel-comprovativo.png' });
+      await page.getByRole('button', { name: /^Ativar rastreio · 250/ }).click();
       await page.getByTestId('checkout-pendente').waitFor({ timeout: 15000 });
+      await page.screenshot({ path: SHOT + '16-checkout-telemovel-a-ativar.png' });
+      await page.setViewportSize({ width: 1280, height: 860 });
       await page.screenshot({ path: SHOT + '16b-checkout-a-confirmar.png' });
       // o telemóvel do proprietário reencaminha o SMS do M-Pesa
       const r = await page.evaluate(() => fetch('/api/payments/sms?key=e2e-sms-segredo-123', { method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ from: 'M-Pesa', text: 'E2E45H7GT2 Confirmado. Recebeste 250.00MT de 258849990000 - PAULO aos 23/11/26' }) }).then((x) => x.json()));
       if (!r.matched) throw new Error('SMS não confirmou o pagamento: ' + JSON.stringify(r));
       await page.getByTestId('checkout-aprovado').waitFor({ timeout: 15000 });
+      await page.screenshot({ path: SHOT + '16-checkout-ativado.png' });
       await page.waitForURL(/\/app\/trips\/[0-9a-f-]+$/, { timeout: 20000 });
       await page.getByText('Viagem iniciada').first().waitFor({ timeout: 15000 });
       await page.screenshot({ path: SHOT + '16c-viagem-paga-iniciada.png' });

@@ -38,3 +38,13 @@
 /* troca automática Mapa ↔ Percurso no ecrã do motorista */
 .tab-fade { animation: tab-fade .3s ease-out; }
 @keyframes tab-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* checkout: entra a subir (telemóvel) / aparecer (computador); ✓ final com um pequeno salto */
+.ck-fade { animation: ck-fade .25s ease-out; }
+.ck-sheet { animation: ck-up .35s cubic-bezier(.2,.8,.2,1); }
+@media (min-width: 640px) { .ck-sheet { animation: ck-in .25s ease-out; } }
+.ck-pop { animation: ck-pop .45s cubic-bezier(.2,1.4,.4,1); }
+@keyframes ck-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ck-up { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes ck-in { from { transform: scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes ck-pop { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
