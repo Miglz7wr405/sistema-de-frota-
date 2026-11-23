@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Navigation, Pause, Play, Volume2, VolumeX, Route, MapPin } from 'lucide-react';
+import { CheckCircle2, Hash, Navigation, Pause, Play, Volume2, VolumeX, Route, MapPin } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
 import { formatAgo, formatDuration, formatKm, formatTime } from '@/lib/format';
 import { speedTrend } from '@/features/tracking/RouteStrip';
 import { fileToUpload } from '@/lib/api/client';
-import { Button, Field, Input, Modal, Textarea } from '@/components/ui';
+import { Button, Field, Input, Modal } from '@/components/ui';
 import { DriverRoute } from './DriverRoute';
 import { TOKEN_KEY, driverApi, getToken, useDriverRuntime, type Me } from './useDriverRuntime';
 
@@ -79,7 +79,7 @@ function Consent({ onAccept }: { onAccept: () => void }) {
 function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; reload: () => void }) {
   const [muted, setMuted] = useState(localStorage.getItem('if_driver_muted') === '1');
   const rt = useDriverRuntime(me, muted);
-  const [modal, setModal] = useState<'incident' | 'delivery' | 'voice' | null>(null);
+  const [modal, setModal] = useState<'delivery' | 'voice' | null>(null);
   const trip = me.trip;
   const status = trip?.status;
   const moving = (rt.speed ?? 0) > 10; // em movimento: interface reduzida (segurança rodoviária)
@@ -125,7 +125,6 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
               {(trip.recipient_name || trip.recipient_phone) && <p className="mt-1"><span className="text-muted">{t.trip.cargoOwner}:</span> <b>{trip.recipient_name ?? ''}</b>
                 {trip.recipient_phone && <> · <a className="text-primary" href={`tel:${trip.recipient_phone}`}>{trip.recipient_phone}</a></>}</p>}
             </div>}
-            <TripCodeCard code={trip.share_code ?? null} tripCode={trip.code} />
             <DriverRoute me={me} model={rt.route} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} pos={rt.pos} road={rt.road}
               arrived={rt.snap?.places.find((p) => p.state === 'atual' && p.importance >= 2 && p.kmFromOrigin > 1) ?? null} />
             {!moving && <div className="card flex items-center gap-4 p-4"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Navigation className="h-6 w-6" /></span>
@@ -142,7 +141,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
               <div className="grid grid-cols-2 gap-3">
                 {status === 'em_viagem' ? <Button variant="secondary" size="lg" className="h-16" onClick={() => transition('pausada')}><Pause className="h-5 w-5" />{t.driverApp.pause}</Button>
                   : <Button variant="secondary" size="lg" className="h-16" onClick={() => transition('em_viagem')}><Play className="h-5 w-5" />{t.driverApp.resume}</Button>}
-                <Button size="lg" className="h-16 border border-warning/40 bg-warning-soft text-warning hover:bg-warning-soft" onClick={() => setModal('incident')}><AlertTriangle className="h-5 w-5" />{t.driverApp.incident}</Button>
+                {/* "Ocorrência" saiu (pedido do proprietário): no lugar, o ID da viagem para dar ao cliente */}
+                <Button size="lg" className="h-16 border border-primary/30 bg-primary-soft text-primary hover:bg-primary-soft" onClick={() => document.getElementById('id-da-viagem')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><Hash className="h-5 w-5" />{t.driverApp.tripId}</Button>
                 {/* km feitos (motor de percurso, ao longo da estrada) — no lugar do antigo botão "Despesa" */}
                 <div className="flex h-14 items-center justify-center gap-2 rounded-xl border border-border bg-white px-3" data-testid="km-feitos">
                   <Route className="h-5 w-5 text-success" /><span className="text-sm text-muted">{t.driverApp.kmDoneLabel}</span>
@@ -157,6 +157,8 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
                 <button className="w-full py-2 text-sm text-muted" onClick={() => setModal('voice')}>{t.driverApp.voiceTest}</button>
               </div>
             </>}
+            {/* ID da viagem: em baixo, depois de "Confirmar entrega" (o cliente acompanha o camião com este código) */}
+            <TripCodeCard code={trip.share_code ?? null} tripCode={trip.code} />
             {rt.testMode && <div className="grid grid-cols-2 gap-3">
               <Button variant="secondary" onClick={() => { location.href = '/app/self-test?escolher=1'; }}>{t.selftest.changeDestination}</Button>
               <Button variant="danger" onClick={async () => { await transition('concluida'); location.href = '/app/dashboard'; }}>{t.selftest.endTest}</Button>
@@ -176,7 +178,6 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
         </main>
       )}
       {trip && <>
-        <IncidentModal open={modal === 'incident'} onClose={() => setModal(null)} onSubmit={async (b) => { await rt.action('POST', `/api/driver/trips/${trip.id}/incidents`, b); setModal(null); }} />
         <DeliveryModal open={modal === 'delivery'} onClose={() => setModal(null)} onSubmit={async (b) => {
           await rt.action('POST', `/api/driver/trips/${trip.id}/delivery`, b);
           await transition('concluida');
@@ -194,24 +195,6 @@ async function uploadFile(file: Blob, kind: string): Promise<string | null> {
   try { return (await driverApi<{ id: string }>('/api/driver/files', 'POST', { kind, ...(await fileToUpload(file, 1280)) })).id; } catch { return null; }
 }
 
-function IncidentModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (b: unknown) => Promise<void> }) {
-  const [kind, setKind] = useState('avaria');
-  const [note, setNote] = useState('');
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  return (
-    <Modal open={open} onClose={onClose} title={t.driverApp.incident}>
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">{Object.entries(t.driverApp.incidentKinds).map(([k, v]) => (
-          <button key={k} onClick={() => setKind(k)} className={`rounded-xl border p-3 text-left font-medium ${kind === k ? 'border-primary bg-primary-soft' : 'border-border'}`}>{v}</button>))}</div>
-        <Textarea placeholder={t.common.notes} value={note} onChange={(e) => setNote(e.target.value)} />
-        <Field label={`${t.driverApp.photo} (${t.common.optional})`}><Input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} /></Field>
-        <Button size="lg" className="w-full" loading={busy} onClick={async () => { setBusy(true); const photo_file_id = photo ? await uploadFile(photo, 'incident_photo') : null;
-          await onSubmit({ kind, note: note || null, photo_file_id, occurred_at: new Date().toISOString() }); setBusy(false); setNote(''); setPhoto(null); }}>{t.driverApp.send}</Button>
-      </div>
-    </Modal>
-  );
-}
 function DeliveryModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (b: unknown) => Promise<void> }) {
   const [name, setName] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -313,8 +296,8 @@ function TripCodeCard({ code, tripCode }: { code: string | null; tripCode: strin
   const link = code ? `${location.origin}/track?code=${encodeURIComponent(code)}` : null;
   const copy = async () => { try { await navigator.clipboard.writeText(link ?? tripCode); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* sem permissão */ } };
   return (
-    <div className="card p-4" data-testid="motorista-codigo">
-      <p className="text-sm text-muted">{t.driverApp.tripCode}</p>
+    <div id="id-da-viagem" className="card p-4" data-testid="motorista-codigo">
+      <p className="text-sm text-muted">{t.driverApp.tripId}</p>
       <p className="mt-0.5 font-mono text-2xl font-bold tracking-wider text-navy">{code ?? tripCode}</p>
       {code ? <>
         <p className="mt-1 text-sm text-muted">{t.driverApp.tripCodeHelp}</p>

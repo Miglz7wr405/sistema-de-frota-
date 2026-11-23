@@ -274,7 +274,7 @@ export const t = {
   platform: { title: 'Plataforma', orgs: 'Organizações', setPlan: 'Alterar plano', support: 'Pedir acesso de suporte', reason: 'Motivo', hours: 'Horas' },
   driverApp: {
     kmDoneLabel: 'Feitos',
-    tripCode: 'Código da viagem', tripCodeHelp: 'O cliente acompanha o camião com este código em insightfrota.vercel.app/track.',
+    tripId: 'ID da viagem', tripCode: 'Código da viagem', tripCodeHelp: 'O cliente acompanha o camião com este código em insightfrota.vercel.app/track.',
     tripCodeNoShare: 'O cliente ainda não tem link de acompanhamento. O escritório cria-o na página da viagem.',
     copyLink: 'Copiar link', copied: 'Copiado ✓',
     shareText: (code: string, link: string) => `Acompanhe a sua carga em tempo real. Código da viagem: ${code}\n${link}`,

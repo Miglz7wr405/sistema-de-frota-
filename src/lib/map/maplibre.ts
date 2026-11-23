@@ -137,7 +137,8 @@ export const maplibreProvider: MapProvider = {
           (map.getSource('areas') as maplibregl.GeoJSONSource).setData({ type: 'FeatureCollection',
             features: (s.areas ?? []).filter((a) => a.boundary).map((a) => ({ type: 'Feature', properties: { name: a.name }, geometry: a.boundary as GeoJSON.Geometry })) });
           for (const m of aMarkers.splice(0)) m.remove();
-          for (const a of s.areas ?? []) {
+          // "Cidade de X": o mapa base já escreve o nome da cidade; o nome do distrito por cima ficava sobreposto
+          for (const a of (s.areas ?? []).filter((x) => !/^cidade (de|da|do) /i.test(x.name))) {
             const el = document.createElement('div');
             el.className = 'if-area-label';
             el.textContent = a.name;

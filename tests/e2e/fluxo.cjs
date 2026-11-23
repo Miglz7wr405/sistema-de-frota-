@@ -213,8 +213,6 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.getByRole('button', { name: 'Terminar teste' }).waitFor();
     if (await tp.getByRole('button', { name: 'Falar' }).count()) throw new Error('botão "Falar" ainda existe');
     if (await tp.getByRole('button', { name: 'Despesa' }).count()) throw new Error('botão "Despesa" ainda existe');
-    // código da viagem no ecrã do motorista
-    await tp.getByTestId('motorista-codigo').getByText(/FT-/).first().waitFor();
     // esquema do percurso com o camião
     // primeiro o Mapa (por omissão), depois o Percurso
     const tabs = await tp.getByRole('tab').allInnerTexts();
@@ -271,6 +269,11 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.evaluate(() => localStorage.removeItem('if_tab_cycle'));
     // parado: no lugar do antigo "Despesa" aparece o quadro com os km feitos
     await tp.getByTestId('km-feitos').getByText(/Feitos/).waitFor({ timeout: 20000 });
+    // "Ocorrência" saiu; no lugar, "ID da viagem" abre o código para dar ao cliente
+    if (await tp.getByRole('button', { name: 'Ocorrência' }).count()) throw new Error('botão "Ocorrência" ainda existe');
+    await tp.getByRole('button', { name: 'ID da viagem' }).click();
+    await tp.getByTestId('motorista-codigo').getByText(/FT-/).first().waitFor();
+    await tp.waitForTimeout(800); await tp.screenshot({ path: SHOT + '13h-id-da-viagem.png' });
     if (await tp.getByRole('button', { name: 'Despesa' }).count()) throw new Error('botão "Despesa" ainda existe');
   });
   await tstep('13c-viagem-real-motorista-sou-eu', async () => {
