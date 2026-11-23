@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
+execSync('node scripts/copy-ocr.mjs', { stdio: 'inherit' });
 execSync('npx vite build', { stdio: 'inherit' });
 const out = '.vercel/output';
 rmSync(out, { recursive: true, force: true });

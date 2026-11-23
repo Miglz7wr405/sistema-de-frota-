@@ -4,6 +4,7 @@ import { api, errorMessage } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
 import { Button, Field, Input, Modal, PageHeader, QueryState, Select } from '@/components/ui';
 import { formatDate, formatNumber } from '@/lib/format';
+import { PaymentsPanel } from './Payments';
 
 export default function Platform() {
   const qc = useQueryClient();
@@ -15,6 +16,7 @@ export default function Platform() {
   return (
     <div>
       <PageHeader title={t.platform.title} subtitle={t.platform.orgs} />
+      <div className="mb-6"><PaymentsPanel /></div>
       <QueryState q={orgs}>{(rows) => (
         <div className="card overflow-x-auto"><table className="w-full min-w-[900px]">
           <thead><tr><th className="table-th">{t.auth.orgName}</th><th className="table-th">{t.settings.plan}</th><th className="table-th">{t.settings.members}</th><th className="table-th">{t.vehicle.title}</th><th className="table-th">{t.trip.title} 30d</th><th className="table-th">{t.settings.positions}</th><th className="table-th" /></tr></thead>

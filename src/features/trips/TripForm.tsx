@@ -14,7 +14,7 @@ import { Button, Card, Field, Input, PageHeader, Spinner } from '@/components/ui
 import { toE164 } from '@/lib/format';
 import { PlacePicker, type PlaceOpt } from './PlacePicker';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
-import { useStartWithReplace } from './BusyTripDialog';
+import { startTripApi, useStartWithReplace } from './BusyTripDialog';
 import { isPhone, openOwnDriverApp } from './ownDriver';
 import { useMe } from '@/app/session';
 
@@ -63,15 +63,23 @@ export default function TripForm() {
     try {
       if (id) await api(`/api/trips/${id}`, { method: 'PATCH', body });
       // iniciar: se o camião/motorista já está noutra viagem, aparece o aviso e repete com a escolha
-      await replaceFlow.run(async (replace) => {
-        let tripId = id;
-        if (id) { if (start) await api(`/api/trips/${id}/transition`, { body: { to: 'em_viagem', replace } }); }
-        // criar e iniciar numa só operação: se não puder iniciar, não fica nenhuma viagem a mais
-        else tripId = (await api<{ id: string }>('/api/trips', { body: { ...body, planned_departure: new Date().toISOString(), start, replace } })).id;
-        // o motorista é o próprio utilizador: abre logo a app do motorista neste telemóvel (GPS a enviar)
+      const label = { origin: v.origin!.name, destination: v.destination!.name };
+      // depois de iniciar: o motorista é o próprio utilizador → app do motorista neste telemóvel (GPS a enviar); senão a página da viagem
+      const after = async (tripId: string, started: boolean) => {
         const mine = drivers.data?.find((x) => x.id === v.driver_id)?.user_id;
-        if (start && mine && mine === me.data?.user?.id && isPhone()) await openOwnDriverApp(tripId!);
+        if (started && mine && mine === me.data?.user?.id && isPhone()) await openOwnDriverApp(tripId);
         else nav(`/app/trips/${tripId}`);
+      };
+      // iniciar uma viagem já criada (com aviso "já em viagem" e checkout se for preciso pagar)
+      const startExisting = (tripId: string) => replaceFlow.run(async (replace) => {
+        await startTripApi(tripId, replace); await after(tripId, true);
+      }, { tripId, trip: label });
+      if (id) { if (start) await startExisting(id); else nav(`/app/trips/${id}`); }
+      else await replaceFlow.run(async (replace) => {
+        // criar e iniciar numa só operação; sem viagem grátis nem pagamento fica criada e abre o checkout
+        const r = await api<{ id: string; code: string; paymentRequired?: boolean }>('/api/trips', { body: { ...body, planned_departure: new Date().toISOString(), start, replace } });
+        if (start && r.paymentRequired) replaceFlow.openCheckout(r.id, () => startExisting(r.id), { ...label, code: r.code });
+        else await after(r.id, start);
       });
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(null); }
   })();

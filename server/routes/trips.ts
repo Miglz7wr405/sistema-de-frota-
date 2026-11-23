@@ -105,11 +105,16 @@ route('POST', '/api/trips', async (req) => {
       [m.orgId, t!.id, JSON.stringify({ km: Math.round(r.lengthM / 100) / 10, provider: r.provider })]);
     await audit(c, m, 'viagem.criar', 'trips', t!.id);
     // criar + iniciar na MESMA transação: se não puder iniciar, nada fica criado (sem viagens "Planeada" a mais)
+    // sem viagem grátis nem pagamento: fica criada ("planeada") e o cliente vai ao checkout; só depois inicia
+    let paymentRequired = false;
     if (start) {
-      closed = await prepareStart(c, t!.id, replace);
-      await c.query(`select 1 from trip_transition($1, 'em_viagem')`, [t!.id]);
+      paymentRequired = !(await one<{ ok: boolean }>(c, 'select trip_can_start(t) ok from trips t where t.id = $1', [t!.id]))!.ok;
+      if (!paymentRequired) {
+        closed = await prepareStart(c, t!.id, replace);
+        await c.query(`select 1 from trip_transition($1, 'em_viagem')`, [t!.id]);
+      }
     }
-    return { id: t!.id, code: t!.code, route: r ? { lengthKm: r.lengthM / 1000, durationS: r.durationS } : null };
+    return { id: t!.id, code: t!.code, paymentRequired, route: r ? { lengthKm: r.lengthM / 1000, durationS: r.durationS } : null };
   });
   for (const id of closed) await afterTripClosed(id);
   return ok(res, 201);

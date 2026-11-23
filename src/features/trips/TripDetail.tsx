@@ -15,7 +15,7 @@ import { TripStatus } from '../shared';
 import { ShareCard, type Share } from './ShareCard';
 import { RouteStrip, speedTrend } from '../tracking/RouteStrip';
 import { DriverPicker, VehiclePicker, useAssets } from './AssetPickers';
-import { useStartWithReplace } from './BusyTripDialog';
+import { startTripApi, useStartWithReplace } from './BusyTripDialog';
 import { autoOpenOnce, isPhone, openOwnDriverApp } from './ownDriver';
 import { OpenDriverCard } from './OpenDriverCard';
 
@@ -91,10 +91,10 @@ function AssignCard({ tripId, vehicleId, driverId, onDone }: { tripId: string; v
     try {
       await api(`/api/trips/${tripId}`, { method: 'PATCH', body: { vehicle_id: v || null, driver_id: d || null } });
       if (start) await replaceFlow.run(async (replace) => {
-        await api(`/api/trips/${tripId}/transition`, { body: { to: 'em_viagem', replace } }); onDone();
+        await startTripApi(tripId, replace); onDone();
         const mine = drivers.data?.find((x) => x.id === d)?.user_id;
         if (mine && mine === meQ.data?.user?.id && isPhone()) await openOwnDriverApp(tripId);
-      });
+      }, { tripId });
       else onDone();
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   };
@@ -144,10 +144,10 @@ export default function TripDetail() {
     // iniciar: se o camião/motorista já está noutra viagem, aparece o aviso (cancelar/concluir essa e iniciar esta)
     mutationFn: async (b: { to: string; reason?: string }) => b.to === 'em_viagem'
       ? replaceFlow.run(async (replace) => {
-          await api(`/api/trips/${id}/transition`, { body: { ...b, replace } }); refresh();
+          await startTripApi(id!, replace); refresh();
           const tr = q.data?.trip;
           if (tr?.driver_user_id && tr.driver_user_id === me.data?.user?.id && isPhone()) await openOwnDriverApp(id!);
-        })
+        }, { tripId: id!, trip: { origin: q.data?.trip.origin, destination: q.data?.trip.destination, code: q.data?.trip.code } })
       : api(`/api/trips/${id}/transition`, { body: b }),
     onSuccess: () => { setErr(null); setCancelOpen(false); qc.invalidateQueries({ queryKey: ['trip', id] }); qc.invalidateQueries({ queryKey: ['trips'] }); },
     onError: (e) => setErr(errorMessage(e)),

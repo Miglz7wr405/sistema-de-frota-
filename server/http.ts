@@ -40,13 +40,14 @@ export function mapError(e: unknown): Res {
   const msg = pe.message ?? '';
   if (pe.code === 'P0001') {
     const code = msg.split(':')[0] ?? 'erro';
-    return { status: code === 'limite_plano' ? 402 : 422, json: { error: code, details: msg } };
+    return { status: code === 'limite_plano' || code === 'pagamento_necessario' ? 402 : 422, json: { error: code, details: msg } };
   }
   if (pe.code === 'P0002') return { status: 404, json: { error: msg || 'nao_encontrado' } };
   if (pe.code === '42501') return { status: 403, json: { error: 'sem_permissao' } };
   // camião/motorista já numa viagem em curso: mensagem própria (não é "registo duplicado")
   if (pe.code === '23505' && pe.constraint === 'trips_one_active_driver') return { status: 409, json: { error: 'motorista_em_viagem' } };
   if (pe.code === '23505' && pe.constraint === 'trips_one_active_vehicle') return { status: 409, json: { error: 'camiao_em_viagem' } };
+  if (pe.code === '23505' && pe.constraint === 'trip_payments_tx_uq') return { status: 409, json: { error: 'codigo_ja_usado' } };
   if (pe.code === '23505' && pe.constraint === 'drivers_id_number_uq') return { status: 409, json: { error: 'bi_duplicado' } };
   if (pe.code === '23505') return { status: 409, json: { error: 'duplicado', details: pe.constraint } };
   if (pe.code === '23503') return { status: 409, json: { error: 'referencia', details: pe.constraint } };

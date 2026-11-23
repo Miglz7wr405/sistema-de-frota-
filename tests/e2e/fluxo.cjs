@@ -166,13 +166,19 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     // mapa fixo: arrastar não muda o enquadramento
     await page.waitForTimeout(1500);
     const proj = () => page.evaluate(() => { const h = [...document.querySelectorAll('*')].find((x) => x.__project); return h.__project([36.89, -17.88]); });
-    const before = await proj();
-    const box = await page.locator('.maplibregl-canvas').first().boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 - 150, box.y + box.height / 2 - 80, { steps: 8 }); await page.mouse.up();
-    await page.mouse.wheel(0, -500); await page.waitForTimeout(800);
-    const after = await proj();
-    if (Math.abs(after.x - before.x) > 1 || Math.abs(after.y - before.y) > 1) throw new Error('o mapa mexeu: ' + JSON.stringify({ before, after }));
+    // (a câmara automática pode aproximar no mesmo instante: repete, longe dessa mudança)
+    let before, after, moved = true;
+    for (let k = 0; k < 3 && moved; k++) {
+      if (k) await page.waitForTimeout(6000);
+      before = await proj();
+      const box = await page.locator('.maplibregl-canvas').first().boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 - 150, box.y + box.height / 2 - 80, { steps: 8 }); await page.mouse.up();
+      await page.mouse.wheel(0, -500); await page.waitForTimeout(800);
+      after = await proj();
+      moved = Math.abs(after.x - before.x) > 1 || Math.abs(after.y - before.y) > 1;
+    }
+    if (moved) throw new Error('o mapa mexeu: ' + JSON.stringify({ before, after }));
   });
   let shareLink = null;
   await step('10-partilha', async () => {
@@ -390,6 +396,42 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     if (!(hi - lo > 1.5)) throw new Error('o mapa da viagem no computador não aproximou: ' + JSON.stringify({ lo, hi, pill: await page.locator('span.rounded-full.bg-white').first().innerText().catch(() => '?') }));
     await page.screenshot({ path: SHOT + '15-viagem-computador.png' });
     return `zoom ${lo.toFixed(1)} ↔ ${hi.toFixed(1)}`;
+  });
+  await step('16-checkout-pagamento', async () => {
+    // sem viagens grátis: "Iniciar viagem agora" abre o checkout; comprovativo + código; o SMS do proprietário aprova e a viagem começa
+    const pg = require('pg'); const db = new pg.Client({ connectionString: process.env.SYSTEM_DATABASE_URL }); await db.connect();
+    await db.query('update billing_settings set free_trips = 0');
+    try {
+      await page.evaluate(async () => {
+        const j = (path, body) => fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+        await j('/api/vehicles', { plate: 'PAG 250 MP', make: 'Volvo', model: 'FH' });
+        await j('/api/drivers', { full_name: 'Paulo Pagamento', phone: '+258841119988', id_number: '110100999999P' });
+      });
+      await page.goto(B + '/app/trips/new');
+      const pick = async (idx, txt, opt) => { const i = page.getByPlaceholder('Escreva o nome da localidade').nth(idx); await i.fill(txt); await page.getByRole('button', { name: new RegExp('^' + opt) }).first().click(); };
+      await pick(0, 'Quel', 'Quelimane'); await pick(1, 'Beir', 'Beira');
+      await page.getByLabel('Camião').selectOption({ label: 'PAG 250 MP' });
+      await page.getByLabel('Motorista').selectOption({ label: 'Paulo Pagamento' });
+      await page.getByRole('button', { name: 'Iniciar viagem agora' }).click();
+      const ck = page.getByTestId('checkout'); await ck.waitFor({ timeout: 15000 });
+      await ck.getByText('250,00 MT').first().waitFor();
+      await page.screenshot({ path: SHOT + '16-checkout.png' });
+      await page.getByTestId('checkout-foto').setInputFiles(require('path').join(__dirname, '../../public/img/landing-cliente.webp'));
+      await page.getByTestId('checkout-codigo').waitFor({ timeout: 60000 });
+      await page.getByTestId('checkout-codigo').fill('E2E45H7GT2');
+      await page.getByTestId('checkout-pagador').fill('849990000');
+      await page.getByRole('button', { name: 'Enviar comprovativo' }).click();
+      await page.getByTestId('checkout-pendente').waitFor({ timeout: 15000 });
+      await page.screenshot({ path: SHOT + '16b-checkout-a-confirmar.png' });
+      // o telemóvel do proprietário reencaminha o SMS do M-Pesa
+      const r = await page.evaluate(() => fetch('/api/payments/sms?key=e2e-sms-segredo-123', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ from: 'M-Pesa', text: 'E2E45H7GT2 Confirmado. Recebeste 250.00MT de 258849990000 - PAULO aos 23/11/26' }) }).then((x) => x.json()));
+      if (!r.matched) throw new Error('SMS não confirmou o pagamento: ' + JSON.stringify(r));
+      await page.getByTestId('checkout-aprovado').waitFor({ timeout: 15000 });
+      await page.waitForURL(/\/app\/trips\/[0-9a-f-]+$/, { timeout: 20000 });
+      await page.getByText('Viagem iniciada').first().waitFor({ timeout: 15000 });
+      await page.screenshot({ path: SHOT + '16c-viagem-paga-iniciada.png' });
+    } finally { await db.query('update billing_settings set free_trips = 1000'); await db.end(); }
   });
   const real = [...new Set(errs)].filter((e) => !/Future Flag|GL Driver|GPU stall/.test(e));
   console.log('--- erros da consola/rede ---\n' + (real.join('\n') || '(nenhum)'));

@@ -11,6 +11,7 @@ import './routes/misc.js';
 import './routes/ops.js';
 import './routes/costs.js';
 import './routes/platform.js';
+import './routes/payments.js';
 export { dispatch } from './http.js';
 import './routes/admin.js';
 import './routes/selftest.js';

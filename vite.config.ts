@@ -31,6 +31,8 @@ export default defineConfig({
         navigateFallback: '/driver.html',
         navigateFallbackAllowlist: [/^\/driver/],
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        // o leitor de comprovativos (~8 MB) só se descarrega no checkout, nunca na app do motorista
+        globIgnores: ['ocr/**'],
         runtimeCaching: [
           {
             // Tiles e estilos do mapa: cache para funcionar no corredor sem rede.

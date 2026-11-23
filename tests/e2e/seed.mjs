@@ -16,5 +16,7 @@ for (const f of fc.features) {
   await c.query(`insert into admin_areas (level, name, code, geom, dataset_id) values (2, $1, $2, ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)), 3))::geography, $4) on conflict do nothing`,
     [name, f.properties.shapeID, JSON.stringify(f.geometry), dd]);
 }
+// cobrança: viagens grátis à vontade nos testes (o passo do checkout baixa para 0); números de pagamento de teste
+await c.query(`update billing_settings set free_trips = 1000, mpesa_number = '841112223', mpesa_name = 'insightFrota (teste)', emola_number = '861112223', emola_name = 'insightFrota (teste)'`);
 await c.end();
 console.log(`${rows.length} localidades`);

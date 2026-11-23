@@ -249,3 +249,20 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 - **`route_districts(route)`:** uma única função SQL, usada pela página pública, pelo painel e pelo ecrã do motorista. Ignora passagens de menos de 1 km por um distrito, porque são a estrada a tocar num limite.
 - **Página pública:** o camião deixa de ter a etiqueta grande por cima dos nomes do mapa (o "Agora: …" já está no cartão). O nome da origem e o do destino escondem-se quando o camião está a menos de 3 km deles.
 - **Percurso:** mostra as entradas nos distritos, por exemplo "DISTRITO DE NICOADALA · km 9", entre as localidades.
+
+## ADR-028 — Pagamento por viagem com M-Pesa / e-Mola, sem API paga (2026-11-23)
+- **Regra:** a 1.ª viagem real de cada organização é grátis. As seguintes custam o preço definido no painel da plataforma (250 MT). A viagem só começa com o pagamento **aprovado**; o bloqueio está na BD (gatilho `trips_payment_gate`), por isso não se fura pela API.
+- **Isentos:** a viagem de teste do telemóvel e a empresa do próprio dono da plataforma.
+- **Fraude:** uma fotografia de comprovativo pode ser editada (IA, montagem), por isso **a fotografia nunca aprova sozinha**. A leitura (tesseract.js no telemóvel, grátis) só serve para filtrar:
+  - preenche o código;
+  - recusa valor errado, número de destino errado, comprovativo com mais de 48 h e imagens que não são comprovativos;
+  - cada código de transação só pode ser usado uma vez (índice único).
+- **Prova do pagamento:** é o SMS do M-Pesa/e-Mola que chega ao telemóvel do proprietário. Esse SMS só existe se o dinheiro entrou.
+- **Como os SMS chegam ao sistema:** uma app gratuita de reencaminhar SMS no Android envia-os para `POST /api/payments/sms`, protegido pelo segredo `PAYMENTS_SMS_SECRET`. O pagamento pendente com o mesmo código, ou do mesmo número com o valor certo (24 h), é aprovado sozinho e a viagem começa.
+- **Mensagens Google:** não servem para isto. Não têm forma de outro sistema ler os SMS; messages.google.com é só para leitura humana.
+- **Sem SMS correspondente:** o proprietário aprova ou rejeita no painel, com a fotografia, os campos lidos e os SMS candidatos. 3 rejeições bloqueiam a conta até ele a desbloquear.
+- ⚠️ DEPENDÊNCIA EXTERNA:
+  - os números M-Pesa/e-Mola (definidos no painel);
+  - a app de reencaminhar SMS;
+  - os formatos reais dos SMS e dos comprovativos não estão testados: afinar com 1 ou 2 exemplos verdadeiros;
+  - a língua do OCR (`por.traineddata`) vem do CDN do tessdata na 1.ª leitura.

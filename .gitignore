@@ -12,3 +12,4 @@ test-results
 neon/functions/*.zip*
 dist-e2e
 test-results-api.log
+public/ocr/
