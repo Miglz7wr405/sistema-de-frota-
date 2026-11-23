@@ -16,7 +16,7 @@ const COLORS = { primary: '#1769E8', success: '#16A36A', muted: '#94A3B8', dange
 
 // Camião visto de lado, sempre direito, dentro de um círculo com uma ponta em baixo (alfinete).
 // A ponta (fundo do elemento, anchor 'bottom') é a coordenada: o camião fica sempre EM CIMA da estrada.
-const TRUCK_W = 40, TRUCK_H = 48;
+const TRUCK_W = 34, TRUCK_H = 41; // desenho de 40×48, reduzido para não tapar os nomes das cidades
 const truckSvg = (color: string) => `<svg width="${TRUCK_W}" height="${TRUCK_H}" viewBox="0 0 40 48" aria-hidden="true" style="display:block; filter:drop-shadow(0 1px 2px rgba(16,36,61,.35))">
 <path d="M13 33 L20 47 L27 33 Z" fill="${color}"/>
 <circle cx="20" cy="19" r="17" fill="${color}" stroke="#fff" stroke-width="2.5"/>
@@ -36,10 +36,7 @@ const miniTruckSvg = (color: string) => `<svg width="26" height="17" viewBox="0 
 <path d="M17.3 6.4h2.2l1.8 2.4h-4z" fill="#fff" fill-opacity=".9"/>
 <circle cx="5.5" cy="13.6" r="2.1" fill="#10243D" stroke="#fff" stroke-width="1.2"/><circle cx="19.5" cy="13.6" r="2.1" fill="#10243D" stroke="#fff" stroke-width="1.2"/>
 </svg>`;
-const TRUCK_CSS = `.if-area-label{font:700 10.5px Inter,system-ui;letter-spacing:.06em;text-transform:uppercase;color:#334155;
-text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;pointer-events:none;z-index:0!important}
-.if-areas-hidden .if-area-label{display:none}
-.if-truck-mini{display:none;position:absolute;left:50%;bottom:0;transform:translate(-50%,50%)}
+const TRUCK_CSS = `.if-truck-mini{display:none;position:absolute;left:50%;bottom:0;transform:translate(-50%,50%)}
 .if-trucks-small .if-truck-pin{display:none}.if-trucks-small .if-truck-mini{display:block}
 .if-trucks-small .if-truck-label{top:auto!important;bottom:-10px;left:${TRUCK_W / 2 + 16}px!important}`;
 
@@ -70,11 +67,10 @@ export const maplibreProvider: MapProvider = {
     if (!document.getElementById('if-truck-css')) { const st = document.createElement('style'); st.id = 'if-truck-css'; st.textContent = TRUCK_CSS; document.head.appendChild(st); }
     const sizeTrucks = () => {
       (container as HTMLElement).classList.toggle('if-trucks-small', map.getZoom() >= MINI_ZOOM);
-      // nomes dos distritos só a partir de um zoom em que cabem (no país inteiro ficariam uns por cima dos outros)
-      (container as HTMLElement).classList.toggle('if-areas-hidden', map.getZoom() < 6);
     };
     map.on('zoom', sizeTrucks); map.on('load', sizeTrucks); sizeTrucks();
     (container as HTMLElement & { __zoom?: () => number }).__zoom = () => map.getZoom();
+    (container as HTMLElement & { __layers?: () => string[] }).__layers = () => (map.getStyle().layers ?? []).map((l) => l.id);
     (container as HTMLElement & { __project?: (ll: LngLat) => { x: number; y: number } }).__project = (ll) => map.project(ll);
     // créditos do mapa (obrigatórios pela licença do OpenStreetMap) só no botão "i", fechado: o mapa fica limpo
     const closeAttrib = () => container.querySelectorAll('.maplibregl-ctrl-attrib').forEach((el) => { el.classList.remove('maplibregl-compact-show'); el.removeAttribute('open'); });
@@ -86,10 +82,19 @@ export const maplibreProvider: MapProvider = {
       map.addLayer({ id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': color, 'line-width': width, 'line-opacity': opacity, ...(dashed ? { 'line-dasharray': [1, 2] } : {}) } });
     };
-    // limites dos distritos (por baixo da rota): cinzento, tracejado fino
+    // Distritos: limites leves e nomes como texto DO MAPA, por baixo dos nomes do mapa base. O MapLibre esconde sozinho
+    // os nomes que chocam (com cidades, entre si ou com a borda) — nada fica sobreposto nem cortado.
+    const firstSymbol = map.getStyle().layers?.find((l) => l.type === 'symbol')?.id;
     map.addSource('areas', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     map.addLayer({ id: 'areas', type: 'line', source: 'areas', layout: { 'line-join': 'round' },
-      paint: { 'line-color': '#475569', 'line-width': 1.3, 'line-opacity': 0.55, 'line-dasharray': [3, 2] } });
+      paint: { 'line-color': '#64748B', 'line-width': 1, 'line-opacity': 0.35, 'line-dasharray': [2, 2] } }, firstSymbol);
+    map.addSource('areas-label', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    if (map.getStyle().glyphs) {
+      map.addLayer({ id: 'areas-label', type: 'symbol', source: 'areas-label', minzoom: 5.5,
+        layout: { 'text-field': ['upcase', ['get', 'name']], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-letter-spacing': 0.08,
+          'text-max-width': 8, 'text-padding': 6, 'symbol-sort-key': 10 },
+        paint: { 'text-color': '#475569', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6, 'text-opacity': 0.9 } }, firstSymbol);
+    }
     lineSrc('route-left', COLORS.primary, true, 4, 0.55);
     lineSrc('route-done', COLORS.primary, false, 5);
     lineSrc('extra', '#0F172A', false, 3, 0.7);
@@ -99,7 +104,6 @@ export const maplibreProvider: MapProvider = {
 
     const vMarkers = new Map<string, { m: maplibregl.Marker; el: HTMLDivElement; from: LngLat; to: LngLat; t0: number }>();
     const pMarkers = new Map<string, maplibregl.Marker>();
-    const aMarkers: maplibregl.Marker[] = [];
     let lastAreas: unknown = undefined; // só redesenha os distritos quando a lista muda (não a cada posição)
     let vehicleClick: ((id: string) => void) | null = null;
     let raf = 0;
@@ -136,14 +140,10 @@ export const maplibreProvider: MapProvider = {
           lastAreas = s.areas;
           (map.getSource('areas') as maplibregl.GeoJSONSource).setData({ type: 'FeatureCollection',
             features: (s.areas ?? []).filter((a) => a.boundary).map((a) => ({ type: 'Feature', properties: { name: a.name }, geometry: a.boundary as GeoJSON.Geometry })) });
-          for (const m of aMarkers.splice(0)) m.remove();
-          // "Cidade de X": o mapa base já escreve o nome da cidade; o nome do distrito por cima ficava sobreposto
-          for (const a of (s.areas ?? []).filter((x) => !/^cidade (de|da|do) /i.test(x.name))) {
-            const el = document.createElement('div');
-            el.className = 'if-area-label';
-            el.textContent = a.name;
-            aMarkers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(a.label).addTo(map));
-          }
+          // nomes: sem os "Cidade de X" (o mapa base já escreve a cidade)
+          (map.getSource('areas-label') as maplibregl.GeoJSONSource).setData({ type: 'FeatureCollection',
+            features: (s.areas ?? []).filter((a) => !/^cidade (de|da|do) /i.test(a.name))
+              .map((a) => ({ type: 'Feature', properties: { name: a.name }, geometry: { type: 'Point', coordinates: a.label } })) });
         }
         if (s.routeDone !== undefined) setLine('route-done', s.routeDone);
         if (s.routeLeft !== undefined) setLine('route-left', s.routeLeft);

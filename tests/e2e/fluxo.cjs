@@ -196,7 +196,9 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     if (!/Cidade de Quelimane|Distrito de /.test(dt)) throw new Error('distrito inesperado: ' + dt);
     if (await cp.locator('.maplibregl-marker', { hasText: 'Faltam' }).count()) throw new Error('etiqueta do camião ainda por cima do mapa');
     // o mapa mostra os nomes dos distritos atravessados
-    await cp.locator('.if-area-label').first().waitFor({ state: 'attached', timeout: 10000 });
+    // limites dos distritos como camada do mapa (nomes com deteção de choques; sem marcadores HTML por cima)
+    await cp.waitForFunction(() => { const h = [...document.querySelectorAll('*')].find((x) => x.__layers); return h && h.__layers().includes('areas'); }, null, { timeout: 10000 });
+    if (await cp.locator('.if-area-label').count()) throw new Error('nomes de distritos ainda como marcadores HTML');
     await cp.screenshot({ path: SHOT + '11c-track-publico.png', fullPage: true });
     return dt;
   });
