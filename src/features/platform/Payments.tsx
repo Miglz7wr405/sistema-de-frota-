@@ -4,7 +4,7 @@
 // gratuita de reencaminhar SMS no Android.
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Smartphone, X } from 'lucide-react';
+import { Check, Copy, Loader2, Smartphone, X } from 'lucide-react';
 import { api, errorMessage } from '@/lib/api/client';
 import { t } from '@/i18n/pt-MZ';
 import { formatDateTime, formatMoney } from '@/lib/format';
@@ -13,7 +13,7 @@ import { Badge, Button, Card, Field, Input, Modal, QueryState } from '@/componen
 type Pay = { id: string; status: string; amount: string; currency: string; method: string; transaction_id: string; payer_phone: string | null; auto: boolean;
   reason: string | null; created_at: string; ocr_amount: string | null; ocr_recipient: string | null; ocr_date: string | null; receipt_file_id: string | null;
   org: string; organization_id: string; payments_blocked: boolean; trip_code: string; origin: string; destination: string; sms: { raw: string; amount: string; received_at: string }[] | null };
-type Data = { payments: Pay[]; sms: { id: string; raw: string; transaction_id: string | null; amount: string | null; received_at: string; matched_payment_id: string | null }[];
+type Data = { payments: Pay[]; sms: { id: string; raw: string; transaction_id: string | null; amount: string | null; payer: string | null; method: string | null; received_at: string; matched_payment_id: string | null }[];
   billing: { price_per_trip: string; free_trips: number; mpesa_number: string | null; mpesa_name: string | null; emola_number: string | null; emola_name: string | null };
   smsConfigured: boolean; smsLast: { at: string | null; n: number } | null; smsUrl: string | null };
 const P = t.payments;
@@ -30,6 +30,7 @@ export function PaymentsPanel() {
     <QueryState q={q}>{(d) => (
       <div className="space-y-5">
         <Connector d={d} />
+        <SmsTest d={d} onPoll={() => void q.refetch()} />
         <BillingForm d={d} />
         <Card title={P.title}>
           {!d.payments.length ? <p className="text-sm text-muted">{P.none}</p> : (
@@ -123,6 +124,42 @@ function BillingForm({ d }: { d: Data }) {
       </div>
       {save.error && <p className="mt-2 text-sm text-danger">{errorMessage(save.error)}</p>}
       <Button className="mt-3" loading={save.isPending} onClick={() => save.mutate()}>{save.isSuccess ? P.saved : t.common.save}</Button>
+    </Card>
+  );
+}
+
+// Teste de 1 MT: confirma a ligação do telemóvel (app de reencaminhar SMS) e a leitura do SMS, sem mexer no preço.
+function SmsTest({ d, onPoll }: { d: Data; onPoll: () => void }) {
+  const [since, setSince] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!since) return;
+    const h = setInterval(() => { onPoll(); setNow(Date.now()); }, 4000);
+    return () => clearInterval(h);
+  }, [since]);
+  const got = since ? d.sms.find((s) => Date.parse(s.received_at) >= since - 5000) ?? null : null;
+  const readOk = !!got && !!got.transaction_id && got.amount != null;
+  const timedOut = !!since && !got && now - since > 180_000;
+  return (
+    <Card title={P.testTitle}>
+      <p className="text-sm text-muted">{P.testHelp}</p>
+      {!since ? <Button className="mt-3" onClick={() => { setSince(Date.now()); setNow(Date.now()); }} data-testid="teste-1mt">{P.testStart}</Button>
+      : !got ? (
+        <p className="mt-3 flex items-center gap-2 text-sm font-medium text-navy" data-testid="teste-1mt-espera">
+          {timedOut ? <span className="text-warning">{P.testTimeout}</span> : <><Loader2 className="h-4 w-4 animate-spin text-primary" />{P.testWaiting}</>}</p>
+      ) : (
+        <div className={`mt-3 rounded-xl p-3 text-sm ${readOk ? 'bg-success-soft' : 'bg-warning-soft'}`} data-testid="teste-1mt-resultado">
+          <p className={`flex items-center gap-1.5 font-semibold ${readOk ? 'text-success-text' : 'text-warning'}`}>{readOk ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}{readOk ? P.testOk : P.testBadRead}</p>
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-navy">
+            <dt className="text-muted">{P.code}</dt><dd className="font-mono">{got.transaction_id ?? '—'}</dd>
+            <dt className="text-muted">{P.testAmount}</dt><dd>{got.amount != null ? formatMoney(got.amount, 'MZN') : '—'}</dd>
+            <dt className="text-muted">{P.payer}</dt><dd>{got.payer ?? '—'}</dd>
+            <dt className="text-muted">{P.testOperator}</dt><dd>{got.method === 'mpesa' ? 'M-Pesa' : got.method === 'emola' ? 'e-Mola' : '—'}</dd>
+          </dl>
+          <p className="mt-2 rounded-lg bg-white/70 p-2 text-xs text-muted">“{got.raw.slice(0, 300)}”</p>
+          <Button className="mt-3" size="sm" variant="secondary" onClick={() => setSince(Date.now())}>{P.testAgain}</Button>
+        </div>
+      )}
     </Card>
   );
 }

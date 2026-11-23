@@ -84,7 +84,7 @@ route('POST', '/api/payments/sms', async (req) => {
   const res = await withSystem(async (c) => {
     const s = await one<{ id: string }>(c, `insert into payment_sms (raw, sender, transaction_id, amount, payer, method) values ($1,$2,$3,$4,$5,$6)
       on conflict (transaction_id) where transaction_id is not null do nothing returning id`,
-      [raw, pick('from', 'sender', 'number', 'phone') ?? null, f.transactionId ? normTx(f.transactionId) : null, f.amount, f.phones[0] ?? null, f.method]);
+      [raw, pick('from', 'sender', 'number', 'phone') ?? null, f.transactionId ? normTx(f.transactionId) : null, f.amount, f.phones[0] ?? null, f.method ?? parseReceipt(pick('from', 'sender', 'number', 'phone') ?? '').method]);
     if (!s) return { stored: false, matched: false };
     // pagamento pendente com o mesmo código, ou do mesmo número com o valor certo (últimas 24 h)
     const pay = await one<{ id: string }>(c, `select id from trip_payments where status = 'pendente' and (transaction_id = $1
@@ -115,7 +115,7 @@ route('GET', '/api/platform/payments', async (req) => {
       from trip_payments p join organizations o on o.id = p.organization_id join trips t on t.id = p.trip_id
       join places po on po.id = t.origin_place_id join places pd on pd.id = t.destination_place_id
       order by (p.status = 'pendente') desc, p.created_at desc limit 200`),
-    sms: await many(c, 'select id, raw, transaction_id, amount, received_at, matched_payment_id from payment_sms order by received_at desc limit 30'),
+    sms: await many(c, 'select id, raw, transaction_id, amount, payer, method, received_at, matched_payment_id from payment_sms order by received_at desc limit 30'),
     billing: await one(c, 'select * from billing_settings limit 1'),
     smsConfigured: !!process.env.PAYMENTS_SMS_SECRET,
     smsLast: (await one(c, 'select max(received_at) at, count(*)::int n from payment_sms')),

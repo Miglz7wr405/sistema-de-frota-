@@ -328,6 +328,12 @@ export const t = {
       'Cole o endereço acima. No corpo da mensagem use o campo "text" com o texto do SMS (ex.: {"from":"%from%","text":"%text%"}).',
       'Faça uma transferência de teste para si próprio: em poucos segundos aparece aqui "Ligado ✓".'],
     copy: 'Copiar', copied: 'Copiado', lastSms: (n: number) => `Últimos SMS recebidos (${n})`, matched: 'confirmou um pagamento',
+    testTitle: 'Teste de pagamento (1 MT)',
+    testHelp: 'Confirme que a ligação funciona sem cobrar nenhum cliente: carregue em "Iniciar teste" e, de OUTRO telemóvel, transfira 1 MT por M-Pesa ou e-Mola para o seu número. Quando o SMS chegar ao seu telemóvel, a app reenvia-o para aqui.',
+    testStart: 'Iniciar teste', testWaiting: 'À espera do SMS do seu telemóvel…',
+    testTimeout: 'Ainda não chegou nada. Confirme na app o endereço (botão Copiar acima), o método POST e o filtro do remetente M-Pesa/e-Mola.',
+    testOk: 'SMS recebido e lido ✓ — a ligação funciona', testBadRead: 'SMS recebido, mas não consegui ler o código ou o valor. Mande-me este texto para eu afinar.',
+    testAmount: 'Valor', testOperator: 'Operadora', testAgain: 'Testar outra vez',
   },
   platform: { title: 'Plataforma', orgs: 'Organizações', setPlan: 'Alterar plano', support: 'Pedir acesso de suporte', reason: 'Motivo', hours: 'Horas' },
   driverApp: {

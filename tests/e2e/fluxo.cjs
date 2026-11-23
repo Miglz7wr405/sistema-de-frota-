@@ -441,6 +441,18 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
       await page.screenshot({ path: SHOT + '16c-viagem-paga-iniciada.png' });
     } finally { await db.query('update billing_settings set free_trips = 1000'); await db.end(); }
   });
+  await step('17-teste-1mt-plataforma', async () => {
+    // painel da plataforma: teste de 1 MT — o SMS reencaminhado aparece com o código e o valor lidos
+    const pg = require('pg'); const db = new pg.Client({ connectionString: process.env.SYSTEM_DATABASE_URL }); await db.connect();
+    await db.query(`update app_users set is_platform_admin = true where email = $1`, [email]); await db.end();
+    await page.goto(B + '/platform'); await page.getByTestId('teste-1mt').click();
+    await page.getByTestId('teste-1mt-espera').waitFor();
+    await page.evaluate(() => fetch('/api/payments/sms?key=e2e-sms-segredo-123', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ from: 'M-Pesa', text: 'TST1MT9X7Q Confirmado. Recebeste 1.00MT de 258847776655 - TESTE aos 23/11/26 as 18:10' }) }));
+    const res = page.getByTestId('teste-1mt-resultado'); await res.waitFor({ timeout: 15000 });
+    await res.getByText('1,00 MT').waitFor(); await res.getByText('TST1MT9X7Q', { exact: true }).waitFor();
+    await res.scrollIntoViewIfNeeded(); await page.screenshot({ path: SHOT + '17-teste-1mt.png' });
+  });
   const real = [...new Set(errs)].filter((e) => !/Future Flag|GL Driver|GPU stall/.test(e));
   console.log('--- erros da consola/rede ---\n' + (real.join('\n') || '(nenhum)'));
   await browser.close();
