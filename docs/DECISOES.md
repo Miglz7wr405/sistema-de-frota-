@@ -241,7 +241,14 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 - **Distritos:** limites ADM2 do geoBoundaries (CC BY 4.0, origem OCHA COD-AB), importados pela tarefa periódica (`completeDistricts`). A produção tem 156. Os km de entrada em cada distrito calculam-se sobre a rota rodoviária real (`routeDistricts`).
 - **Áudio:** gravado antes no ElevenLabs (voz "Dinis", pt-PT, `eleven_multilingual_v2`) e guardado em `public/voz/*.mp3` (mono 48 kbps, ~10 KB cada). Não há chave de API nem pedidos ao ElevenLabs durante a viagem. As gravações da rota são descarregadas quando a viagem abre, por isso tocam sem rede.
 - **Distritos sem gravação:** a mesma frase é dita pela voz do telemóvel.
-- **Estado:** 16 frases gravadas (Cidade de Quelimane, Nicoadala, Namacurra, Mocuba, Alto Molócuè, Chinde, Derre, Gilé). A quota mensal gratuita do ElevenLabs (10 000 créditos) esgotou-se.
+- **Estado (2026-11-24):** 168 frases gravadas, 84 nomes. A 2.ª conta ElevenLabs gastou ~7 400 créditos.
+  - **Zambézia:** os 23 distritos.
+  - **Capitais:** as 11 capitais de província.
+  - **Sofala:** todos os distritos.
+  - **Manica:** todos os distritos.
+  - **Tete:** todos os distritos.
+  - **Nampula:** 14 distritos.
+- **Por gravar:** Ilha de Moçambique, Lalaua, Larde, Liúpo, Nacala-A-Velha, Nacaroa, Rapale e Ribáuè (Nampula), e as províncias de Cabo Delgado, Niassa, Gaza, Inhambane e Maputo. Até lá usam a voz do telemóvel.
 - ⚠️ DEPENDÊNCIA EXTERNA: o resto (14 distritos da Zambézia e 10 capitais, ~2 000 créditos) fica para quando a quota renovar ou com um plano pago. O uso comercial do áudio depende dos termos do plano ElevenLabs.
 
 ## ADR-027 — Distritos visíveis ao cliente e no painel (2026-11-23)
