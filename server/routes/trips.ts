@@ -157,6 +157,15 @@ route('GET', '/api/trips/:id', async (req, p) => {
   }));
 });
 
+// Distritos atravessados pela rota (limites e nomes) para o mapa da viagem.
+route('GET', '/api/trips/:id/areas', async (req, p) => {
+  const m = await requireMember(req);
+  const id = assertUuid(p.id);
+  return ok(await asMember(m, async (c) => (await one<{ a: unknown }>(c,
+    'select route_areas(tr.id) a from trips t join trip_routes tr on tr.trip_id = t.id and tr.is_current where t.id = $1 and t.deleted_at is null', [id]))?.a ?? []),
+    200, { 'cache-control': 'private, max-age=600' });
+});
+
 route('PATCH', '/api/trips/:id', async (req, p) => {
   const m = await requireMember(req, WRITE);
   const id = assertUuid(p.id);

@@ -42,6 +42,14 @@ route('GET', '/api/track', async (req) => {
   return ok(dto, 200, { 'cache-control': 'no-store' });
 });
 
+// Distritos atravessados pela rota (limites simplificados e nomes) para o mapa público: pedido uma vez, guardado em cache.
+route('GET', '/api/track/areas', async (req) => {
+  const r = await resolve(req, req.query.get('token') ? 'link' : 'code');
+  const areas = await withSystem(async (c) => (await one<{ a: unknown }>(c,
+    `select route_areas(tr.id) a from tracking_shares s join trip_routes tr on tr.trip_id = s.trip_id and tr.is_current where s.id = $1`, [r.shareId]))?.a ?? []);
+  return ok(areas, 200, { 'cache-control': 'private, max-age=600' });
+});
+
 route('GET', '/api/track/logo', async (req) => {
   const r = await resolve(req, 'link');
   const f = await withSystem((c) => one<{ content_type: string; data: Buffer }>(c, 'select * from public_share_logo($1)', [r.shareId]));

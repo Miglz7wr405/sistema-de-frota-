@@ -274,6 +274,10 @@ export const t = {
   platform: { title: 'Plataforma', orgs: 'Organizações', setPlan: 'Alterar plano', support: 'Pedir acesso de suporte', reason: 'Motivo', hours: 'Horas' },
   driverApp: {
     kmDoneLabel: 'Feitos',
+    tripCode: 'Código da viagem', tripCodeHelp: 'O cliente acompanha o camião com este código em insightfrota.vercel.app/track.',
+    tripCodeNoShare: 'O cliente ainda não tem link de acompanhamento. O escritório cria-o na página da viagem.',
+    copyLink: 'Copiar link', copied: 'Copiado ✓',
+    shareText: (code: string, link: string) => `Acompanhe a sua carga em tempo real. Código da viagem: ${code}\n${link}`,
     hello: (name: string) => `Olá, ${name.split(' ')[0]} · a sua viagem`, enterPin: 'Introduza o seu PIN', enter: 'Entrar',
     invalidLink: 'Link de acesso inválido. Peça um novo ao responsável.', wrongPin: 'PIN incorreto.', locked: 'Demasiadas tentativas. Tente daqui a 15 minutos.',
     consentTitle: 'Partilha de localização', consentText: 'Durante as viagens, esta app envia a localização do telemóvel à sua empresa. Fora das viagens não envia nada.',

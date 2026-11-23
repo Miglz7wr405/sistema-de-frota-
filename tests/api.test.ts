@@ -654,6 +654,14 @@ d('viagens entre quaisquer províncias', () => {
       const pos = (await c.query(`select a.name, pv.name prov from admin_areas a left join admin_areas pv on pv.id = a.parent_id
         where a.level = 2 and ST_Covers(a.geom, ST_SetSRID(ST_MakePoint(36.9, -17.9), 4326)::geography)`)).rows[0];
       expect(pos?.name).toBeTruthy();
+      // mapa: limites e nomes dos distritos atravessados (só os da rota; dados geográficos públicos)
+      const areas = await call('GET', `/api/track/areas?token=${sh.json.link.split('/t/')[1]}`);
+      expect(areas.status).toBe(200);
+      expect(new Set(areas.json.map((a: { name: string }) => a.name))).toEqual(new Set(ds.map((d) => d.name)));
+      expect(areas.json[0].boundary.type).toMatch(/LineString/);
+      expect(areas.json[0].label).toHaveLength(2);
+      expect((await call('GET', `/api/trips/${t.json.id}/areas`, A)).json.length).toBe(areas.json.length);
+      expect((await call('GET', `/api/trips/${t.json.id}/areas`, B)).json).toEqual([]); // B não vê a rota de A
     } finally { c.release(); }
   });
 });

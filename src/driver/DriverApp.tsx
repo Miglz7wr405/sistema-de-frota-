@@ -125,6 +125,7 @@ function TripScreen({ me, setMe, reload }: { me: Me; setMe: (m: Me) => void; rel
               {(trip.recipient_name || trip.recipient_phone) && <p className="mt-1"><span className="text-muted">{t.trip.cargoOwner}:</span> <b>{trip.recipient_name ?? ''}</b>
                 {trip.recipient_phone && <> · <a className="text-primary" href={`tel:${trip.recipient_phone}`}>{trip.recipient_phone}</a></>}</p>}
             </div>}
+            <TripCodeCard code={trip.share_code ?? null} tripCode={trip.code} />
             <DriverRoute me={me} model={rt.route} kmDone={rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null} pos={rt.pos} road={rt.road}
               arrived={rt.snap?.places.find((p) => p.state === 'atual' && p.importance >= 2 && p.kmFromOrigin > 1) ?? null} />
             {!moving && <div className="card flex items-center gap-4 p-4"><span className="rounded-xl bg-primary-soft p-3 text-primary"><Navigation className="h-6 w-6" /></span>
@@ -302,6 +303,27 @@ function WhereNow({ rt, me }: { rt: ReturnType<typeof useDriverRuntime>; me: Me 
       {label && <p className="text-lg font-bold">📍 {t.driverApp.nowAt(label)}</p>}
       {dist && <p className="text-sm font-medium text-navy" data-testid="motorista-distrito">{t.track.district(dist.name, dist.province)}</p>}
       {lastPassed && <p className="text-sm text-muted">{t.driverApp.passedPlace(lastPassed)}</p>}
+    </div>
+  );
+}
+
+// Código da viagem: o cliente acompanha o camião em /track com este código (o da partilha ativa). Copiar ou enviar pelo WhatsApp.
+function TripCodeCard({ code, tripCode }: { code: string | null; tripCode: string }) {
+  const [copied, setCopied] = useState(false);
+  const link = code ? `${location.origin}/track?code=${encodeURIComponent(code)}` : null;
+  const copy = async () => { try { await navigator.clipboard.writeText(link ?? tripCode); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* sem permissão */ } };
+  return (
+    <div className="card p-4" data-testid="motorista-codigo">
+      <p className="text-sm text-muted">{t.driverApp.tripCode}</p>
+      <p className="mt-0.5 font-mono text-2xl font-bold tracking-wider text-navy">{code ?? tripCode}</p>
+      {code ? <>
+        <p className="mt-1 text-sm text-muted">{t.driverApp.tripCodeHelp}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button variant="secondary" onClick={copy}>{copied ? t.driverApp.copied : t.driverApp.copyLink}</Button>
+          <a href={`https://wa.me/?text=${encodeURIComponent(t.driverApp.shareText(code, link!))}`} target="_blank" rel="noreferrer"
+            className="inline-flex items-center justify-center rounded-xl bg-[#1FA855] px-3 py-2 text-sm font-semibold text-white">WhatsApp</a>
+        </div>
+      </> : <p className="mt-1 text-sm text-muted">{t.driverApp.tripCodeNoShare}</p>}
     </div>
   );
 }

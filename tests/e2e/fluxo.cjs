@@ -177,6 +177,8 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     const dt = await cp.getByTestId('track-distrito').innerText({ timeout: 10000 });
     if (!/Cidade de Quelimane|Distrito de /.test(dt)) throw new Error('distrito inesperado: ' + dt);
     if (await cp.locator('.maplibregl-marker', { hasText: 'Faltam' }).count()) throw new Error('etiqueta do camião ainda por cima do mapa');
+    // o mapa mostra os nomes dos distritos atravessados
+    await cp.locator('.if-area-label').first().waitFor({ state: 'attached', timeout: 10000 });
     await cp.screenshot({ path: SHOT + '11c-track-publico.png', fullPage: true });
     return dt;
   });
@@ -211,6 +213,8 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     await tp.getByRole('button', { name: 'Terminar teste' }).waitFor();
     if (await tp.getByRole('button', { name: 'Falar' }).count()) throw new Error('botão "Falar" ainda existe');
     if (await tp.getByRole('button', { name: 'Despesa' }).count()) throw new Error('botão "Despesa" ainda existe');
+    // código da viagem no ecrã do motorista
+    await tp.getByTestId('motorista-codigo').getByText(/FT-/).first().waitFor();
     // esquema do percurso com o camião
     // primeiro o Mapa (por omissão), depois o Percurso
     const tabs = await tp.getByRole('tab').allInnerTexts();

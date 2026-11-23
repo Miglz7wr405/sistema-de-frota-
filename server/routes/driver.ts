@@ -54,6 +54,10 @@ route('GET', '/api/driver/me', async (req) => {
           (select pl.name from trip_route_places rp join places pl on pl.id = rp.place_id where rp.trip_route_id = pr.trip_route_id and rp.passed_at is not null
              and rp.km_from_origin > 0 order by rp.km_from_origin desc limit 1) last_passed
         from trip_progress pr where pr.trip_id = $1`, [trip.id]);
+      // código que o cliente usa em /track (o da partilha ativa desta viagem); só o código, nunca o token do link
+      const share = await withSystem((s) => one<{ short_code: string }>(s, `select short_code from tracking_shares
+        where trip_id = $1 and is_active and revoked_at is null and expires_at > now() order by created_at desc limit 1`, [(trip as { id: string }).id]));
+      (trip as Record<string, unknown>).share_code = share?.short_code ?? null;
     }
     // ownDriver: o motorista é o próprio utilizador (envio a cada 5 s, "Voltar ao painel"); testMode: viagem de teste do telemóvel
     const ownDriver = !!(await one(c, 'select 1 from drivers where id = $1 and user_id is not null', [d.driverId]));
@@ -61,6 +65,14 @@ route('GET', '/api/driver/me', async (req) => {
     return { testMode, ownDriver, driver: { id: d.driverId, fullName: d.fullName }, org: { name: org?.name, settings: org?.settings }, consentRequired: !consent,
       consentVersion: CONSENT_VERSION, trip, route: route_, stops, progress, serverTime: new Date().toISOString() };
   }));
+});
+
+// Distritos da rota atual (limites e nomes) para o mapa do motorista; pedido uma vez por rota.
+route('GET', '/api/driver/areas', async (req) => {
+  const d = await requireDriver(req);
+  return ok(await asDriver(d, async (c) => (await one<{ a: unknown }>(c, `select route_areas(tr.id) a from trips t join trip_routes tr on tr.trip_id = t.id and tr.is_current
+    where t.driver_id = $1 and t.status in ('em_viagem','pausada','planeada','aguardando_partida') and t.deleted_at is null order by t.created_at desc limit 1`, [d.driverId]))?.a ?? []),
+    200, { 'cache-control': 'private, max-age=600' });
 });
 
 route('POST', '/api/driver/consent', async (req) => {

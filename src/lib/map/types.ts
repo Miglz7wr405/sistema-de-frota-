@@ -2,7 +2,10 @@
 export type LngLat = [number, number];
 export type VehicleMarker = { id: string; lng: number; lat: number; heading?: number | null; tone: 'primary' | 'success' | 'muted' | 'danger'; label?: string; sublabel?: string };
 export type PointMarker = { id: string; lng: number; lat: number; kind: 'origin' | 'destination' | 'waypoint' | 'place' | 'passed'; label?: string };
+/** Distrito atravessado pela rota: limite (GeoJSON LineString/MultiLineString) e ponto para o nome. */
+export type AreaOverlay = { name: string; province?: string | null; boundary: { type: string; coordinates: unknown } | null; label: LngLat };
 export type MapState = {
+  areas?: AreaOverlay[] | null; // limites e nomes dos distritos (por baixo da rota)
   vehicles?: VehicleMarker[];
   routeDone?: LngLat[] | null;
   routeLeft?: LngLat[] | null;

@@ -53,7 +53,7 @@ export function TrackApp() {
   if (!query || (error === 'invalid' && !dto)) return <CodeForm onSubmit={(c) => { history.replaceState(null, '', `/track?code=${c}`); setQuery(`code=${c}`); }} invalid={error === 'invalid'} />;
   if (error === 'unavailable') return <Message text={t.track.unavailable} onBack={() => { history.replaceState(null, '', '/track'); setQuery(null); }} />;
   if (!dto) return <Message text={error === 'rate' ? t.errors.rateLimited : error === 'network' ? t.errors.network : t.common.loading} />;
-  return <TrackView dto={dto} offline={error === 'network'} fetchedAt={fetchedAt} />;
+  return <TrackView dto={dto} offline={error === 'network'} fetchedAt={fetchedAt} query={query} />;
 }
 
 function Header({ company, logo }: { company?: string | null; logo?: string | null }) {
@@ -88,7 +88,7 @@ const Message = ({ text, onBack }: { text: string; onBack?: () => void }) => (
     {onBack && <button className="mt-3 text-sm font-medium text-primary" onClick={onBack}>{t.track.enterCode}</button>}</div></div>
 );
 
-function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fetchedAt: number }) {
+function TrackView({ dto, offline, fetchedAt, query }: { dto: Dto; offline: boolean; fetchedAt: number; query: string }) {
   const now = Date.parse(dto.server_time) + (Date.now() - fetchedAt);
   const [, tick] = useState(0);
   useEffect(() => { const h = setInterval(() => tick((x) => x + 1), 15_000); return () => clearInterval(h); }, []);
@@ -108,7 +108,7 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
     <div className="min-h-[100dvh] overflow-x-hidden bg-background">
       <Header company={dto.company} logo={logo} />
       <div className="relative mx-auto h-[42dvh] max-w-3xl overflow-hidden sm:rounded-3xl">
-        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center text-sm text-muted">{t.map.loading}</div>}><TrackMap dto={dto} stale={fresh === 'sem_sinal'} /></Suspense>
+        <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center text-sm text-muted">{t.map.loading}</div>}><TrackMap dto={dto} stale={fresh === 'sem_sinal'} query={query} /></Suspense>
       </div>
       <section className="mx-auto -mt-4 max-w-3xl rounded-t-3xl bg-white px-5 pb-6 pt-5 shadow-[0_-8px_30px_rgba(16,36,61,0.08)] relative">
         <div className="flex items-start justify-between gap-2">

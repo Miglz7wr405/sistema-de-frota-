@@ -1,13 +1,16 @@
 // Mapa da página pública: fixo, com a mesma câmara automática do ecrã do motorista (rota inteira ↔ aproximado ao camião,
 // "Agora em X" ao chegar a uma localidade). A rota é a do DTO público (feita + por fazer); sem posição, fica na rota inteira.
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MapView } from '@/lib/map/MapView';
 import { useRouteCamera, ZOOM_ANIM_MS } from '@/lib/map/useRouteCamera';
 import { cumulative } from '@/lib/geo/geometry';
 import type { Dto } from './TrackApp';
-import type { LngLat } from '@/lib/map/types';
+import type { AreaOverlay, LngLat } from '@/lib/map/types';
 
-export default function TrackMap({ dto, stale }: { dto: Dto; stale: boolean }) {
+export default function TrackMap({ dto, stale, query }: { dto: Dto; stale: boolean; query: string }) {
+  // limites e nomes dos distritos atravessados (pedido uma vez; sem rede, o mapa funciona sem eles)
+  const [areas, setAreas] = useState<AreaOverlay[] | null>(null);
+  useEffect(() => { fetch(`/api/track/areas?${query}`).then((r) => (r.ok ? r.json() : null)).then((a) => a && setAreas(a)).catch(() => {}); }, [query]);
   const done = dto.route_done?.coordinates ?? null;
   const left = dto.route_left?.coordinates ?? null;
   const fit: LngLat[] = [dto.origin_point, dto.destination_point, ...(dto.position ? [[dto.position.lng, dto.position.lat] as LngLat] : [])];
@@ -30,7 +33,7 @@ export default function TrackMap({ dto, stale }: { dto: Dto; stale: boolean }) {
       <MapView className="absolute inset-0" controls={false} interactive={false} fitKey={live ? cam.fitKey : dto.code} fitTo={live ? cam.fitTo : fit}
         fitDurationMs={ZOOM_ANIM_MS}
         state={{
-          routeDone: done, routeLeft: left,
+          areas, routeDone: done, routeLeft: left,
           // sem etiqueta grande no camião: o "Agora: …" já está no cartão por baixo (não tapa os nomes do mapa)
           vehicles: dto.position ? [{ id: 'truck', lng: dto.position.lng, lat: dto.position.lat, heading: dto.position.heading, tone: stale ? 'muted' : 'primary' }] : [],
           // o nome da origem/destino não se repete quando o camião está lá (o mapa já mostra o nome da cidade)
