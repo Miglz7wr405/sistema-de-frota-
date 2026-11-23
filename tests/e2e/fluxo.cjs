@@ -16,6 +16,18 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   const step = async (name, fn) => { try { await fn(); console.log('OK  ', name); } catch (e) { failures++; console.log('FAIL', name, e.message.split('\n')[0]); } await page.screenshot({ path: SHOT + name + '.png' }); };
   const email = `e2e${Date.now()}@teste.mz`;
   await step('01-landing', async () => { await page.goto(B + '/'); await page.getByText('Criar conta grátis').first().waitFor(); });
+  await step('01b-landing-telemovel', async () => {
+    // página inicial no telemóvel: fotografia no topo, faixa do código que abre o acompanhamento, sem scroll lateral
+    const lp = await (await browser.newContext({ viewport: { width: 400, height: 860 } })).newPage();
+    await lp.goto(B + '/'); await lp.getByText('Acompanhe a sua carga').waitFor(); await lp.waitForTimeout(800);
+    await lp.screenshot({ path: SHOT + '01d-landing-telemovel.png', fullPage: true });
+    const w = await lp.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    if (w[0] > w[1] + 1) throw new Error('página inicial mais larga que o ecrã: ' + w.join('/'));
+    await lp.getByPlaceholder('FT-XXXX-XXXX').fill('ft-abcd-1234'); await lp.getByRole('button', { name: 'Acompanhar' }).click();
+    await lp.waitForURL(/\/track\?code=FT-ABCD-1234/, { timeout: 10000 });
+    await page.screenshot({ path: SHOT + '01c-landing-computador.png', fullPage: true });
+    await lp.context().close();
+  });
   await step('02-registo', async () => {
     await page.goto(B + '/register');
     await page.getByLabel('Nome completo').fill('Miguel Teste');
