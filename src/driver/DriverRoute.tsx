@@ -37,7 +37,7 @@ export function DriverRoute({ me, model, kmDone, pos, road, arrived }: { me: Me;
       {/* os dois ficam montados (o mapa não recarrega); só se mostra um de cada vez, com uma transição suave */}
       <div className={view === 'strip' ? 'tab-fade p-3' : 'hidden'} role="tabpanel">
         <RouteStrip origin={me.trip.origin} destination={me.trip.destination} totalKm={totalKm} kmDone={kmDone} showEta={false}
-          places={me.route.places.map((p) => ({ name: p.name, km: p.kmFromOrigin, importance: p.importance }))} /></div>
+          places={me.route.places.map((p) => ({ name: p.name, km: p.kmFromOrigin, importance: p.importance }))} districts={me.route.districts} /></div>
       <div className={view === 'map' ? 'tab-fade' : 'hidden'} role="tabpanel">
         <Suspense fallback={<div className="flex h-[340px] items-center justify-center text-sm text-muted">{t.map.loading}</div>}>
           <DriverMap model={model} kmDoneModel={kmDone != null && model ? kmDone * (model.lengthM / 1000 / totalKm) : null} pos={pos} road={road}

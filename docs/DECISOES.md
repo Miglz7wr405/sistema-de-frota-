@@ -243,3 +243,9 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 - **Distritos sem gravação:** a mesma frase é dita pela voz do telemóvel.
 - **Estado:** 16 frases gravadas (Cidade de Quelimane, Nicoadala, Namacurra, Mocuba, Alto Molócuè, Chinde, Derre, Gilé). A quota mensal gratuita do ElevenLabs (10 000 créditos) esgotou-se.
 - ⚠️ DEPENDÊNCIA EXTERNA: o resto (14 distritos da Zambézia e 10 capitais, ~2 000 créditos) fica para quando a quota renovar ou com um plano pago. O uso comercial do áudio depende dos termos do plano ElevenLabs.
+
+## ADR-027 — Distritos visíveis ao cliente e no painel (2026-11-23)
+- **Lista branca do DTO público (migração 0018):** passa a incluir `districts` (nome, província e km de entrada ao longo da rota) e `district` (distrito e província da última posição real, só com viagem ativa). Nenhuma geometria nem dado privado é exposto.
+- **`route_districts(route)`:** uma única função SQL, usada pela página pública, pelo painel e pelo ecrã do motorista. Ignora passagens de menos de 1 km por um distrito, porque são a estrada a tocar num limite.
+- **Página pública:** o camião deixa de ter a etiqueta grande por cima dos nomes do mapa (o "Agora: …" já está no cartão). O nome da origem e o do destino escondem-se quando o camião está a menos de 3 km deles.
+- **Percurso:** mostra as entradas nos distritos, por exemplo "DISTRITO DE NICOADALA · km 9", entre as localidades.

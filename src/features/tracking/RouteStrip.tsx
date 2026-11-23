@@ -5,11 +5,14 @@
 import { t } from '@/i18n/pt-MZ';
 import { formatKm, formatTime } from '@/lib/format';
 
-export type StripPlace = { name: string; km: number; importance?: number; state?: string | null; passedAt?: string | null; eta?: string | null };
+export type StripPlace = { name: string; km: number; importance?: number; state?: string | null; passedAt?: string | null; eta?: string | null; district?: boolean };
+export type StripDistrict = { name: string; km: number };
 
 type Props = {
   origin: string; destination: string; totalKm: number;
   places: StripPlace[]; kmDone: number | null; showEta?: boolean;
+  /** distritos atravessados (km de entrada desde a origem); o de partida não aparece */
+  districts?: StripDistrict[] | null;
 };
 
 const W = 360, X0 = 64, AMP = 26, ROW = 46, TOP = 26;
@@ -17,7 +20,7 @@ const W = 360, X0 = 64, AMP = 26, ROW = 46, TOP = 26;
 // curva suave: x oscila à volta da coluna, y proporcional aos km de estrada
 const curveX = (f: number) => X0 + AMP * Math.sin(f * Math.PI * 3);
 
-export function RouteStrip({ origin, destination, totalKm, places, kmDone, showEta = true }: Props) {
+export function RouteStrip({ origin, destination, totalKm, places, kmDone, showEta = true, districts }: Props) {
   if (!(totalKm > 0)) return null;
   // localidades intermédias importantes (cidades/vilas), sem repetir a origem e o destino
   const mids = places.filter((p) => p.km > 0.5 && p.km < totalKm - 0.5 && (p.importance ?? 3) >= 3)
@@ -29,7 +32,10 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
     const keep = new Set([...mids].sort((a, b) => (b.importance ?? 3) - (a.importance ?? 3) || a.km - b.km).slice(0, MAX));
     shown = mids.filter((p) => keep.has(p));
   }
-  const all: StripPlace[] = [{ name: origin, km: 0, state: 'origem' }, ...shown, { name: destination, km: totalKm, state: 'destino' }];
+  // entradas nos distritos (pela distância rodoviária real), intercaladas com as localidades
+  const dists: StripPlace[] = (districts ?? []).filter((d) => d.km > 0.5 && d.km < totalKm - 0.5).map((d) => ({ name: d.name, km: d.km, district: true }));
+  const mid = [...shown, ...dists].sort((a, b) => a.km - b.km || (a.district ? -1 : 1));
+  const all: StripPlace[] = [{ name: origin, km: 0, state: 'origem' }, ...mid, { name: destination, km: totalKm, state: 'destino' }];
   // altura: o suficiente para cada localidade ficar ao lado do seu ponto (sem linhas de ligação), até um máximo
   let pxPerKm = (Math.max(260, (all.length - 1) * ROW * 1.15)) / totalKm;
   for (let i = 1; i < all.length; i++) { const dk = all[i]!.km - all[i - 1]!.km; if (dk > 0) pxPerKm = Math.max(pxPerKm, 36 / dk); }
@@ -52,7 +58,7 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
 
   // onde está agora (localidades REAIS da rota): última passada e próxima
   const lastPassed = kmDone != null ? [...places].filter((p) => p.km > 0.5 && p.km <= kmDone).sort((a, b) => b.km - a.km)[0] ?? null : null;
-  const nextIdx = kmDone != null ? all.findIndex((p) => p.km > kmDone) : -1;
+  const nextIdx = kmDone != null ? all.findIndex((p) => p.km > kmDone && !p.district) : -1;
 
   return (
     <div>
@@ -68,6 +74,14 @@ export function RouteStrip({ origin, destination, totalKm, places, kmDone, showE
         const passed = frac != null && f <= frac;
         const isNext = i === nextIdx && kmDone != null;
         const right = p.passedAt ? `${t.strip.passed} ${formatTime(p.passedAt)}` : isNext ? `${t.strip.left(formatKm(p.km - kmDone!))}${showEta && p.eta ? ` · ~${formatTime(p.eta)}` : ''}` : showEta && p.eta && !passed ? `~${formatTime(p.eta)}` : '';
+        if (p.district) return (
+          // entrada num distrito: traço fino a cruzar a linha e o nome em maiúsculas pequenas (cinzento)
+          <g key={`d-${p.name}-${i}`} data-testid="strip-distrito">
+            <line x1={x - 13} y1={y} x2={x + 13} y2={y} stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="3 2" />
+            {Math.abs(ly - y) > 2 && <line x1={x + 14} y1={y} x2={X0 + AMP + 22} y2={ly - 4} stroke="#E2E8F0" strokeWidth="1" />}
+            <text x={X0 + AMP + 26} y={ly} fontSize="10.5" fontWeight={700} letterSpacing="0.06em" fill="#64748B" dominantBaseline="middle">{t.strip.district(p.name).toUpperCase()}</text>
+            <text x={X0 + AMP + 26} y={ly + 13} fontSize="10" fill="#94A3B8" dominantBaseline="middle">km {Math.round(p.km)}</text>
+          </g>);
         return (
           <g key={`${p.name}-${i}`}>
             {Math.abs(ly - y) > 2 && <line x1={x + 8} y1={y} x2={X0 + AMP + 22} y2={ly - 4} stroke="#CBD5E1" strokeWidth="1" />}

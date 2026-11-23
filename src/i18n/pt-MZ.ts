@@ -204,6 +204,7 @@ export const t = {
   assign: { title: 'Para iniciar, escolha o camião e o motorista', saveStart: 'Guardar e iniciar viagem', save: 'Guardar' },
   strip: {
     title: 'Percurso',
+    district: (n: string) => (/^cidade (de|da|do) /i.test(n) ? n : `Distrito de ${n}`),
     done: (km: string) => `${km} feitos`, left: (km: string) => `faltam ${km}`,
     speed: 'Velocidade', accelerating: 'a acelerar', slowing: 'a reduzir', steady: 'estável', stopped: 'parado',
     pace: 'Ao ritmo atual', paceNone: 'Sem dados de ritmo', eta: 'Chegada prevista',
@@ -224,6 +225,7 @@ export const t = {
     changeDestination: 'Mudar destino', endTest: 'Terminar teste',
   },
   track: {
+    district: (n: string, prov: string | null) => `${/^cidade (de|da|do) /i.test(n) ? n : `Distrito de ${n}`}${prov ? ` · ${prov}` : ''}`,
     nowAt: (label: string) => `Agora: ${label}`, lastSeenAt: (label: string) => `Última posição: ${label}`,
     title: 'Acompanhe a sua viagem', enterCode: 'Introduza o código da viagem', codePh: 'FT-XXXX-XXXX', go: 'Acompanhar',
     invalidCode: 'Código inválido. Verifique e tente de novo.',

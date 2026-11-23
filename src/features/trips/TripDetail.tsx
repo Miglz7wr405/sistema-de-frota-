@@ -25,7 +25,9 @@ type Detail = {
   places: { place_id: string; name: string; kind: string; importance: number; km_from_origin: number; state: string; eta: string | null; eta_confidence: string | null; passed_at: string | null }[];
   progress: { km_done: number | null; km_left: number | null; pct: number | null; road_name: string | null; speed_limit_kmh: number | null; current_label: string | null; eta_destination: string | null; eta_confidence: string | null; speed_kmh_smoothed: number | null; off_route: boolean | null } | null;
   position: { lng: number; lat: number; speed_kmh: number | null; heading: number | null; accuracy_m: number | null; device_time: string; source: string;
-    matched_lng: number | null; matched_lat: number | null; road_name: string | null; speed_limit_kmh: number | null; matched_at: string | null; recent_speeds: number[] | null } | null;
+    matched_lng: number | null; matched_lat: number | null; road_name: string | null; speed_limit_kmh: number | null; matched_at: string | null; recent_speeds: number[] | null;
+    district: { name: string; province: string | null } | null } | null;
+  districts?: { name: string; province: string | null; km: number }[];
   shares: Share[]; incidents: any[]; proofs: any[]; expenses: any[]; serverTime: string;
 };
 
@@ -56,6 +58,7 @@ function LivePanel({ d, noSig }: { d: Detail; noSig: boolean }) {
           <p className="text-xs text-muted">{t.strip.road}</p>
           <p className="font-semibold">{road ?? t.strip.noRoad}</p>
           <p className={`text-sm ${over ? 'font-semibold text-danger' : 'text-muted'}`}>{limit != null ? `${over ? `${t.strip.overLimit} · ` : ''}${t.strip.limit(limit)}` : t.strip.limitUnknown}</p>
+          {p?.district && <p className="mt-1 text-sm font-medium text-navy" data-testid="viagem-distrito">{t.track.district(p.district.name, p.district.province)}</p>}
         </div>
         <div>
           <p className="text-xs text-muted">{t.strip.pace}</p>
@@ -231,7 +234,7 @@ export default function TripDetail() {
               {active && d.position && <LivePanel d={d} noSig={noSig} />}
               {d.route && <Card title={t.strip.title}><RouteStrip origin={tr.origin} destination={tr.destination} totalKm={(d.route.base_km ?? 0) + d.route.length_m / 1000}
                 kmDone={active ? d.progress?.km_done ?? null : tr.status === 'concluida' ? (d.route.base_km ?? 0) + d.route.length_m / 1000 : null} showEta={active && !noSig}
-                places={d.places.map((p) => ({ name: p.name, km: p.km_from_origin, importance: p.importance, state: p.state, passedAt: p.passed_at, eta: p.eta_confidence !== 'indisponivel' ? p.eta : null }))} /></Card>}
+                places={d.places.map((p) => ({ name: p.name, km: p.km_from_origin, importance: p.importance, state: p.state, passedAt: p.passed_at, eta: p.eta_confidence !== 'indisponivel' ? p.eta : null }))} districts={d.districts} /></Card>}
               {!d.route && <Card><p className="text-sm text-warning">{t.trip.routeNone}</p>{canWrite && <Button className="mt-2" size="sm" variant="secondary" onClick={() => replan.mutate()} loading={replan.isPending}><RefreshCw className="h-4 w-4" />{t.trip.replan}</Button>}</Card>}
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Stat label={t.trip.progress} value={d.progress?.pct != null && active ? `${Math.round(d.progress.pct)}%` : tr.status === 'concluida' ? '100%' : '—'}><div className="mt-2"><ProgressBar pct={tr.status === 'concluida' ? 100 : d.progress?.pct} /></div></Stat>

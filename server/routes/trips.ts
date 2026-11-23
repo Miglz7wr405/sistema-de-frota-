@@ -140,6 +140,8 @@ route('GET', '/api/trips/:id', async (req, p) => {
         (engine_state->>'offRoute')::boolean off_route from trip_progress where trip_id = $1`, [id]);
     const position = await one(c, `select ST_X(l.geom::geometry) lng, ST_Y(l.geom::geometry) lat, l.speed_kmh, l.heading, l.accuracy_m, l.device_time, l.source,
         ST_X(l.matched_geom::geometry) matched_lng, ST_Y(l.matched_geom::geometry) matched_lat, l.road_name, l.speed_limit_kmh, l.matched_at,
+        (select jsonb_build_object('name', a.name, 'province', pv.name) from admin_areas a left join admin_areas pv on pv.id = a.parent_id
+           where a.level = 2 and ST_Covers(a.geom, coalesce(l.matched_geom, l.geom)) order by ST_Area(a.geom) limit 1) district,
         (select array_agg(s order by t) from (select p.device_time t, p.speed_kmh s from vehicle_positions p
            where p.vehicle_id = l.vehicle_id and p.device_time > l.device_time - interval '2 minutes' and p.speed_kmh is not null
            order by p.device_time desc limit 8) x) recent_speeds
@@ -149,7 +151,9 @@ route('GET', '/api/trips/:id', async (req, p) => {
     const incidents = await many(c, 'select id, kind, note, photo_file_id, occurred_at, resolved_at from incidents where trip_id = $1 order by occurred_at desc', [id]);
     const proofs = await many(c, 'select id, received_by_name, signature_file_id, photo_file_id, delivered_at from delivery_proofs where trip_id = $1', [id]);
     const expenses = m.role === 'viewer' ? [] : await many(c, 'select id, category, amount, currency, spent_at, note, receipt_file_id from trip_expenses where trip_id = $1 order by spent_at', [id]);
-    return { trip, stops, events, route: route_, places, progress, position, shares, incidents, proofs, expenses, serverTime: new Date().toISOString() };
+    // distritos atravessados pela rota (km desde a origem da viagem, na mesma medida das localidades)
+    const districts = route_ ? await many(c, `select name, province, round(km::numeric, 1)::float8 km from route_districts($1) order by km`, [route_.id]) : [];
+    return { trip, stops, events, route: route_, places, districts, progress, position, shares, incidents, proofs, expenses, serverTime: new Date().toISOString() };
   }));
 });
 

@@ -13,6 +13,7 @@ export type Dto = {
   progress: { pct: number; km_done: number; km_left: number; current_label: string | null; eta: string | null; eta_confidence: string } | null;
   route_done: { coordinates: [number, number][] } | null; route_left: { coordinates: [number, number][] } | null; route_validated_for_truck: boolean | null;
   places: { name: string; km: number; state: string; passed_at: string | null; eta: string | null; eta_confidence: string | null }[];
+  districts?: { name: string; province: string | null; km: number }[]; district?: { name: string; province: string | null } | null;
   company: string | null; logo_file_id: string | null; plate: string | null; driver_first_name: string | null; server_time: string;
 };
 
@@ -114,8 +115,10 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
           <div><p className="text-sm text-muted">{t.track.trip}</p><p className="font-mono text-2xl font-bold tracking-wide">{dto.code}</p></div>
           <span className={`rounded-full px-3 py-1.5 text-sm font-semibold ${badge[0]}`}>{badge[1]}</span>
         </div>
-        {active && (p?.current_label || lastPassed) && <div className="mt-3 rounded-2xl bg-primary-soft px-4 py-3">
+        {active && (p?.current_label || lastPassed || dto.district) && <div className="mt-3 rounded-2xl bg-primary-soft px-4 py-3">
           {p?.current_label && <p className="text-lg font-semibold text-navy">🚚 {fresh === 'sem_sinal' ? t.track.lastSeenAt(p.current_label) : t.track.nowAt(p.current_label)}</p>}
+          {/* distrito e província da última posição real (limites oficiais ADM2) */}
+          {dto.district && <p className="text-sm font-medium text-navy" data-testid="track-distrito">{t.track.district(dto.district.name, dto.district.province)}</p>}
           {lastPassed && <p className="text-sm text-muted">{t.driverApp.passedPlace(lastPassed.name)}{lastPassed.passed_at ? ` · ${formatTime(lastPassed.passed_at)}` : ''}</p>}
         </div>}
         {dto.status === 'concluida' && dto.delivered_at && <p className="mt-3 text-lg font-semibold text-success-text">{t.track.delivered(formatTime(dto.delivered_at))}</p>}
@@ -132,7 +135,8 @@ function TrackView({ dto, offline, fetchedAt }: { dto: Dto; offline: boolean; fe
         )}
         {totalKm > 0 && <div className="mt-4"><RouteStrip origin={dto.origin} destination={dto.destination} totalKm={totalKm}
           kmDone={active && p ? p.km_done : dto.status === 'concluida' ? totalKm : null} showEta={!!etaOk}
-          places={dto.places.map((x) => ({ name: x.name, km: x.km, state: x.state, passedAt: x.passed_at, eta: x.eta_confidence !== 'indisponivel' ? x.eta : null }))} /></div>}
+          places={dto.places.map((x) => ({ name: x.name, km: x.km, state: x.state, passedAt: x.passed_at, eta: x.eta_confidence !== 'indisponivel' ? x.eta : null }))}
+          districts={dto.districts} /></div>}
         {active && <p className={`mt-4 flex items-center justify-center gap-2 text-sm ${fresh === 'atual' ? 'text-muted' : 'text-warning'}`}>
           <span className={`h-2 w-2 rounded-full ${fresh === 'atual' ? 'bg-success' : fresh === 'desatualizada' ? 'bg-warning' : 'bg-danger'}`} />
           {!dto.position ? t.track.noPosition : fresh === 'atual' ? t.track.updated(formatAgo(dto.position.device_time, now)) : t.track.stale(formatAgo(dto.position.device_time, now))}</p>}

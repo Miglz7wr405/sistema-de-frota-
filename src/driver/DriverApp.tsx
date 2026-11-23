@@ -292,10 +292,15 @@ function WhereNow({ rt, me }: { rt: ReturnType<typeof useDriverRuntime>; me: Me 
   const label = rt.snap?.label ? t.label(rt.snap.label) : me.progress?.current_label ?? null;
   const passed = rt.snap ? [...rt.snap.places].reverse().find((p) => p.state === 'passada' && p.kmFromOrigin > 0) : null;
   const lastPassed = passed?.name ?? me.progress?.last_passed ?? null;
-  if (!label && !lastPassed) return null;
+  // distrito atual: o último em que a rota entrou até aos km feitos (calculado no telemóvel, funciona sem rede)
+  const scale = rt.route && me.route ? rt.route.lengthM / me.route.lengthM : 1;
+  const km = rt.snap?.kmDone != null ? rt.snap.kmDone / scale : null;
+  const dist = km != null ? [...(me.route?.districts ?? [])].reverse().find((d) => d.km <= km + 0.05) ?? null : null;
+  if (!label && !lastPassed && !dist) return null;
   return (
     <div className="card p-4">
       {label && <p className="text-lg font-bold">📍 {t.driverApp.nowAt(label)}</p>}
+      {dist && <p className="text-sm font-medium text-navy" data-testid="motorista-distrito">{t.track.district(dist.name, dist.province)}</p>}
       {lastPassed && <p className="text-sm text-muted">{t.driverApp.passedPlace(lastPassed)}</p>}
     </div>
   );

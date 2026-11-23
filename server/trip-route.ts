@@ -120,12 +120,8 @@ export async function routeDistricts(c: Tx, routeId: string) {
   }
 }
 function districtsQuery(c: Tx, routeId: string) {
-  return many<{ code: string; name: string; province: string | null; km: number }>(c, `
-    with r as (select geom::geometry g, length_m from trip_routes where id = $1),
-    pts as (select ST_LineLocatePoint(r.g, d.geom) f, d.geom p from r, ST_DumpPoints(ST_Segmentize(r.g::geography, 400)::geometry) d),
-    lab as (select f, (select a.id from admin_areas a where a.level = 2 and ST_Covers(a.geom, p::geography) order by ST_Area(a.geom) limit 1) aid from pts),
-    runs as (select f, aid, lag(aid) over (order by f) prev from lab where aid is not null)
-    select a.code, a.name, pv.name province, round((runs.f * (select length_m from r) / 1000)::numeric, 3)::float8 km
-    from runs join admin_areas a on a.id = runs.aid left join admin_areas pv on pv.id = a.parent_id
-    where runs.aid is distinct from runs.prev order by runs.f`, [routeId]);
+  // route_districts (migração 0018) dá o km desde a origem da viagem; aqui é desde o início da geometria desta rota
+  return many<{ code: string; name: string; province: string | null; km: number }>(c,
+    `select d.code, d.name, d.province, round((d.km - r.base_km)::numeric, 3)::float8 km
+     from trip_routes r, route_districts(r.id) d where r.id = $1 order by d.km`, [routeId]);
 }

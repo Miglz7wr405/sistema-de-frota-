@@ -19,6 +19,8 @@ export default function TrackMap({ dto, stale }: { dto: Dto; stale: boolean }) {
     return { coords, cum, lengthM: cum.at(-1)!, doneM };
   }, [dto.route_done, dto.route_left]);
   const live = !stale && !!dto.position && !!route;
+  // a menos de ~3 km de um ponto (aproximação plana, suficiente a esta escala)
+  const near = (pt: LngLat) => !!dto.position && Math.hypot((dto.position.lng - pt[0]) * Math.cos((pt[1] * Math.PI) / 180), dto.position.lat - pt[1]) * 111 < 3;
   const here = dto.position ? { lng: dto.position.lng, lat: dto.position.lat } : null;
   const cur = dto.places.find((x) => x.state === 'atual' && x.km > 1);
   const cam = useRouteCamera({ route: live ? route : null, doneM: live ? route!.doneM : null, here, ends: [dto.origin_point, dto.destination_point],
@@ -29,9 +31,11 @@ export default function TrackMap({ dto, stale }: { dto: Dto; stale: boolean }) {
         fitDurationMs={ZOOM_ANIM_MS}
         state={{
           routeDone: done, routeLeft: left,
-          vehicles: dto.position ? [{ id: 'truck', lng: dto.position.lng, lat: dto.position.lat, heading: dto.position.heading, tone: stale ? 'muted' : 'primary',
-            label: dto.progress?.current_label ?? undefined, sublabel: dto.progress ? `Faltam ${Math.round(dto.progress.km_left)} km` : undefined }] : [],
-          points: [{ id: 'o', lng: dto.origin_point[0], lat: dto.origin_point[1], kind: 'origin', label: dto.origin }, { id: 'd', lng: dto.destination_point[0], lat: dto.destination_point[1], kind: 'destination', label: dto.destination }],
+          // sem etiqueta grande no camião: o "Agora: …" já está no cartão por baixo (não tapa os nomes do mapa)
+          vehicles: dto.position ? [{ id: 'truck', lng: dto.position.lng, lat: dto.position.lat, heading: dto.position.heading, tone: stale ? 'muted' : 'primary' }] : [],
+          // o nome da origem/destino não se repete quando o camião está lá (o mapa já mostra o nome da cidade)
+          points: [{ id: 'o', lng: dto.origin_point[0], lat: dto.origin_point[1], kind: 'origin', label: near(dto.origin_point) ? undefined : dto.origin },
+            { id: 'd', lng: dto.destination_point[0], lat: dto.destination_point[1], kind: 'destination', label: near(dto.destination_point) ? undefined : dto.destination }],
         }} />
       {cam.banner && <div key={cam.banner} className="map-banner pointer-events-none absolute inset-x-3 top-3 rounded-2xl bg-white/95 px-4 py-2 text-center text-base font-bold text-navy shadow">{cam.banner}</div>}
     </>

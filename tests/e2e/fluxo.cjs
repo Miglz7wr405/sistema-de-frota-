@@ -172,6 +172,14 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
   cp.on('pageerror', (e) => errs.push(`[track pageerror] ${e.message.slice(0, 300)}`));
   try { await cp.goto(shareLink.replace(/^https?:\/\/[^/]+/, B)); await cp.waitForSelector('.maplibregl-canvas', { timeout: 15000 }); const box = await cp.locator('.maplibregl-canvas').boundingBox(); console.log('OK   11-track canvas', JSON.stringify(box)); } catch (e) { failures++; console.log('FAIL 11-track', e.message.split('\n')[0]); }
   await cp.waitForTimeout(1500); await cp.screenshot({ path: SHOT + '11-track.png' });
+  await step('11b-track-distrito', async () => {
+    // página pública: distrito e província da última posição; camião sem etiqueta grande por cima dos nomes do mapa
+    const dt = await cp.getByTestId('track-distrito').innerText({ timeout: 10000 });
+    if (!/Cidade de Quelimane|Distrito de /.test(dt)) throw new Error('distrito inesperado: ' + dt);
+    if (await cp.locator('.maplibregl-marker', { hasText: 'Faltam' }).count()) throw new Error('etiqueta do camião ainda por cima do mapa');
+    await cp.screenshot({ path: SHOT + '11c-track-publico.png', fullPage: true });
+    return dt;
+  });
   await step('12-mapa-ao-vivo', async () => { await page.goto(B + '/app/live-map'); await page.waitForSelector('.maplibregl-canvas'); await page.getByText('ADF 512 MP').first().waitFor(); });
   // 13 — "Testar com o meu telemóvel": tudo a partir do GPS (emulado aqui) do próprio telemóvel do dono
   const tctx = await browser.newContext({ viewport: { width: 400, height: 860 }, storageState: await ctx.storageState(), geolocation: { latitude: -17.8600, longitude: 36.8800, accuracy: 9 }, permissions: ['geolocation'] });

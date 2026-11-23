@@ -297,7 +297,7 @@ d('motorista, GPS, progresso e página pública', () => {
     const r = await call('GET', `/api/track?token=${shareToken}`);
     expect(r.status).toBe(200);
     const allowed = ['code', 'status', 'origin', 'destination', 'origin_point', 'destination_point', 'departed_at', 'delivered_at', 'planned_arrival', 'position', 'progress',
-      'route_done', 'route_left', 'route_validated_for_truck', 'places', 'company', 'logo_file_id', 'plate', 'driver_first_name', 'server_time'];
+      'route_done', 'route_left', 'route_validated_for_truck', 'places', 'districts', 'district', 'company', 'logo_file_id', 'plate', 'driver_first_name', 'server_time'];
     expect(Object.keys(r.json).sort()).toEqual([...allowed].sort());
     const txt = JSON.stringify(r.json);
     for (const secret of ['+258', 'Cliente Privado', ids.vehicle, ids.driver, ids.trip, 'Matsinhe', 'recipient']) expect(txt).not.toContain(secret);
@@ -642,6 +642,18 @@ d('viagens entre quaisquer províncias', () => {
       for (let i = 1; i < ds.length; i++) { expect(ds[i]!.km).toBeGreaterThan(ds[i - 1]!.km); expect(ds[i]!.code).not.toBe(ds[i - 1]!.code); }
       expect(ds[0]!.km).toBeLessThan(1);
       expect(ds.at(-1)!.km).toBeLessThanOrEqual(r.length_m / 1000 + 0.01);
+      // página pública: lista dos distritos (nome, província, km) e o distrito da última posição — sem geometria nem dados privados
+      await c.query('delete from rate_limits'); // o teste do limite de pedidos esgotou a quota deste IP
+      const sh = await call('POST', `/api/trips/${t.json.id}/shares`, A, {});
+      const pub = await call('GET', `/api/track?token=${sh.json.link.split('/t/')[1]}`);
+      expect(pub.status).toBe(200);
+      expect(pub.json.districts.length).toBe(ds.length);
+      expect(Object.keys(pub.json.districts[0]).sort()).toEqual(['km', 'name', 'province']);
+      expect(pub.json.district).toBeNull(); // viagem ainda não iniciada: sem posição, sem distrito
+      // o distrito de uma posição real: a última posição de uma viagem ativa cai num distrito com a província certa
+      const pos = (await c.query(`select a.name, pv.name prov from admin_areas a left join admin_areas pv on pv.id = a.parent_id
+        where a.level = 2 and ST_Covers(a.geom, ST_SetSRID(ST_MakePoint(36.9, -17.9), 4326)::geography)`)).rows[0];
+      expect(pos?.name).toBeTruthy();
     } finally { c.release(); }
   });
 });
