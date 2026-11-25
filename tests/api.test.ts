@@ -667,9 +667,15 @@ d('viagens entre quaisquer províncias', () => {
     } finally { c.release(); }
   });
 
-  it('pagamento por viagem: grátis esgotadas → 402; código único; SMS aprova sozinho; plataforma decide; A não vê B', async () => {
-    process.env.PAYMENTS_SMS_SECRET = 'segredo-sms-teste-123';
-    await sys.query(`update billing_settings set free_trips = 0, price_per_trip = 250, mpesa_number = '841112223', mpesa_name = 'Dono'`);
+  it('pagamento por viagem: grátis esgotadas → 402; IA aprova / em análise / rejeita; código e imagem únicos; anular = burla; A não vê B', async () => {
+    process.env.AI_RECEIPT_STUB = '1'; // IA simulada (lê o texto do comprovativo; "EDITADO"/"DUVIDA" sobem o risco)
+    await sys.query(`update billing_settings set free_trips = 0, price_per_trip = 250, mpesa_number = '841112223', mpesa_name = 'Dono Teste', emola_number = '861112223', emola_name = 'Dona Teste'`);
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    let n = 0;
+    const receipt = async () => (await call('POST', '/api/files', A, { kind: 'receipt', contentType: 'image/png', dataBase64: Buffer.concat([png, Buffer.from(`#${++n}`)]).toString('base64') })).json.id as string;
+    const nowTxt = () => new Intl.DateTimeFormat('pt-PT', { timeZone: 'Africa/Maputo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()).replace(',', '');
+    const sms = (code: string, to = '841112223', extra = '') => `${code} Confirmado. Transferiste 250.00MT para ${to} - DONO TESTE aos ${nowTxt()} ${extra}`;
+    const newTrip = async () => (await call('POST', '/api/trips', A, { origin_place_id: ids.origin, destination_place_id: ids.dest })).json.id as string;
     try {
       const veh = await call('POST', '/api/vehicles', A, { plate: 'PAG 001 MP' });
       const drv = await call('POST', '/api/drivers', A, { full_name: 'Paulo Pagamento', phone: '+258841117777' });
@@ -677,47 +683,52 @@ d('viagens entre quaisquer províncias', () => {
       expect(t1.status).toBe(201);
       const start = await call('POST', `/api/trips/${t1.json.id}/transition`, A, { to: 'em_viagem' });
       expect(start.status).toBe(402); expect(start.json.error).toBe('pagamento_necessario');
-      const bill = await call('GET', `/api/billing?trip=${t1.json.id}`, A);
-      expect(bill.json).toMatchObject({ price: 250, freeLeft: 0, mpesa: { number: '841112223' } });
-      // comprovativo (ficheiro privado) + código
-      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-      const f = await call('POST', '/api/files', A, { kind: 'receipt', contentType: 'image/png', dataBase64: png.toString('base64') });
-      expect(f.status).toBe(201);
-      const bad = await call('POST', `/api/trips/${t1.json.id}/payments`, A, { method: 'mpesa', transaction_id: 'DK45H7GT2P', receipt_file_id: f.json.id, ocr: { amount: 25 } });
-      expect(bad.json.error).toBe('comprovativo_valor');
-      const pay = await call('POST', `/api/trips/${t1.json.id}/payments`, A, { method: 'mpesa', transaction_id: 'dk45-h7gt2p', receipt_file_id: f.json.id, ocr: { amount: 250, recipient: '+258 84 111 2223' } });
-      expect(pay.status).toBe(201); expect(pay.json.status).toBe('pendente');
-      // o mesmo código noutra viagem (comprovativo reaproveitado) → recusado
-      const t2 = await call('POST', '/api/trips', A, { origin_place_id: ids.origin, destination_place_id: ids.dest });
-      const reuse = await call('POST', `/api/trips/${t2.json.id}/payments`, A, { method: 'mpesa', transaction_id: 'DK45H7GT2P', receipt_file_id: f.json.id });
-      expect(reuse.status).toBe(409); expect(reuse.json.error).toBe('codigo_ja_usado');
-      // ainda pendente: não pode iniciar
-      expect((await call('POST', `/api/trips/${t1.json.id}/transition`, A, { to: 'em_viagem' })).status).toBe(402);
-      // SMS sem segredo → 401; com segredo e o mesmo código → aprovado sozinho
-      expect((await call('POST', '/api/payments/sms?key=errado', {}, { text: 'x' })).status).toBe(401);
-      const sms = await call('POST', '/api/payments/sms?key=segredo-sms-teste-123', {}, { from: 'M-Pesa', text: 'DK45H7GT2P Confirmado. Recebeste 250.00MT de 258849990000 - CLIENTE aos 23/11/26' });
-      expect(sms.json).toMatchObject({ matched: true, amount: 250 });
+      expect((await call('GET', `/api/billing?trip=${t1.json.id}`, A)).json).toMatchObject({ price: 250, freeLeft: 0, mpesa: { number: '841112223' } });
+      // valor errado lido no telemóvel → recusado logo
+      const f1 = await receipt();
+      expect((await call('POST', `/api/trips/${t1.json.id}/payments`, A, { method: 'mpesa', transaction_id: 'DK45H7GT2P', receipt_file_id: f1, ocr: { amount: 25 } })).json.error).toBe('comprovativo_valor');
+      // comprovativo bom → a IA e as regras aprovam e a viagem começa sozinha
+      const pay = await call('POST', `/api/trips/${t1.json.id}/payments`, A, { method: 'mpesa', transaction_id: 'dk45-h7gt2p', receipt_file_id: f1, ocr: { amount: 250, text: sms('DK45H7GT2P') } });
+      expect(pay.status).toBe(201); expect(pay.json.status).toBe('aprovado');
       expect((await call('GET', `/api/billing?trip=${t1.json.id}`, A)).json.payment).toMatchObject({ status: 'aprovado', auto: true });
-      // pagamento confirmado → a viagem começou sozinha
       expect((await call('GET', `/api/trips/${t1.json.id}`, A)).json.trip.status).toBe('em_viagem');
-      // B não vê os pagamentos de A; não membro da plataforma não decide
+      // o mesmo código, ou a mesma imagem, noutra viagem → recusado
+      const t2 = await newTrip();
+      expect((await call('POST', `/api/trips/${t2}/payments`, A, { method: 'mpesa', transaction_id: 'DK45H7GT2P', receipt_file_id: await receipt() })).json.error).toBe('codigo_ja_usado');
+      const again = await call('POST', `/api/trips/${t2}/payments`, A, { method: 'mpesa', transaction_id: 'NV77KK22PP', receipt_file_id: f1 });
+      expect(again.status).toBe(409); expect(again.json.error).toBe('comprovativo_repetido');
+      // dúvida da IA → em análise (não começa)
+      const p2 = await call('POST', `/api/trips/${t2}/payments`, A, { method: 'mpesa', transaction_id: 'ZZ99XX88YY', receipt_file_id: await receipt(), ocr: { text: sms('ZZ99XX88YY', '841112223', 'DUVIDA') } });
+      expect(p2.json.status).toBe('pendente');
+      expect((await call('GET', `/api/billing?trip=${t2}`, A)).json.payment).toMatchObject({ status: 'pendente' });
+      // imagem editada → rejeitado com o motivo; transferência para outro número → rejeitado
+      const t3 = await newTrip();
+      const p3 = await call('POST', `/api/trips/${t3}/payments`, A, { method: 'mpesa', transaction_id: 'ED11TT22ED', receipt_file_id: await receipt(), ocr: { text: sms('ED11TT22ED', '841112223', 'EDITADO') } });
+      expect(p3.json).toMatchObject({ status: 'rejeitado', reason: expect.stringContaining('alterado') });
+      const t4 = await newTrip();
+      const p4 = await call('POST', `/api/trips/${t4}/payments`, A, { method: 'mpesa', transaction_id: 'OU33TR44NM', receipt_file_id: await receipt(), ocr: { text: sms('OU33TR44NM', '849990000') } });
+      expect(p4.json).toMatchObject({ status: 'rejeitado', reason: expect.stringContaining('outro número') });
+      // B não vê os pagamentos de A; A não é da plataforma
       expect((await call('GET', `/api/billing?trip=${t1.json.id}`, B)).json.payment).toBeNull();
       expect((await call('GET', '/api/platform/payments', A)).status).toBe(403);
-      // manual: um pagamento pendente rejeitado pela plataforma
-      const f2 = await call('POST', '/api/files', A, { kind: 'receipt', contentType: 'image/png', dataBase64: png.toString('base64') });
-      const p2 = await call('POST', `/api/trips/${t2.json.id}/payments`, A, { method: 'emola', transaction_id: 'ZZ99XX88YY', receipt_file_id: f2.json.id });
+      expect((await call('POST', `/api/platform/payments/${pay.json.id}/revoke`, A, { reason: 'teste' })).status).toBe(403);
       await sys.query(`update app_users set is_platform_admin = true where email = 'b@teste.mz'`);
       try {
         const list = await call('GET', '/api/platform/payments', B);
-        expect(list.json.payments.find((x: { id: string }) => x.id === p2.json.id)?.status).toBe('pendente');
-        expect((await call('POST', `/api/platform/payments/${p2.json.id}/decide`, B, { approve: false })).status).toBe(400); // motivo obrigatório
-        expect((await call('POST', `/api/platform/payments/${p2.json.id}/decide`, B, { approve: false, reason: 'Código não existe no M-Pesa' })).status).toBe(200);
+        expect(list.json.payments.find((x: { id: string }) => x.id === p2.json.id)).toMatchObject({ status: 'pendente', ai_risk: 45 });
+        expect(list.json.aiConfigured).toBe(true);
+        // a plataforma rejeita o duvidoso; e anula o aprovado ("era burla") → viagem cancelada, empresa bloqueada
+        expect((await call('POST', `/api/platform/payments/${p2.json.id}/decide`, B, { approve: false, reason: 'Dinheiro não entrou' })).status).toBe(200);
+        expect((await call('POST', `/api/platform/payments/${pay.json.id}/revoke`, B, { reason: 'Dinheiro não entrou no M-Pesa' })).status).toBe(200);
       } finally { await sys.query(`update app_users set is_platform_admin = false where email = 'b@teste.mz'`); }
-      expect((await call('GET', `/api/billing?trip=${t2.json.id}`, A)).json.payment).toMatchObject({ status: 'rejeitado', reason: 'Código não existe no M-Pesa' });
-      // a viagem de teste do telemóvel não paga
-      const tv = (await sys.query(`select count(*)::int n from trips t join vehicles v on v.id = t.vehicle_id where v.is_test and t.actual_departure is not null`)).rows[0].n;
-      expect(tv).toBeGreaterThanOrEqual(0);
-    } finally { await sys.query('update billing_settings set free_trips = 1000'); }
+      expect((await call('GET', `/api/trips/${t1.json.id}`, A)).json.trip.status).toBe('cancelada');
+      expect((await call('GET', `/api/billing?trip=${t1.json.id}`, A)).json).toMatchObject({ blocked: true, payment: { status: 'anulado' } });
+      expect((await sys.query(`select count(*)::int n from audit_logs where action in ('pagamento.aprovar_ia','pagamento.rejeitar_ia','pagamento.anular')`)).rows[0].n).toBeGreaterThanOrEqual(4);
+    } finally {
+      delete process.env.AI_RECEIPT_STUB;
+      await sys.query('update billing_settings set free_trips = 1000');
+      await sys.query('update organizations set payments_blocked = false');
+    }
   });
 });
 

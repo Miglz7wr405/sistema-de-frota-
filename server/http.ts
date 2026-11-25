@@ -48,6 +48,7 @@ export function mapError(e: unknown): Res {
   if (pe.code === '23505' && pe.constraint === 'trips_one_active_driver') return { status: 409, json: { error: 'motorista_em_viagem' } };
   if (pe.code === '23505' && pe.constraint === 'trips_one_active_vehicle') return { status: 409, json: { error: 'camiao_em_viagem' } };
   if (pe.code === '23505' && pe.constraint === 'trip_payments_tx_uq') return { status: 409, json: { error: 'codigo_ja_usado' } };
+  if (pe.code === '23505' && pe.constraint === 'trip_payments_img_uq') return { status: 409, json: { error: 'comprovativo_repetido' } };
   if (pe.code === '23505' && pe.constraint === 'drivers_id_number_uq') return { status: 409, json: { error: 'bi_duplicado' } };
   if (pe.code === '23505') return { status: 409, json: { error: 'duplicado', details: pe.constraint } };
   if (pe.code === '23503') return { status: 409, json: { error: 'referencia', details: pe.constraint } };

@@ -255,3 +255,24 @@ Não testado: GPS real com o ecrã bloqueado (limite do navegador), Maputo (sem 
 - Números M-Pesa/e-Mola e o teste de 1 MT.
 - Licença comercial do áudio ElevenLabs.
 - Domínio próprio, se o quiser; hoje o site está em insightfrota.vercel.app.
+
+## Relatório — Pagamento sem SMS, com análise do comprovativo por IA (25/11)
+### Feito
+- **TESTADO (automático, IA simulada):** o cliente transfere e envia a fotografia e o código. As decisões possíveis:
+  - **aprovado sozinho:** a viagem começa;
+  - **em análise:** quando há dúvida;
+  - **rejeitado, com o motivo:**
+    - valor errado;
+    - outro número;
+    - hora no futuro ou com mais de 24 h;
+    - imagem editada (risco ≥ 70).
+  - Código repetido e imagem repetida são recusados.
+- **TESTADO:** "Anular — era burla" na Plataforma: a viagem é cancelada e a empresa fica bloqueada. O isolamento A↔B mantém-se.
+- **IMPLEMENTADO, não testado contra o serviço real:** a chamada ao Google Gemini. Falta a chave `GEMINI_API_KEY`; sem ela, os comprovativos ficam "em análise" para aprovação manual.
+- Saiu do painel tudo o que era SMS (instruções, conector e teste de 1 MT).
+### Testes automáticos
+- 82/82: 10 testes novos das regras de decisão, mais o teste de integração do pagamento, refeito.
+- E2E: 27/27, incluindo o checkout aprovado pela análise e a anulação na plataforma.
+### ⚠️ Dependências externas pendentes
+- Chave `GEMINI_API_KEY` na Vercel.
+- Teste real com um comprovativo verdadeiro de 250 MT e com uma versão editada desse mesmo comprovativo.

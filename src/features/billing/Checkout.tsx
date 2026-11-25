@@ -1,18 +1,19 @@
-// "Ativar rastreio GPS" — checkout de uma viagem (ADR-028): resumo → pagar por M-Pesa / e-Mola → fotografia do comprovativo (lida no telemóvel)
-// → "A confirmar" até o pagamento ser aprovado (SMS do proprietário ou verificação manual). A fotografia nunca aprova sozinha.
+// "Ativar rastreio GPS" — checkout de uma viagem (ADR-028/030): resumo → pagar por M-Pesa / e-Mola → fotografia do comprovativo
+// (lida no telemóvel) → o servidor analisa (IA + valor, número, hora, código, imagem repetida) → aprovado / em análise / rejeitado com o motivo.
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Camera, Check, Copy, Loader2, Satellite, ShieldCheck, X } from 'lucide-react';
 import { api, ApiError, errorMessage, fileToUpload } from '@/lib/api/client';
 import { parseReceipt, receiptTooOld, mzPhone, type ReceiptFields } from '@/lib/billing/receipt';
+import { dHash } from '@/lib/billing/imageHash';
 import { t } from '@/i18n/pt-MZ';
 import { formatMoney } from '@/lib/format';
 import { Button } from '@/components/ui';
 
 type Billing = { price: number; currency: string; freeTrips: number; freeLeft: number; blocked: boolean;
   mpesa: { number: string; name: string | null } | null; emola: { number: string; name: string | null } | null;
-  payment: { id: string; status: 'pendente' | 'aprovado' | 'rejeitado'; transaction_id: string; reason: string | null; auto: boolean } | null };
+  payment: { id: string; status: 'pendente' | 'aprovado' | 'rejeitado' | 'anulado'; transaction_id: string; reason: string | null; auto: boolean } | null };
 type Method = 'mpesa' | 'emola';
 const C = t.checkout;
 const fmtPhone = (n: string) => `${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5)}`;
@@ -39,6 +40,7 @@ export function Checkout({ tripId, trip, open, onClose, onPaid }: {
   const [fields, setFields] = useState<ReceiptFields | null>(null);
   const [ocrText, setOcrText] = useState<string | null>(null);
   const [ocrFailed, setOcrFailed] = useState(false);
+  const [hash, setHash] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [payer, setPayer] = useState('');
   const [busy, setBusy] = useState(false);
@@ -57,6 +59,7 @@ export function Checkout({ tripId, trip, open, onClose, onPaid }: {
     setFile(f); setFields(null); setOcrText(null); setOcrFailed(false); setErr(null);
     if (!f) { setPreview(null); return; }
     setPreview(URL.createObjectURL(f));
+    void dHash(f).then(setHash);
     setReading(true);
     try {
       const txt = await readReceipt(f);
@@ -87,7 +90,7 @@ export function Checkout({ tripId, trip, open, onClose, onPaid }: {
     try {
       const up = await api<{ id: string }>('/api/files', { body: { kind: 'receipt', ...(await fileToUpload(file)) } });
       const recipient = acct && fields?.phones.includes(mzPhone(acct.number) ?? '') ? acct.number : fields?.phones[0] ?? null;
-      await api(`/api/trips/${tripId}/payments`, { body: { method, transaction_id: code, receipt_file_id: up.id, payer_phone: payer || null,
+      await api(`/api/trips/${tripId}/payments`, { body: { method, transaction_id: code, receipt_file_id: up.id, payer_phone: payer || null, image_hash: hash,
         ocr: fields ? { text: ocrText?.slice(0, 4000), amount: fields.amount, recipient, date: fields.date } : undefined } });
       await q.refetch();
     } catch (e) { setErr(e instanceof ApiError ? errorMessage(e) : t.errors.network); } finally { setBusy(false); }
@@ -107,7 +110,7 @@ export function Checkout({ tripId, trip, open, onClose, onPaid }: {
   if (!open) return null;
   const step = st === 'aprovado' || st === 'pendente' ? 3 : file ? 2 : 1;
   const canSubmit = !!file && !reading && code.replace(/[^A-Z0-9]/gi, '').length >= 6 && !blocking && !!acct;
-  const showForm = b && !b.blocked && st !== 'aprovado' && st !== 'pendente';
+  const showForm = b && !b.blocked && st !== 'aprovado' && st !== 'pendente' && st !== 'anulado';
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={C.title}>
@@ -261,7 +264,8 @@ export function Checkout({ tripId, trip, open, onClose, onPaid }: {
         {showForm && <footer className="border-t border-border bg-white px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-6">
           <Button size="lg" className="h-14 w-full rounded-2xl text-base shadow-[0_8px_20px_rgba(23,105,232,0.28)]" disabled={!canSubmit} loading={busy} onClick={submit}>
             <ShieldCheck className="h-5 w-5" />{C.submit(formatMoney(b!.price, b!.currency))}</Button>
-          <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted"><ShieldCheck className="h-3.5 w-3.5 shrink-0" />{C.honesty}</p>
+          <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted" data-testid={busy ? 'checkout-a-analisar' : undefined}>
+            {busy ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 shrink-0" />}{busy ? C.analysing : C.honesty}</p>
         </footer>}
       </div>
     </div>,

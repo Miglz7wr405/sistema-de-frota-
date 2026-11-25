@@ -275,3 +275,34 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 - **/track mais leve:** os textos da página do cliente vivem em `src/i18n/pt-MZ.track.ts` (`tt`), e o `pt-MZ.ts` reexporta-os sem duplicar. O JS partilhado de /track desceu de 60,1 para 50,0 KB gzip.
 - **Ganchos de teste do mapa** (`__zoom`, `__layers`, `__project`) só existem em builds com `VITE_E2E=1`, ou seja, nos scripts E2E.
 - **`sslmode=require` normalizado para `verify-full`** (`server/db.ts`). O comportamento é o mesmo; acaba com o aviso do pg repetido nos registos da Vercel.
+
+## ADR-030 — Pagamento sem SMS: comprovativo analisado por IA + regras duras (2026-11-25)
+- **Porquê:** a confirmação por SMS reencaminhado (ADR-028) não funcionou no telemóvel do proprietário. Ele pediu que o cliente só transfira e envie o comprovativo, e que uma IA verifique se é falso.
+- **Limite honesto:** nenhuma IA garante que o dinheiro entrou, e uma imagem bem editada pode passar. Por isso há várias camadas, e a última é o proprietário comparar os aprovados com o extrato e anular a burla.
+- **Fluxo:** fotografia do comprovativo + código → servidor:
+  1. **Recusados logo:**
+     - imagem igual a outra já usada (SHA-256 único, `trip_payments_img_uq`);
+     - código já usado;
+     - valor lido no telemóvel diferente do preço.
+  2. **IA de visão:** Google Gemini, plano gratuito, `gemini-2.5-flash` (configurável em `GEMINI_MODEL`). Lê operadora, valor, número e nome de quem recebeu, código e data/hora, e procura sinais de edição (fontes, alinhamentos, manchas, formato da mensagem, hora da barra de estado). Responde com um risco de 0 a 100.
+  3. **Regras duras sobre a leitura da IA** (`server/payments/receiptAi.ts`, `decide`, com testes unitários):
+
+     | Verificação | Rejeitado | Em análise |
+     |---|---|---|
+     | Valor | diferente do preço | — |
+     | Quem recebeu | número lido é de outra pessoa | número escondido e o nome também não bate |
+     | Código | — | diferente do indicado |
+     | Hora (Maputo) | no futuro, ou com mais de 24 h | com mais de 60 min |
+     | Sinais de edição (IA) | risco ≥ 70 | risco 30–69, sinais de edição ou não parece um ecrã real |
+
+  4. **Limites:**
+     - imagem quase igual a outra (dHash calculado no telemóvel, ≤ 5 bits) → em análise;
+     - empresa com um pagamento anulado → em análise;
+     - mais de 3 aprovações automáticas por dia → em análise.
+  5. **Decisão:** tudo certo → **aprovado sozinho** e a viagem começa (`payment_ai_decide` → `payment_autostart`). Sem resposta da IA (sem chave, limite ou erro) → **em análise**: nunca se aprova sem IA.
+- **Travão:** na Plataforma → Pagamentos há o botão "Anular — era burla" (`payment_revoke`). A viagem é cancelada e a empresa fica bloqueada. Cinco rejeições em 24 h também bloqueiam a empresa. Tudo fica em `audit_logs`.
+- **SMS:** as instruções, o "conector" e o teste de 1 MT saíram do painel. O endpoint `/api/payments/sms` e a tabela ficam (sem migração destrutiva); se um SMS chegar com o mesmo código, ainda aprova.
+- ⚠️ DEPENDÊNCIA EXTERNA:
+  - `GEMINI_API_KEY` nas variáveis da Vercel; a chave cria-se em aistudio.google.com, sem cartão;
+  - o plano grátis tem limites diários e a Google pode usar os dados para melhorar os modelos;
+  - o pedido ao Gemini **não foi testado contra o serviço real** a partir do ambiente de desenvolvimento (sem chave nem acesso ao host). Os testes usam o simulador `AI_RECEIPT_STUB=1`, que nunca corre na Vercel.
