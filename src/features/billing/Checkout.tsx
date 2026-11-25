@@ -81,8 +81,6 @@ export function Checkout({ tripId, trip, open, onClose, onPaid }: {
     ...(acct ? [{ ok: fields.phones.includes(mzPhone(acct.number) ?? ''), label: fields.phones.includes(mzPhone(acct.number) ?? '') ? C.readNumberOk : C.readNumberBad(fmtPhone(acct.number)) }] : []),
     { ok: receiptTooOld(fields.date) === false, label: fields.date ? (receiptTooOld(fields.date) ? C.tooOld(fields.date) : C.readDate(fields.date)) : C.noDate },
   ] : [];
-  const blocking = !!fields && ((fields.amount != null && b != null && Math.abs(fields.amount - b.price) >= 0.01) || receiptTooOld(fields.date) === true
-    || (!fields.transactionId && fields.amount == null));
 
   const submit = async () => {
     if (!file || !b) return;
@@ -109,7 +107,7 @@ export function Checkout({ tripId, trip, open, onClose, onPaid }: {
   }, [open]);
   if (!open) return null;
   const step = st === 'aprovado' || st === 'pendente' ? 3 : file ? 2 : 1;
-  const canSubmit = !!file && !reading && code.replace(/[^A-Z0-9]/gi, '').length >= 6 && !blocking && !!acct;
+  const canSubmit = !!file && !reading && code.replace(/[^A-Z0-9]/gi, '').length >= 6 && !!acct; // o que foi lido só avisa (o proprietário vê o risco)
   const showForm = b && !b.blocked && st !== 'aprovado' && st !== 'pendente' && st !== 'anulado';
 
   return createPortal(
@@ -252,7 +250,6 @@ export function Checkout({ tripId, trip, open, onClose, onPaid }: {
                       <p className="text-xs text-muted min-[400px]:col-span-2">{C.codeHelp}</p>
                     </div>}
                   </section>
-                  {blocking && <p role="alert" className="flex gap-2 rounded-2xl bg-warning-soft p-4 text-sm text-warning"><AlertCircle className="h-5 w-5 shrink-0" />{C.blockingHelp}</p>}
                   {err && <p role="alert" className="flex gap-2 rounded-2xl bg-danger-soft p-4 text-sm text-danger"><AlertCircle className="h-5 w-5 shrink-0" />{err}</p>}
                 </>
               )}

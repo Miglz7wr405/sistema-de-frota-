@@ -45,14 +45,14 @@ export function PaymentsPanel() {
               {d.payments.map((p) => {
                 const ai = p.ai_result?.ai ?? null;
                 return (
-                <div key={p.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-start" data-testid="pagamento">
+                <div key={p.id} className={`flex flex-col gap-3 py-3 sm:flex-row sm:items-start ${p.status === 'aprovado' && (p.ai_risk ?? 0) >= 70 ? '-mx-3 rounded-xl bg-danger-soft/60 px-3' : p.status === 'aprovado' && (p.ai_risk ?? 0) >= 30 ? '-mx-3 rounded-xl bg-warning-soft/60 px-3' : ''}`} data-testid="pagamento">
                   {p.receipt_file_id && <button type="button" onClick={() => setPhoto(p.id)} className="shrink-0">
                     <img src={`/api/platform/payments/${p.id}/receipt`} alt={P.receipt} className="h-24 w-16 rounded-lg border border-border object-cover" loading="lazy" /></button>}
                   <div className="min-w-0 flex-1 text-sm">
                     <p className="flex flex-wrap items-center gap-2">
                       <b className="text-base text-navy">{formatMoney(p.amount, p.currency)}</b>
                       <Badge tone={tone(p.status)}>{P.status[p.status] ?? p.status}{p.auto ? ` · ${p.decided_by_ai ? P.auto : P.autoSms}` : ''}</Badge>
-                      {p.ai_risk != null && <Badge tone={p.ai_risk >= 70 ? 'danger' : p.ai_risk >= 30 ? 'warning' : 'success'}>{P.aiRisk(p.ai_risk)}</Badge>}
+                      {p.ai_risk != null ? <Badge tone={p.ai_risk >= 70 ? 'danger' : p.ai_risk >= 30 ? 'warning' : 'success'}>{P.aiRisk(p.ai_risk)}</Badge> : <Badge tone="muted">{P.aiNone}</Badge>}
                       <span className="text-muted">{p.method === 'mpesa' ? 'M-Pesa' : 'e-Mola'} · {formatDateTime(p.created_at)}</span>
                     </p>
                     <p className="mt-1 text-navy">{p.org} · {p.trip_code} · {p.origin} → {p.destination}</p>
@@ -60,9 +60,9 @@ export function PaymentsPanel() {
                     {ai ? <>
                       <p className="text-muted">{P.aiRead}: {ai.valor != null ? formatMoney(ai.valor, p.currency) : '—'} · {ai.destinatario_numero ?? '—'} {ai.destinatario_nome ?? ''} · {ai.codigo ?? '—'} · {ai.data_hora ?? '—'}</p>
                       {(ai.sinais_edicao.length > 0 || ai.motivo) && <p className="text-muted">{ai.sinais_edicao.length ? `${P.aiSigns}: ${ai.sinais_edicao.join('; ')}` : ai.motivo}</p>}
-                    </> : <p className="text-muted">{P.read}: {p.ocr_amount ? formatMoney(p.ocr_amount, p.currency) : '—'} · {p.ocr_recipient ?? '—'} · {p.ocr_date ?? '—'}{p.status !== 'aprovado' ? ` · ${P.aiNone}` : ''}</p>}
+                    </> : <p className="text-muted">{P.read}: {p.ocr_amount ? formatMoney(p.ocr_amount, p.currency) : '—'} · {p.ocr_recipient ?? '—'} · {p.ocr_date ?? '—'}</p>}
                     {p.sms?.length ? <p className="mt-1 rounded-lg bg-success-soft px-2 py-1 text-success-text">✓ {P.smsFound}: “{p.sms[0]!.raw.slice(0, 140)}”</p> : null}
-                    {p.reason && <p className={`mt-1 ${p.status === 'pendente' ? 'text-warning' : 'text-danger'}`}>{p.reason}</p>}
+                    {p.reason && <p className={`mt-1 font-medium ${p.status === 'aprovado' && (p.ai_risk ?? 0) < 70 ? 'text-warning' : 'text-danger'}`} data-testid="alerta">{p.reason}</p>}
                     {p.payments_blocked && <p className="mt-1 text-danger">{P.blocked} <button className="underline" onClick={() => unblock.mutate(p.organization_id)}>{P.unblock}</button></p>}
                   </div>
                   {p.status === 'pendente' && <div className="flex shrink-0 gap-2">

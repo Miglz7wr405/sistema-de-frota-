@@ -39,7 +39,6 @@ const PayBody = z.object({
     date: z.string().max(20).nullable().optional() }).optional(),
   image_hash: z.string().regex(/^[0-9a-f]{16}$/).optional().nullable(), // dHash 64 bits calculado no telemóvel (imagens quase iguais)
 });
-const AUTO_PER_DAY = 3; // aprovações automáticas por empresa por dia (o resto fica "em análise")
 
 route('POST', '/api/trips/:id/payments', async (req, p) => {
   const m = await requireMember(req, WRITE);
@@ -57,10 +56,7 @@ route('POST', '/api/trips/:id/payments', async (req, p) => {
     const sha = createHash('sha256').update(file.data).digest('hex');
     const bs = (await one<Billing>(c, 'select * from billing_settings limit 1'))!;
     const price = Number(bs.price_per_trip);
-    // verificações da leitura da fotografia (ajudam; a prova real é o SMS ou a verificação manual)
-    if (b.ocr?.amount != null && Math.abs(b.ocr.amount - price) > 0.009) throw new HttpError(400, 'comprovativo_valor');
-    const ours = [bs.mpesa_number, bs.emola_number].map((x) => (x ? mzPhone(x) : null)).filter(Boolean);
-    if (b.ocr?.recipient && ours.length && !ours.includes(mzPhone(b.ocr.recipient))) throw new HttpError(400, 'comprovativo_numero');
+    // (valor/número lidos no telemóvel não travam: entram na análise de risco — o proprietário decide depois)
     const ins = await one<{ id: string }>(c, `insert into trip_payments (organization_id, trip_id, amount, currency, method, transaction_id, payer_phone, receipt_file_id,
         ocr_text, ocr_amount, ocr_recipient, ocr_date, created_by, image_sha256, image_dhash) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) returning id`,
       [m.orgId, tripId, price, bs.currency, b.method, b.transaction_id, b.payer_phone ? mzPhone(b.payer_phone) : null, b.receipt_file_id,
@@ -75,28 +71,33 @@ route('POST', '/api/trips/:id/payments', async (req, p) => {
   return ok({ id: r.id, ...out }, 201);
 });
 
-/** Análise do comprovativo (IA + regras duras) e decisão. Nunca aprova sem a IA; limites de risco por empresa. */
+/** Análise do comprovativo (IA + regras duras). Decisão do proprietário (25/11): o pagamento PASSA SEMPRE e a viagem começa;
+ *  o risco e os motivos ficam à vista na Plataforma, onde "Anular — era burla" cancela a viagem e bloqueia a empresa.
+ *  (Só o mesmo código ou a mesma imagem já usados são recusados antes, com 409.) */
 async function reviewPayment(id: string, data: Buffer, bs: Billing, price: number, b: z.infer<typeof PayBody>) {
   const ct = (await withSystem((c) => one<{ content_type: string }>(c, 'select f.content_type from trip_payments p join files f on f.id = p.receipt_file_id where p.id = $1', [id])))!.content_type;
   const expected = { price, code: b.transaction_id, method: b.method,
     accounts: b.method === 'mpesa' ? [{ number: bs.mpesa_number, name: bs.mpesa_name }] : [{ number: bs.emola_number, name: bs.emola_name }],
     clientAmount: b.ocr?.amount ?? null };
   const ai = await analyseReceipt({ data, contentType: ct }, expected, { ocrText: b.ocr?.text ?? null });
-  let d = decide(ai, expected);
+  const d = decide(ai, expected);
   return withSystem(async (c) => {
-    if (d.status === 'aprovado') {
-      // imagem quase igual a outro comprovativo (cortada/recomprimida), limite diário, ou empresa com burla anulada → em análise
-      const near = b.image_hash ? await one(c, `select 1 from trip_payments where id <> $1 and image_dhash is not null and status <> 'rejeitado'
-          and bit_count(('x' || image_dhash)::bit(64) # ('x' || $2)::bit(64)) <= 5 limit 1`, [id, b.image_hash]) : null;
-      const st = (await one<{ today: number; revoked: number }>(c, `select count(*) filter (where status = 'aprovado' and decided_by_ai and decided_at > now() - interval '24 hours')::int today,
-          count(*) filter (where status = 'anulado')::int revoked from trip_payments where organization_id = (select organization_id from trip_payments where id = $1)`, [id]))!;
-      if (near) d = { ...d, status: 'pendente', reason: 'Em análise: imagem muito parecida com outro comprovativo.' };
-      else if (st.revoked > 0) d = { ...d, status: 'pendente', reason: 'Em análise: conta com pagamento anulado.' };
-      else if (st.today >= AUTO_PER_DAY) d = { ...d, status: 'pendente', reason: 'Em análise: limite diário de aprovações automáticas.' };
-    }
-    await c.query('select payment_ai_decide($1, $2, $3, $4, $5)', [id, d.status, d.reason,
-      JSON.stringify({ ai, checks: d.checks, model: ai ? (process.env.GEMINI_MODEL || 'gemini-2.5-flash') : null }), ai ? Math.round(ai.risco) : null]);
-    return { status: d.status, reason: d.reason };
+    const alerts: string[] = [];
+    if (d.status !== 'aprovado' && d.reason) alerts.push(d.reason.replace(/^Em análise: /, ''));
+    // imagem quase igual a outro comprovativo (cortada/recomprimida), empresa com burla anulada
+    const near = b.image_hash ? await one(c, `select 1 from trip_payments where id <> $1 and image_dhash is not null and status <> 'rejeitado'
+        and bit_count(('x' || image_dhash)::bit(64) # ('x' || $2)::bit(64)) <= 5 limit 1`, [id, b.image_hash]) : null;
+    const revoked = (await one<{ n: number }>(c, `select count(*)::int n from trip_payments where status = 'anulado'
+        and organization_id = (select organization_id from trip_payments where id = $1)`, [id]))!.n;
+    if (near) alerts.push('imagem muito parecida com outro comprovativo');
+    if (revoked > 0) alerts.push('empresa já teve um pagamento anulado por burla');
+    // risco final: o da IA, subido pelas regras (rejeição → ≥ 80, dúvida → ≥ 40); sem IA → null ("sem análise")
+    const base = ai ? Math.round(ai.risco) : null;
+    const risk = d.status === 'rejeitado' ? Math.max(base ?? 0, 80) : alerts.length ? Math.max(base ?? 0, 40) : base;
+    const reason = alerts.length ? `⚠ ${alerts.join(' · ')}` : null;
+    await c.query('select payment_ai_decide($1, $2, $3, $4, $5)', [id, 'aprovado', reason,
+      JSON.stringify({ ai, checks: d.checks, rules: d.status, model: ai ? (process.env.GEMINI_MODEL || 'gemini-2.5-flash') : null }), risk]);
+    return { status: 'aprovado' as const, reason: null };
   });
 }
 

@@ -111,6 +111,7 @@ Tarefas:
    desfocado ou com blocos à volta de números/datas; texto sobreposto; formato da mensagem diferente do padrão real da operadora
    (ex.: M-Pesa "XXXXXXXX Confirmado. Transferiste 250.00MT para 84xxxxxxx - NOME aos dd/mm/aa as HH:MM..."); hora da barra de estado do
    telemóvel incoerente com a hora da mensagem; imagem gerada ou montagem; fotografia de outro ecrã com moldura estranha.
+NÃO são sinais de burla: imagem recortada, saldo ou outros dados pessoais tapados/borrados pelo cliente, captura de ecrã com pouca qualidade.
 3) Dá um risco de 0 (claramente genuíno) a 100 (claramente falso). Se não consegues ler bem, risco moderado (40–60), não baixo.
 
 Responde APENAS JSON com as chaves: operadora, valor (número), destinatario_numero, destinatario_nome, codigo, data_hora ("dd/mm/aaaa HH:MM"),

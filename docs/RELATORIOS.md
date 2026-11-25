@@ -276,3 +276,5 @@ Não testado: GPS real com o ecrã bloqueado (limite do navegador), Maputo (sem 
 ### ⚠️ Dependências externas pendentes
 - Chave `GEMINI_API_KEY` na Vercel.
 - Teste real com um comprovativo verdadeiro de 250 MT e com uma versão editada desse mesmo comprovativo.
+- **Revisão no mesmo dia (pedido do proprietário):** todos os comprovativos passam, com o risco a vermelho ou amarelo na Plataforma. "Anular — era burla" tira a viagem na hora.
+  - **TESTADO:** E2E 17 — um comprovativo editado passa (risco 85/100 a vermelho); anular → viagem "Cancelada"; testes 82/82.

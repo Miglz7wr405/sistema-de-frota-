@@ -435,22 +435,45 @@ const B = process.env.E2E_BASE ?? 'http://localhost:4173';
     } finally { await db.query('update billing_settings set free_trips = 1000'); await db.end(); }
   });
   await step('17-plataforma-anular-burla', async () => {
-    // painel da plataforma: o pagamento aprovado pela IA aparece com o risco; "Anular — era burla" cancela a viagem e bloqueia a empresa
+    // um cliente manda um comprovativo EDITADO: passa na mesma (a viagem começa), mas fica a vermelho com o risco;
+    // o proprietário carrega em "Anular — era burla" → a viagem sai na hora (cancelada) e a empresa fica bloqueada
     const pg = require('pg'); const db = new pg.Client({ connectionString: process.env.SYSTEM_DATABASE_URL }); await db.connect();
-    await db.query(`update app_users set is_platform_admin = true where email = $1`, [email]);
+    await db.query('update billing_settings set free_trips = 0');
     try {
+      const pl = async (n) => (await db.query('select id from places where name = $1 and organization_id is null order by importance desc limit 1', [n])).rows[0].id;
+      const o = await pl('Quelimane'); const de = await pl('Beira');
+      const nowTxt = new Intl.DateTimeFormat('pt-PT', { timeZone: 'Africa/Maputo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()).replace(',', '');
+      const r = await page.evaluate(async ({ o, de, nowTxt }) => {
+        const j = async (p, b) => { const x = await fetch(p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }); return x.json(); };
+        const v = await j('/api/vehicles', { plate: 'BUR 666 MP', make: 'Scania', model: 'R' });
+        const d = await j('/api/drivers', { full_name: 'Bruno Burla', phone: '+258841116666', id_number: '110100666666B' });
+        const t = await j('/api/trips', { origin_place_id: o, destination_place_id: de, vehicle_id: v.id, driver_id: d.id });
+        const f = await j('/api/files', { kind: 'receipt', contentType: 'image/png', dataBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' });
+        const p = await j(`/api/trips/${t.id}/payments`, { method: 'mpesa', transaction_id: 'BUR666XX99', receipt_file_id: f.id,
+          ocr: { text: `BUR666XX99 Confirmado. Transferiste 250.00MT para 841112223 - INSIGHTFROTA aos ${nowTxt} EDITADO` } });
+        return { trip: t.id, pay: p };
+      }, { o, de, nowTxt });
+      if (r.pay.status !== 'aprovado') throw new Error('o comprovativo suspeito devia passar: ' + JSON.stringify(r.pay));
+      const st = async () => (await db.query('select status from trips where id = $1', [r.trip])).rows[0].status;
+      if (await st() !== 'em_viagem') throw new Error('a viagem paga devia ter começado');
+      await db.query(`update app_users set is_platform_admin = true where email = $1`, [email]);
       await page.goto(B + '/platform'); await page.getByTestId('ia-estado').waitFor();
-      const row = page.getByTestId('pagamento').filter({ hasText: 'E2E45H7GT2' });
-      await row.getByText('Aprovado · pela IA').waitFor(); await row.getByText(/Risco \d+\/100/).waitFor();
-      await row.scrollIntoViewIfNeeded(); await page.screenshot({ path: SHOT + '17-plataforma-pagamentos.png' });
-      await row.getByTestId('anular').click();
+      const ok = page.getByTestId('pagamento').filter({ hasText: 'E2E45H7GT2' });
+      await ok.getByText('Aprovado · pela IA').waitFor();
+      const bad = page.getByTestId('pagamento').filter({ hasText: 'BUR666XX99' });
+      await bad.getByText(/Risco alto \d+\/100/).waitFor(); await bad.getByTestId('alerta').waitFor();
+      await page.getByText('Pagamentos das viagens').scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
+      await page.screenshot({ path: SHOT + '17-plataforma-risco.png' });
+      await bad.getByTestId('anular').click();
       await page.getByTestId('motivo').fill('O dinheiro não entrou no M-Pesa');
+      await page.waitForTimeout(300); await page.screenshot({ path: SHOT + '17-plataforma-anular.png' });
       await page.getByTestId('confirmar-motivo').click();
-      await row.getByText('Anulado (burla)').waitFor({ timeout: 15000 });
-      const t = (await db.query(`select t.status from trip_payments p join trips t on t.id = p.trip_id where p.transaction_id = 'E2E45H7GT2'`)).rows[0];
-      if (t?.status !== 'cancelada') throw new Error('viagem não foi cancelada: ' + JSON.stringify(t));
-      await page.screenshot({ path: SHOT + '17-plataforma-anulado.png' });
-    } finally { await db.query('update organizations set payments_blocked = false'); await db.end(); }
+      await bad.getByText('Anulado (burla)').waitFor({ timeout: 15000 });
+      if (await st() !== 'cancelada') throw new Error('a viagem devia ter saído (cancelada)');
+      await bad.scrollIntoViewIfNeeded(); await page.screenshot({ path: SHOT + '17-plataforma-anulado.png' });
+      await page.goto(B + `/app/trips/${r.trip}`); await page.getByText('Cancelada').first().waitFor({ timeout: 15000 });
+      await page.screenshot({ path: SHOT + '17-viagem-cancelada.png' });
+    } finally { await db.query('update billing_settings set free_trips = 1000'); await db.query('update organizations set payments_blocked = false'); await db.end(); }
   });
   const real = [...new Set(errs)].filter((e) => !/Future Flag|GL Driver|GPU stall/.test(e));
   console.log('--- erros da consola/rede ---\n' + (real.join('\n') || '(nenhum)'));

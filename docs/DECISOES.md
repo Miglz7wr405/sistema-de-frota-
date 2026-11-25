@@ -306,3 +306,11 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
   - `GEMINI_API_KEY` nas variáveis da Vercel; a chave cria-se em aistudio.google.com, sem cartão;
   - o plano grátis tem limites diários e a Google pode usar os dados para melhorar os modelos;
   - o pedido ao Gemini **não foi testado contra o serviço real** a partir do ambiente de desenvolvimento (sem chave nem acesso ao host). Os testes usam o simulador `AI_RECEIPT_STUB=1`, que nunca corre na Vercel.
+- **Revisão (25/11, pedido do proprietário): o pagamento PASSA SEMPRE.** Qualquer comprovativo enviado é aprovado e a viagem começa. A análise (IA + regras) passa a servir só para marcar o risco:
+  - **vermelho:** risco ≥ 70 (por exemplo, as regras dariam "rejeitado": valor ou número errado, imagem editada);
+  - **amarelo:** risco 30–69 (dúvida, imagem parecida com outra, empresa já anulada);
+  - motivo visível na Plataforma.
+  - Recortar o comprovativo ou borrar o saldo não conta como burla (dito no prompt da IA).
+  - Continuam recusados à partida só o **mesmo código** e a **mesma imagem**.
+  - O proprietário confere e carrega em "Anular — era burla": a viagem em curso é cancelada na hora e a empresa fica bloqueada.
+  - Sem chave da IA, os pagamentos passam sem risco calculado ("Sem análise").
