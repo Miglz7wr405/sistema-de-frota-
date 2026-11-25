@@ -34,10 +34,7 @@ export default function Settings() {
   const remove = useMutation({ mutationFn: (id: string) => api(`/api/org/members/${id}`, { method: 'DELETE' }), onSuccess: inval, onError: (e) => alert(errorMessage(e)) });
   const addPlace = useMutation({ mutationFn: () => api('/api/places', { body: { name: pl.name, kind: pl.kind, lng: pl.at![0], lat: pl.at![1] } }), onSuccess: () => { setPl({ name: '', kind: 'warehouse', at: null }); inval(); } });
   const delPlace = useMutation({ mutationFn: (id: string) => api(`/api/places/${id}`, { method: 'DELETE' }), onSuccess: inval });
-  const LABELS: Record<string, string> = { freshness_current_s: 'Posição atual até (s)', freshness_stale_s: 'Desatualizada até (s)', late_tolerance_min: 'Tolerância de atraso (min)',
-    doc_alert_days: 'Avisos de documentos (dias)', gps_interval_moving_s: 'Intervalo GPS em movimento (s)', gps_interval_stopped_s: 'Intervalo GPS parado (s)',
-    deviation_corridor_m: 'Corredor de desvio (m)', deviation_points: 'Posições para desvio', deviation_min_minutes: 'Duração mínima do desvio (min)',
-    abnormal_stop_minutes: 'Paragem anormal após (min)', voice_min_importance: 'Importância mínima para voz (1–5)' };
+  const LABELS = t.settings.labels;
   return (
     <div className="space-y-4">
       <PageHeader title={t.settings.title} />
@@ -81,11 +78,11 @@ export default function Settings() {
           </div>
         </div>
       )}</QueryState>
-      <Card title="Locais privados (armazéns, clientes, oficinas)">
-        <p className="mb-2 text-sm text-muted">{geo.data ? `Base geográfica: ${geo.data.public_places} localidades públicas, ${geo.data.provinces} províncias.` : ''}{geo.data?.datasets?.map((d: any) => ` Fonte: ${d.name} (${d.license}, ${formatDateTime(d.retrieved_at)}).`)}</p>
+      <Card title={t.settings.privatePlaces}>
+        <p className="mb-2 text-sm text-muted">{geo.data ? t.settings.geoBase(geo.data.public_places, geo.data.provinces) : ''}{geo.data?.datasets?.map((d: any) => t.settings.geoSource(d.name, d.license, formatDateTime(d.retrieved_at)))}</p>
         {canWrite && <div className="grid gap-3 lg:grid-cols-[1fr_2fr]">
           <div className="space-y-2"><Input placeholder={t.driver.fullName} value={pl.name} onChange={(e) => setPl({ ...pl, name: e.target.value })} />
-            <Select value={pl.kind} onChange={(e) => setPl({ ...pl, kind: e.target.value })}><option value="warehouse">Armazém</option><option value="customer">Cliente</option><option value="depot">Parque</option><option value="workshop">Oficina</option><option value="other">Outro</option></Select>
+            <Select value={pl.kind} onChange={(e) => setPl({ ...pl, kind: e.target.value })}>{Object.entries(t.settings.placeKinds).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select>
             <p className="text-xs text-muted">{pl.at ? `${pl.at[1].toFixed(5)}, ${pl.at[0].toFixed(5)}` : t.trip.pointOnMap}</p>
             <Button disabled={pl.name.length < 2 || !pl.at} onClick={() => addPlace.mutate()}>{t.common.add}</Button></div>
           <MapView className="h-64 rounded-xl" onClick={(p) => setPl((x) => ({ ...x, at: p }))} state={{ points: [...(pl.at ? [{ id: 'new', lng: pl.at[0], lat: pl.at[1], kind: 'waypoint' as const, label: pl.name }] : []),

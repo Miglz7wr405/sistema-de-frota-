@@ -5,7 +5,7 @@
 // Só usa dados reais: rota planeada (coordenadas + distâncias acumuladas), km feitos do motor de percurso e a posição GPS.
 import { useEffect, useMemo, useState } from 'react';
 import { sliceLine, type LngLat } from '@/lib/geo/geometry';
-import { t } from '@/i18n/pt-MZ';
+import { tt as t } from '@/i18n/pt-MZ.track';
 
 export const ARRIVAL_MS = 15_000;
 export const CYCLE_MS = 45_000; // 15 s rota inteira + 30 s aproximado

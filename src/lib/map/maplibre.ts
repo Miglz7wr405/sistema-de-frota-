@@ -56,22 +56,23 @@ export const maplibreProvider: MapProvider = {
     });
     let map = make(STYLE_URL);
     try { await waitLoad(map); }
-    catch (e) {
-      console.warn('[mapa] estilo principal falhou, a usar o mapa de reserva:', (e as Error)?.message);
+    catch {
       map.remove();
       map = make(FALLBACK_STYLE);
       await waitLoad(map);
     }
-    // projeção ecrã↔coordenadas acessível ao teste E2E (verifica que o camião é desenhado na coordenada certa)
     // camião pequeno quando o mapa está aproximado (não tapa os nomes); alfinete quando afastado
     if (!document.getElementById('if-truck-css')) { const st = document.createElement('style'); st.id = 'if-truck-css'; st.textContent = TRUCK_CSS; document.head.appendChild(st); }
     const sizeTrucks = () => {
       (container as HTMLElement).classList.toggle('if-trucks-small', map.getZoom() >= MINI_ZOOM);
     };
     map.on('zoom', sizeTrucks); map.on('load', sizeTrucks); sizeTrucks();
-    (container as HTMLElement & { __zoom?: () => number }).__zoom = () => map.getZoom();
-    (container as HTMLElement & { __layers?: () => string[] }).__layers = () => (map.getStyle().layers ?? []).map((l) => l.id);
-    (container as HTMLElement & { __project?: (ll: LngLat) => { x: number; y: number } }).__project = (ll) => map.project(ll);
+    // ganchos só para os testes E2E (build com VITE_E2E=1): zoom, camadas e projeção ecrã↔coordenadas
+    if (import.meta.env.VITE_E2E === '1') {
+      (container as HTMLElement & { __zoom?: () => number }).__zoom = () => map.getZoom();
+      (container as HTMLElement & { __layers?: () => string[] }).__layers = () => (map.getStyle().layers ?? []).map((l) => l.id);
+      (container as HTMLElement & { __project?: (ll: LngLat) => { x: number; y: number } }).__project = (ll) => map.project(ll);
+    }
     // créditos do mapa (obrigatórios pela licença do OpenStreetMap) só no botão "i", fechado: o mapa fica limpo
     const closeAttrib = () => container.querySelectorAll('.maplibregl-ctrl-attrib').forEach((el) => { el.classList.remove('maplibregl-compact-show'); el.removeAttribute('open'); });
     closeAttrib(); map.once('idle', closeAttrib); map.on('resize', () => setTimeout(closeAttrib, 0)); setTimeout(closeAttrib, 1500);

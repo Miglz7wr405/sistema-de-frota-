@@ -51,8 +51,8 @@ export function AppLayout({ platform }: { platform?: boolean }) {
   const switchOrg = async (orgId: string) => { await api('/api/auth/switch-org', { body: { orgId } }); qc.invalidateQueries(); nav('/app/dashboard'); };
 
   const sidebar = (
-    <nav className="flex h-full flex-col gap-1 p-4" aria-label="Principal">
-      <div className="mb-6 flex items-center gap-2 px-2 text-xl font-bold text-white"><span className="rounded-lg bg-primary p-1.5"><Truck className="h-5 w-5" /></span>insight<span className="text-[#6EA8FF]">Frota</span></div>
+    <nav className="flex h-full flex-col gap-1 p-4" aria-label={t.nav.mainLabel}>
+      <div className="mb-6 flex items-center gap-2 px-2 text-xl font-bold text-white"><span className="rounded-lg bg-primary p-1.5"><Truck className="h-5 w-5" /></span><span>insight<span className="text-[#6EA8FF]">Frota</span></span></div>
       {items.map((n) => (
         <NavLink key={n.to} to={n.to} onClick={() => setOpen(false)} className={({ isActive }) => cn('flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] text-slate-200 hover:bg-white/10', isActive && 'bg-primary text-white hover:bg-primary')}>
           <n.icon className="h-5 w-5" aria-hidden />{n.label}
@@ -83,7 +83,7 @@ export function AppLayout({ platform }: { platform?: boolean }) {
         <NavLink to="/app/alerts" aria-label={t.nav.alerts} className="relative"><Bell className="h-6 w-6" />{(notif.data?.unread ?? 0) > 0 && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-danger" />}</NavLink>
       </header>
       <main className="mx-auto min-w-0 max-w-7xl overflow-x-clip px-4 pb-24 pt-5 sm:px-6 lg:pb-10 lg:pt-8"><Suspense fallback={<Spinner />}><Outlet /></Suspense></main>
-      <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-white lg:hidden" aria-label="Navegação inferior">
+      <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-white lg:hidden" aria-label={t.nav.bottomLabel}>
         {NAV.filter((n) => MOBILE.includes(n.to)).map((n) => (
           <NavLink key={n.to} to={n.to} className={({ isActive }) => cn('flex flex-col items-center gap-0.5 py-2 text-[11px] text-muted', isActive && 'text-primary')}><n.icon className="h-5 w-5" />{n.label}</NavLink>
         ))}

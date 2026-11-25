@@ -230,3 +230,28 @@ Não testado: GPS real com o ecrã bloqueado (limite do navegador), Maputo (sem 
 - Mapa do motorista: primeiro "Mapa", depois "Percurso"; fixo (não se arrasta nem faz zoom); mostra a rota inteira; aproxima sozinho
   (animação de 2,5 s) ao chegar a uma cidade/vila (5 min) e de 10 em 10 min (1 min), depois volta à rota inteira.
 **TESTADO**: 59 testes; E2E 20/20; viagem completa 11/11 (mapa: rota inteira 238 px → aproximado ao chegar à Beira).
+
+## Relatório — Polimento de lançamento (25/11)
+### Feito
+- **TESTADO** (Playwright em telemóvel):
+  - página 404 pública e no painel;
+  - `/termos` e `/privacidade`, sem scroll lateral, com o WhatsApp +258 86 727 2348;
+  - rodapé com © 2026, Termos, Privacidade e Contacto;
+  - erro forçado em /track mostra "Algo correu mal · Recarregar", sem ecrã branco.
+- **TESTADO:**
+  - `index.html` com og:url, og:locale, twitter:card, canonical e og:image absoluto;
+  - `robots.txt` e `sitemap.xml` presentes;
+  - título "A sua frota sempre sob controlo" (pt-MZ).
+- **TESTADO:** a página do cliente ficou mais leve, de 66 para 56 KB de JS gzip antes do mapa (medido no `dist`).
+- **IMPLEMENTADO:**
+  - textos que faltavam passaram para o i18n (Definições, navegação, custos, WhatsApp);
+  - ganchos de teste do mapa fora da produção;
+  - fim do aviso de SSL do pg;
+  - logótipo "insightFrota" sem espaço a mais (login, painel, cliente, landing).
+### Testes automáticos
+- 72/72 (vitest com Postgres/PostGIS), incluindo o isolamento A↔B.
+- E2E `scripts/e2e.sh`: todos os passos passaram.
+### ⚠️ Dependências externas pendentes
+- Números M-Pesa/e-Mola e o teste de 1 MT.
+- Licença comercial do áudio ElevenLabs.
+- Domínio próprio, se o quiser; hoje o site está em insightfrota.vercel.app.

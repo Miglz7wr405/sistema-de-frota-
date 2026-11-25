@@ -3,6 +3,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@/styles.css';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { TrackApp } from './TrackApp';
 
-createRoot(document.getElementById('root')!).render(<StrictMode><TrackApp /></StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode><ErrorBoundary><TrackApp /></ErrorBoundary></StrictMode>);

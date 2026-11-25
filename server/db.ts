@@ -5,11 +5,14 @@ import pg from 'pg';
 let pool: pg.Pool | null = null;
 let systemPool: pg.Pool | null = null;
 
+// sslmode=require é tratado pelo pg como verify-full (e avisa em cada arranque): dizemo-lo explicitamente.
+const sslUrl = (url: string) => url.replace(/([?&])sslmode=(require|prefer|verify-ca)\b/, '$1sslmode=verify-full');
+
 const mk = (url: string) => new pg.Pool({
-  connectionString: url,
+  connectionString: sslUrl(url),
   max: Number(process.env.DB_POOL_MAX ?? 3),
   idleTimeoutMillis: 10_000,
-  ssl: /sslmode=require|neon\.tech/.test(url) ? { rejectUnauthorized: true } : undefined,
+  ssl: /sslmode=(require|verify-full)|neon\.tech/.test(url) ? { rejectUnauthorized: true } : undefined,
 });
 
 /**

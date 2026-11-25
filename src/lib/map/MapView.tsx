@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MapHandle, MapProvider, MapState, LngLat } from './types';
 import { maplibreProvider } from './maplibre';
-import { t } from '@/i18n/pt-MZ';
+import { tt as t } from '@/i18n/pt-MZ.track';
 import { MapPinOff } from 'lucide-react';
 
 let provider: MapProvider = maplibreProvider;

@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /platform
+Disallow: /driver
+Disallow: /track
+Disallow: /t/
+Disallow: /api/
+
+Sitemap: https://insightfrota.vercel.app/sitemap.xml

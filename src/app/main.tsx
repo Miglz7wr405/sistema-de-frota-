@@ -7,6 +7,8 @@ import { Spinner } from '@/components/ui';
 import { Landing } from './public/Landing';
 import { Login, Register, Forgot, Reset, Invite } from './public/Auth';
 import { AppLayout } from './AppLayout';
+import { Terms, Privacy, NotFound } from './public/Legal';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 // Páginas da área privada carregadas sob pedido (a landing fica leve).
 const Dashboard = lazy(() => import('@/features/dashboard/Dashboard'));
@@ -35,6 +37,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={qc}>
       <BrowserRouter>
+        <ErrorBoundary>
         <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -43,6 +46,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/forgot-password" element={<Forgot />} />
             <Route path="/reset-password" element={<Reset />} />
             <Route path="/invite" element={<Invite />} />
+            <Route path="/termos" element={<Terms />} />
+            <Route path="/privacidade" element={<Privacy />} />
             <Route path="/app" element={<AppLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
@@ -62,13 +67,15 @@ createRoot(document.getElementById('root')!).render(
               <Route path="distances" element={<Distances />} />
               <Route path="settings" element={<Settings />} />
               <Route path="self-test" element={<SelfTest />} />
+              <Route path="*" element={<NotFound panel />} />
             </Route>
             <Route path="/platform" element={<AppLayout platform />}>
               <Route index element={<Platform />} />
             </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

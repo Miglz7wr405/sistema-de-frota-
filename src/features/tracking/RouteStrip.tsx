@@ -2,7 +2,7 @@
 // (trip_route_places) colocadas pela distância RODOVIÁRIA desde a origem, e o camião na posição real (km feitos
 // calculados pelo motor de percurso). Nada é inventado: sem km feitos, não há camião desenhado.
 // Também usado na página pública (sem dependências da área administrativa).
-import { t } from '@/i18n/pt-MZ';
+import { tt as t } from '@/i18n/pt-MZ.track';
 import { formatKm, formatTime } from '@/lib/format';
 
 export type StripPlace = { name: string; km: number; importance?: number; state?: string | null; passedAt?: string | null; eta?: string | null; district?: boolean };

@@ -81,7 +81,7 @@ function CostForm({ tab, vehicles, onDone }: { tab: Tab; vehicles: { id: string;
           <Field label={t.costs.odometer}><Input inputMode="decimal" onChange={set('odometer_km')} /></Field><Field label={t.costs.station}><Input onChange={set('station')} /></Field></div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!v.full_tank} onChange={(e) => setV({ ...v, full_tank: e.target.checked })} />{t.costs.fullTank}</label></>}
       {(tab === 'maintenance-records' || tab === 'maintenance-schedules') && <>
-        <Field label={t.costs.kind}><Input onChange={set('kind')} placeholder="Troca de óleo" /></Field>
+        <Field label={t.costs.kind}><Input onChange={set('kind')} placeholder={t.costs.kindPh} /></Field>
         <div className="grid grid-cols-2 gap-3"><Field label={tab === 'maintenance-records' ? t.costs.date : t.costs.lastDone}><Input type="date" value={String(v.done_at)} onChange={set('done_at')} /></Field>
           <Field label={t.costs.odometer}><Input inputMode="decimal" onChange={set('odometer_km')} /></Field>
           {tab === 'maintenance-records' ? <><Field label={t.costs.workshop}><Input onChange={set('workshop')} /></Field><Field label={`${t.costs.amount} (MZN)`}><Input inputMode="decimal" onChange={set('amount')} /></Field></>

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Clock, MapPin, Truck } from 'lucide-react';
-import { t } from '@/i18n/pt-MZ';
+import { tt as t } from '@/i18n/pt-MZ.track';
 import { formatAgo, formatKm, formatTime, freshnessOf, normalizeTripCode } from '@/lib/format';
 
 import { RouteStrip } from '@/features/tracking/RouteStrip';
@@ -59,7 +59,7 @@ export function TrackApp() {
 function Header({ company, logo }: { company?: string | null; logo?: string | null }) {
   return (
     <div className="pointer-events-auto mx-3 mt-3 flex items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-md">
-      <span className="flex items-center gap-2 font-bold"><span className="rounded-lg bg-primary p-1.5 text-white"><Truck className="h-4 w-4" /></span>insight<span className="text-primary">Frota</span></span>
+      <span className="flex items-center gap-2 font-bold"><span className="rounded-lg bg-primary p-1.5 text-white"><Truck className="h-4 w-4" /></span><span>insight<span className="text-primary">Frota</span></span></span>
       {(company || logo) && <span className="flex items-center gap-2 text-sm text-muted">{logo && <img src={logo} alt="" className="h-6 w-auto" />}{company}</span>}
     </div>
   );

@@ -14,7 +14,7 @@ import { useMe } from '../session';
 function Shell({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
-      <Link to="/" className="mb-6 flex items-center gap-2 text-xl font-bold"><span className="rounded-lg bg-primary p-1.5 text-white"><Truck className="h-5 w-5" /></span>insight<span className="text-primary">Frota</span></Link>
+      <Link to="/" className="mb-6 flex items-center gap-2 text-xl font-bold"><span className="rounded-lg bg-primary p-1.5 text-white"><Truck className="h-5 w-5" /></span><span>insight<span className="text-primary">Frota</span></span></Link>
       <div className="card w-full max-w-md p-6"><h1 className="mb-5 text-2xl font-bold">{title}</h1>{children}</div>
     </div>
   );
@@ -73,6 +73,7 @@ export function Register() {
         {!!provinces.data?.length && (
           <Field label={`${t.auth.province} (${t.common.optional})`}><Select {...f.register('province')}><option value="">—</option>{provinces.data.map((p) => <option key={p.id}>{p.name}</option>)}</Select></Field>
         )}
+        <p className="text-xs text-muted">{t.legal.acceptRegister} <Link className="text-primary" to="/termos">{t.landing.terms}</Link> {t.legal.and} <Link className="text-primary" to="/privacidade">{t.driverApp.privacyLink}</Link>.</p>
         <Button type="submit" className="w-full" loading={f.formState.isSubmitting}>{t.auth.register}</Button>
       </form>
       <p className="mt-4 text-sm">{t.auth.haveAccount} <Link className="text-primary" to="/login">{t.auth.login}</Link></p>

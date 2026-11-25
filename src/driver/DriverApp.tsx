@@ -60,7 +60,7 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
         <input id="pin" className="input text-center text-3xl tracking-[0.5em]" inputMode="numeric" maxLength={6} autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
         {err && <p className="mt-2 text-sm text-danger" role="alert">{err}</p>}
         <Button size="lg" className="mt-4 w-full" disabled={pin.length < 4} loading={busy} onClick={submit}>{t.driverApp.enter}</Button>
-        <p className="mt-3 text-xs text-muted">{t.driverApp.pinConsent}</p>
+        <p className="mt-3 text-xs text-muted">{t.driverApp.pinConsent} <a className="text-primary" href="/privacidade" target="_blank" rel="noreferrer">{t.driverApp.privacyLink}</a></p>
       </div>
     </div>
   );
@@ -69,7 +69,7 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
 function Consent({ onAccept }: { onAccept: () => void }) {
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="card mt-10 p-6"><h1 className="text-xl font-bold">{t.driverApp.consentTitle}</h1><p className="mt-3 text-muted">{t.driverApp.consentText}</p>
+      <div className="card mt-10 p-6"><h1 className="text-xl font-bold">{t.driverApp.consentTitle}</h1><p className="mt-3 text-muted">{t.driverApp.consentText} <a className="text-primary" href="/privacidade" target="_blank" rel="noreferrer">{t.driverApp.privacyLink}</a></p>
         <p className="mt-3 text-sm text-warning">{t.driverApp.honesty}</p>
         <Button size="lg" className="mt-6 w-full" onClick={onAccept}>{t.driverApp.consentAccept}</Button></div>
     </div>
@@ -304,7 +304,7 @@ function TripCodeCard({ code, tripCode }: { code: string | null; tripCode: strin
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Button variant="secondary" onClick={copy}>{copied ? t.driverApp.copied : t.driverApp.copyLink}</Button>
           <a href={`https://wa.me/?text=${encodeURIComponent(t.driverApp.shareText(code, link!))}`} target="_blank" rel="noreferrer"
-            className="inline-flex items-center justify-center rounded-xl bg-[#1FA855] px-3 py-2 text-sm font-semibold text-white">WhatsApp</a>
+            className="inline-flex items-center justify-center rounded-xl bg-[#1FA855] px-3 py-2 text-sm font-semibold text-white">{t.driverApp.whatsapp}</a>
         </div>
       </> : <p className="mt-1 text-sm text-muted">{t.driverApp.tripCodeNoShare}</p>}
     </div>

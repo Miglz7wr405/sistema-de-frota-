@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, Truck, WifiOff, Map as MapIcon, ShieldCheck, Banknote, Search, ArrowRight } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
+import { ContactLink } from './Legal';
 
 export function Landing() {
   const L = t.landing;
@@ -33,7 +34,7 @@ export function Landing() {
         <div className="hero-trip-photo absolute inset-0 -z-10 bg-cover" style={{ backgroundImage: 'url(/img/camiao-fundo.webp)' }} aria-hidden="true" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-navy/80 via-navy/70 to-navy/95 sm:bg-gradient-to-r sm:from-navy/95 sm:via-navy/75 sm:to-navy/20" aria-hidden="true" />
         <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-5">
-          <span className="flex items-center gap-2 text-xl font-bold"><span className="rounded-lg bg-primary p-1.5"><Truck className="h-5 w-5" /></span>insight<span className="text-[#7FB2FF]">Frota</span></span>
+          <span className="flex items-center gap-2 text-xl font-bold"><span className="rounded-lg bg-primary p-1.5"><Truck className="h-5 w-5" /></span><span>insight<span className="text-[#7FB2FF]">Frota</span></span></span>
           <nav className="flex items-center gap-1 sm:gap-2">
             <a href="/track" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-white/90 hover:bg-white/10 sm:inline">{L.ctaTrack}</a>
             <Link to="/login" className="rounded-lg border border-white/40 px-4 py-2 text-sm font-semibold hover:bg-white/10">{L.ctaLogin}</Link>
@@ -108,8 +109,14 @@ export function Landing() {
         <p className="mt-10 rounded-xl bg-background p-4 text-sm text-muted">{L.honesty}</p>
       </section>
       <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-muted sm:flex-row sm:justify-between">
-          <span>© insightFrota</span><span>{L.footer}</span>
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <span>{L.copyright(new Date().getFullYear())}</span>
+          <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link to="/termos" className="hover:text-navy">{L.terms}</Link>
+            <Link to="/privacidade" className="hover:text-navy">{L.privacy}</Link>
+            <span className="inline-flex items-center gap-1">{L.contact}: <ContactLink /></span>
+          </nav>
+          <span className="w-full text-xs">{L.footer}</span>
         </div>
       </footer>
     </div>

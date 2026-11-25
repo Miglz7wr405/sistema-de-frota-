@@ -11,7 +11,7 @@ E2E_PLACES_FILE=tests/e2e/fixtures/rotas-reais.json SYSTEM_DATABASE_URL="$PGURL/
 APPURL=$(echo "$PGURL" | sed -E 's#//[^@]+@#//app_api:app_api_local@#')
 PUBLIC_BASE_URL=http://localhost:4173 DATABASE_URL="$APPURL/$DB" SYSTEM_DATABASE_URL="$PGURL/$DB" E2E_ROUTING_STUB=1 E2E_ROUTES_FILE=tests/e2e/fixtures/rotas-reais.json E2E_DEMO_PROVINCES=tests/e2e/fixtures/provincias-demo.geojson API_PORT=3001 npx tsx server/dev.ts > test-results-api.log 2>&1 & API=$!
 node scripts/copy-ocr.mjs >/dev/null
-VITE_MAP_STYLE_URL=http://localhost:4173/__test/style.json npx vite build --outDir dist-e2e >/dev/null
+VITE_E2E=1 VITE_MAP_STYLE_URL=http://localhost:4173/__test/style.json npx vite build --outDir dist-e2e >/dev/null
 npx vite preview --outDir dist-e2e --port 4173 --strictPort >/dev/null 2>&1 & PREV=$!
 sleep 6
 node tests/e2e/demo-video.cjs
