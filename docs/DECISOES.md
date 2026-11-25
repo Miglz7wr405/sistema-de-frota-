@@ -241,16 +241,10 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 - **Distritos:** limites ADM2 do geoBoundaries (CC BY 4.0, origem OCHA COD-AB), importados pela tarefa periódica (`completeDistricts`). A produção tem 156. Os km de entrada em cada distrito calculam-se sobre a rota rodoviária real (`routeDistricts`).
 - **Áudio:** gravado antes no ElevenLabs (voz "Dinis", pt-PT, `eleven_multilingual_v2`) e guardado em `public/voz/*.mp3` (mono 48 kbps, ~10 KB cada). Não há chave de API nem pedidos ao ElevenLabs durante a viagem. As gravações da rota são descarregadas quando a viagem abre, por isso tocam sem rede.
 - **Distritos sem gravação:** a mesma frase é dita pela voz do telemóvel.
-- **Estado (2026-11-24):** 192 frases gravadas, 96 nomes. A 2.ª conta ElevenLabs gastou ~8 600 créditos.
-  - **Zambézia:** os 23 distritos.
-  - **Capitais:** as 11 capitais de província.
-  - **Sofala:** todos os distritos.
-  - **Manica:** todos os distritos.
-  - **Tete:** todos os distritos.
-  - **Nampula:** todos os distritos.
-  - **Maputo:** Marracuene, Manhiça, Boane e Moamba (EN1 e EN4/Ressano Garcia).
-- **Por gravar:** Magude, Matutuine e Namaacha (Maputo), e as províncias de Cabo Delgado, Niassa, Gaza e Inhambane. Até lá usam a voz do telemóvel.
-- ⚠️ DEPENDÊNCIA EXTERNA: o resto (5 províncias, ~400 créditos por cada 4 distritos) fica para quando houver créditos ElevenLabs (nova quota ou plano pago). O uso comercial do áudio depende dos termos do plano ElevenLabs.
+- **Estado (2026-11-25): todos os 156 distritos gravados**, 312 frases (`src/driver/voz-manifest.json`). Inclui as 11 capitais, que dizem "cidade de X". Um script confirmou que cada distrito de `admin_areas` tem as frases `-chegou` e `-falta`.
+  - **Contas usadas:** a 2.ª conta ElevenLabs gastou ~8 600 créditos; a 3.ª conta gastou ~5 900 nos 15 lotes finais.
+  - **Voz do telemóvel:** só se usa se aparecer um distrito novo na base.
+- **Uso comercial:** depende dos termos do plano ElevenLabs. As gravações foram feitas em planos gratuitos. ⚠️ DEPENDÊNCIA EXTERNA: confirmar a licença antes do lançamento comercial.
 
 ## ADR-027 — Distritos visíveis ao cliente e no painel (2026-11-23)
 - **Lista branca do DTO público (migração 0018):** passa a incluir `districts` (nome, província e km de entrada ao longo da rota) e `district` (distrito e província da última posição real, só com viagem ativa). Nenhuma geometria nem dado privado é exposto.
