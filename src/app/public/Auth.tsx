@@ -73,7 +73,7 @@ export function Register() {
         {!!provinces.data?.length && (
           <Field label={`${t.auth.province} (${t.common.optional})`}><Select {...f.register('province')}><option value="">—</option>{provinces.data.map((p) => <option key={p.id}>{p.name}</option>)}</Select></Field>
         )}
-        <p className="text-xs text-muted">{t.legal.acceptRegister} <Link className="text-primary" to="/termos">{t.landing.terms}</Link> {t.legal.and} <Link className="text-primary" to="/privacidade">{t.driverApp.privacyLink}</Link>.</p>
+        <p className="text-xs text-muted">{t.legal.acceptRegister} <Link className="text-primary" to="/termos">{t.landing.terms}</Link>.</p>
         <Button type="submit" className="w-full" loading={f.formState.isSubmitting}>{t.auth.register}</Button>
       </form>
       <p className="mt-4 text-sm">{t.auth.haveAccount} <Link className="text-primary" to="/login">{t.auth.login}</Link></p>

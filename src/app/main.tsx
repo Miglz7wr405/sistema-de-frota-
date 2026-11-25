@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui';
 import { Landing } from './public/Landing';
 import { Login, Register, Forgot, Reset, Invite } from './public/Auth';
 import { AppLayout } from './AppLayout';
-import { Terms, Privacy, NotFound } from './public/Legal';
+import { Terms, NotFound } from './public/Legal';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 // Páginas da área privada carregadas sob pedido (a landing fica leve).
@@ -47,7 +47,6 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/reset-password" element={<Reset />} />
             <Route path="/invite" element={<Invite />} />
             <Route path="/termos" element={<Terms />} />
-            <Route path="/privacidade" element={<Privacy />} />
             <Route path="/app" element={<AppLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />

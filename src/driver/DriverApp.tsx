@@ -60,7 +60,7 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
         <input id="pin" className="input text-center text-3xl tracking-[0.5em]" inputMode="numeric" maxLength={6} autoFocus value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
         {err && <p className="mt-2 text-sm text-danger" role="alert">{err}</p>}
         <Button size="lg" className="mt-4 w-full" disabled={pin.length < 4} loading={busy} onClick={submit}>{t.driverApp.enter}</Button>
-        <p className="mt-3 text-xs text-muted">{t.driverApp.pinConsent} <a className="text-primary" href="/privacidade" target="_blank" rel="noreferrer">{t.driverApp.privacyLink}</a></p>
+        <p className="mt-3 text-xs text-muted">{t.driverApp.pinConsent}</p>
       </div>
     </div>
   );
@@ -69,7 +69,7 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
 function Consent({ onAccept }: { onAccept: () => void }) {
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="card mt-10 p-6"><h1 className="text-xl font-bold">{t.driverApp.consentTitle}</h1><p className="mt-3 text-muted">{t.driverApp.consentText} <a className="text-primary" href="/privacidade" target="_blank" rel="noreferrer">{t.driverApp.privacyLink}</a></p>
+      <div className="card mt-10 p-6"><h1 className="text-xl font-bold">{t.driverApp.consentTitle}</h1><p className="mt-3 text-muted">{t.driverApp.consentText}</p>
         <p className="mt-3 text-sm text-warning">{t.driverApp.honesty}</p>
         <Button size="lg" className="mt-6 w-full" onClick={onAccept}>{t.driverApp.consentAccept}</Button></div>
     </div>

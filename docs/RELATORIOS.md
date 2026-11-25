@@ -235,8 +235,8 @@ Não testado: GPS real com o ecrã bloqueado (limite do navegador), Maputo (sem 
 ### Feito
 - **TESTADO** (Playwright em telemóvel):
   - página 404 pública e no painel;
-  - `/termos` e `/privacidade`, sem scroll lateral, com o WhatsApp +258 86 727 2348;
-  - rodapé com © 2026, Termos, Privacidade e Contacto;
+  - `/termos`, sem scroll lateral, com o WhatsApp +258 86 727 2348 (a Política de privacidade foi retirada a pedido do proprietário);
+  - rodapé com © 2026, Termos e Contacto;
   - erro forçado em /track mostra "Algo correu mal · Recarregar", sem ecrã branco.
 - **TESTADO:**
   - `index.html` com og:url, og:locale, twitter:card, canonical e og:image absoluto;

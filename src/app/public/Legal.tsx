@@ -1,4 +1,4 @@
-// Páginas públicas: Termos de uso, Política de privacidade e "Página não encontrada". Textos em pt-MZ.ts.
+// Páginas públicas: Termos de uso e "Página não encontrada". Textos em pt-MZ.ts.
 import { Link } from 'react-router-dom';
 import { MessageCircle, Truck } from 'lucide-react';
 import { t } from '@/i18n/pt-MZ';
@@ -47,7 +47,6 @@ function LegalPage({ title, sections }: { title: string; sections: [string, stri
 }
 
 export const Terms = () => <LegalPage title={t.legal.termsTitle} sections={t.legal.terms} />;
-export const Privacy = () => <LegalPage title={t.legal.privacyTitle} sections={t.legal.privacy} />;
 
 export function NotFound({ panel = false }: { panel?: boolean }) {
   const body = (

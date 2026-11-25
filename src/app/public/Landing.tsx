@@ -113,7 +113,6 @@ export function Landing() {
           <span>{L.copyright(new Date().getFullYear())}</span>
           <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <Link to="/termos" className="hover:text-navy">{L.terms}</Link>
-            <Link to="/privacidade" className="hover:text-navy">{L.privacy}</Link>
             <span className="inline-flex items-center gap-1">{L.contact}: <ContactLink /></span>
           </nav>
           <span className="w-full text-xs">{L.footer}</span>

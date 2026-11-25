@@ -271,12 +271,7 @@ Se o alojamento escolhido não suportar proxy para um domínio externo, usa-se u
 
 ## ADR-029 — Polimento de lançamento (2026-11-25)
 - **Sem ecrã branco:** `ErrorBoundary` nas três entradas (app, /track, motorista). Se um chunk antigo falhar depois de um deploy, a página recarrega sozinha uma vez; senão aparece "Algo correu mal · Recarregar". Endereços errados mostram a página 404 (pública e dentro do painel), em vez de saltarem para a landing.
-- **Termos e Privacidade:** páginas públicas `/termos` e `/privacidade`. Descrevem só o que o sistema faz de facto:
-  - localização do motorista só em viagem e com consentimento;
-  - o DTO público em lista branca;
-  - pagamento por viagem;
-  - dados na UE, com Neon `aws-eu-central-1` em Frankfurt.
-  As ligações estão no rodapé, no registo e no consentimento do motorista. Contacto único em `src/lib/contact.ts`.
+- **Termos de uso:** página pública `/termos`, ligada no rodapé e no registo. Contacto WhatsApp único em `src/lib/contact.ts`. A página de Política de privacidade foi criada e depois **retirada a pedido do proprietário** (25/11); `/privacidade` mostra 404.
 - **/track mais leve:** os textos da página do cliente vivem em `src/i18n/pt-MZ.track.ts` (`tt`), e o `pt-MZ.ts` reexporta-os sem duplicar. O JS partilhado de /track desceu de 60,1 para 50,0 KB gzip.
 - **Ganchos de teste do mapa** (`__zoom`, `__layers`, `__project`) só existem em builds com `VITE_E2E=1`, ou seja, nos scripts E2E.
 - **`sslmode=require` normalizado para `verify-full`** (`server/db.ts`). O comportamento é o mesmo; acaba com o aviso do pg repetido nos registos da Vercel.
